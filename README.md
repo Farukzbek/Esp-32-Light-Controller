@@ -92,6 +92,7 @@ Issues and pull requests are welcome, especially: a tested ESP32-S3 hub configur
 ## License and credits
 
 - This repository's own code: [MIT](LICENSE).
-- `firmware/controller/src/esp_lcd_sh8601.c` and `include/esp_lcd_sh8601.h`: Espressif Systems, Apache-2.0 (see file headers).
-- Display/touch initialisation and `lcd_bsp.c` / `FT3168.cpp`: adapted from [Waveshare's ESP32-S3-Touch-AMOLED-1.64 demo](https://www.waveshare.com/wiki/ESP32-S3-Touch-AMOLED-1.64).
-- Libraries: [LVGL](https://lvgl.io) (MIT), [HomeSpan](https://github.com/HomeSpan/HomeSpan) (MIT).
+- Third-party files (details in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)):
+  - `firmware/controller/src/esp_lcd_sh8601.c` and `include/esp_lcd_sh8601.h`: Espressif Systems, Apache-2.0 (see file headers).
+  - Display/touch initialisation and `lcd_bsp.c` / `FT3168.cpp`: adapted from [Waveshare's ESP32-S3-Touch-AMOLED-1.64 demo](https://www.waveshare.com/wiki/ESP32-S3-Touch-AMOLED-1.64).
+- Libraries (downloaded at build time): [LVGL](https://lvgl.io) (MIT), [HomeSpan](https://github.com/HomeSpan/HomeSpan) (MIT).

@@ -76,6 +76,8 @@ Pil için **korumalı (PCM'li)** LiPo kullan: Waveshare kartında aşırı deşa
 
 ## Lisans ve atıflar
 
+Üçüncü taraf dosyalar için: [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+
 - Bu deponun kendi kodu: [MIT](LICENSE).
 - `firmware/controller/src/esp_lcd_sh8601.c` ve `include/esp_lcd_sh8601.h`: Espressif Systems, Apache-2.0 (dosya başlıklarında belirtilmiştir).
 - Ekran/dokunmatik başlatma kodu ve `lcd_bsp.c` / `FT3168.cpp`: [Waveshare'in ESP32-S3-Touch-AMOLED-1.64 örnek kodundan](https://www.waveshare.com/wiki/ESP32-S3-Touch-AMOLED-1.64) uyarlanmıştır.
