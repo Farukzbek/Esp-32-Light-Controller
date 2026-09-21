@@ -1,0 +1,9 @@
+.pio/
+.vscode/
+.DS_Store
+*.bin
+*.elf
+backup/
+
+# Kisisel ayarlar (MAC adresleri, Wi-Fi ag adi, ESP-NOW parolasi). Sablon: now_config.example.h
+firmware/shared/now_config.h
