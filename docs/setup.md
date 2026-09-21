@@ -1,78 +1,187 @@
-# Kurulum
+# Adım adım kurulum rehberi
 
-## Gereksinimler
+> 🇬🇧 English version: [en/setup.md](en/setup.md)
 
-- [PlatformIO](https://platformio.org/) (`pio` komutu, CLI yeterli)
-- USB veri kablosu, ilk yüklemeler için
-- Apple Home için bir iPhone/iPad, hub ile aynı WiFi ağında
+Aşamaları **sırayla** takip et. Her aşama, çalıştığından emin olman için bir "✅ Kontrol" ile biter. **220V şebeke gerilimi en son** bağlanır, ondan önce her şey masa üstünde (5V ile) çalışıyor olmalı.
 
-Yazılımlar [pioarduino](https://github.com/pioarduino/platform-espressif32) platformunu kullanır (Arduino-ESP32 3.x). Resmi `espressif32` platformu QSPI ekran API'leri için fazla eski kalır. Kütüphaneler (`LVGL 8.3.11`, `HomeSpan`) PlatformIO tarafından otomatik indirilir.
+Tahmini süre: 1–2 saat (ilk derleme araç zincirini indirdiği için birkaç dakika sürer).
 
-## 1) Kişisel ayarlar
+| Aşama | Ne | Gerekenler |
+|---|---|---|
+| 0 | Araçları kur, projeyi indir | Bilgisayar |
+| 1 | MAC adreslerini oku, `now_config.h` oluştur | 3 kart |
+| 2 | Waveshare kartının **V1** olduğunu doğrula | Waveshare kart |
+| 3 | Yatak düğümü masa üstünde (röle tık testi) | S3 Super Mini + röle |
+| 4 | Hub: WiFi + Apple Home + dokunma bandı | S3 Super Mini + röle + folyo bant |
+| 5 | Kumanda (Waveshare) | Waveshare + LiPo |
+| 6 | Router ayarları | Router erişimi |
+| 7 | Uçtan uca test (hala 220V yok) | hepsi |
+| 8 | Lambaları bağla (220V) | [hardware.md](hardware.md#220v-tarafı-güvenlik), önce güvenlik bölümünü oku |
+
+---
+
+## Aşama 0: Araçlar
+
+1. **PlatformIO Core** kur (Python 3.8+):
+   ```bash
+   pip install -U platformio        # her işletim sistemi
+   # macOS alternatifi:  brew install platformio
+   # ya da VS Code "PlatformIO IDE" eklentisi
+   ```
+   ✅ `pio --version` bir sürüm yazmalı.
+2. **Projeyi indir:**
+   ```bash
+   git clone https://github.com/Farukzbek/Esp-32-Light-Controller.git
+   cd Esp-32-Light-Controller
+   ```
+3. **Kartın seri portunu bul** (bir kartı tak):
+   | İşletim sistemi | Nasıl | Örnek |
+   |---|---|---|
+   | macOS | `ls /dev/cu.usbmodem*` | `/dev/cu.usbmodem1101` |
+   | Linux | `ls /dev/ttyACM*` (bir kere `sudo usermod -aG dialout $USER`, sonra oturumu kapat-aç) | `/dev/ttyACM0` |
+   | Windows | Aygıt Yöneticisi → Bağlantı Noktaları (COM ve LPT) | `COM3` |
+
+   ESP32-S3 kartlar çipin **yerel USB**'sini kullanır, normalde ayrı sürücü gerekmez.
+
+## Aşama 1: MAC adresleri ve `now_config.h`
+
+ESP-NOW cihazları **MAC adresiyle** eşler, bu yüzden yüklemeden önce üçünü de bilmen gerekir. MAC'i okumak firmware olmayan yeni bir kartta bile çalışır:
+
+```bash
+pip install esptool
+esptool --port <PORT> read-mac
+```
+
+Kartları **tek tek** tak, hangisinin hangi MAC olduğunu not et:
+
+| Kart | Rol | MAC (örnek) |
+|---|---|---|
+| Waveshare AMOLED | Kumanda (`NOW_CONTROLLER_MAC`) | `A0:B1:C2:D3:E4:F5` |
+| S3 Super Mini #1 | Hub (`NOW_HUB_MAC`) | … |
+| S3 Super Mini #2 | Yatak düğümü (`NOW_BED_MAC`) | … |
+
+Sonra kendi ayar dosyanı oluştur (`.gitignore`'da, bilgisayarından çıkmaz):
 
 ```bash
 cp firmware/shared/now_config.example.h firmware/shared/now_config.h
 ```
 
-`now_config.h` `.gitignore`'dadır, depoya gitmez. İçini doldur:
+`now_config.h` içinde şunları doldur:
+- üç MAC adresi (**BÜYÜK harf**, iki nokta ile ayrılmış),
+- `NOW_ROUTER_SSID`: **hub'ın bağlanacağı 2,4 GHz** WiFi ağının adı. Hub için ileride bir repeater/powerline kullanırsan onun ağ adını yaz,
+- `NOW_PASSWORD`: üç cihazda **aynı** olacak bir parola. Varsayılanı değiştir.
 
-| Ayar | Ne |
-|---|---|
-| `NOW_HUB_MAC`, `NOW_CONTROLLER_MAC`, `NOW_BED_MAC` | Üç cihazın Wi-Fi STA MAC'i |
-| `NOW_ROUTER_SSID` | **Hub'ın bağlanacağı** 2,4 GHz WiFi ağının adı |
-| `NOW_PASSWORD` | ESP-NOW şifreleme parolası, üç cihazda aynı. Değiştir |
+✅ Bu dosya yokken derlersen `#error "now_config.h yok…"` mesajı görürsün. Dosya varken `pio run` çalışır.
 
-**MAC adreslerini** kart USB'ye takılıyken okuyabilirsin:
+## Aşama 2: Waveshare kartın V1 mi?
 
-```bash
-pio pkg exec -p tool-esptoolpy -- esptool --port <PORT> read-mac
-```
-
-(`<PORT>`: macOS'ta `/dev/cu.usbmodemXXXX`, Linux'ta `/dev/ttyACM0`.) Ya da MAC'leri bilmeden önce üç cihaza da bir kez yükle: **açılış seri log'unda MAC yazar** (kumanda `[now] kumanda MAC = ...`, yatak düğümü `YATAK ESP  MAC = ...`, hub HomeSpan başlık bilgisinde `MAC Address: ...`). Sonra `now_config.h`'a yazıp yeniden yükle.
-
-## 2) Yükleme
-
-Her klasörde:
+Waveshare iki donanım revizyonu çıkardı, pinleri farklı. Bu proje **V1** pinleri içindir. Kendi kartını bir dakikada test et:
 
 ```bash
-cd firmware/controller   # ya da hub, bed-node
-pio run -t upload --upload-port <PORT>
+cd firmware/tools/board-check
+pio run -t upload --upload-port <WAVESHARE_PORTU>
+pio device monitor -b 115200 -p <WAVESHARE_PORTU>
 ```
 
-- **Kumanda** (Waveshare): USB-C ile bağla.
-- **ESP32-S3 Super Mini** (hub ve yatak): USB-C ile bağla. Port görünmezse **BOOT** düğmesine basılı tutarak takıp bırak. Yükleme bittikten sonra kartı **BOOT'a basmadan** yeniden tak (BOOT basılıyken kart indirme modunda kalır, program çalışmaz).
-
-## 3) Hub'ın WiFi'sini gir ve Apple Home'a ekle
-
-Hub ilk açılışta WiFi bilgisini bilmez. HomeSpan'ın seri komut satırıyla gir (şifre cihazın hafızasında kalır, kodda yer almaz):
-
-```bash
-pio device monitor -b 115200 -p <PORT>
+V1 kartta beklenen çıktı:
 ```
+  cihaz bulundu: 0x38  <- FT3168 dokunmatik
+  cihaz bulundu: 0x6B  <- QMI8658 IMU
+SONUC: OK. Kartin V1 pinout'una uyuyor ...
+```
+Dokunmatik **bulunamadı** derse kartın büyük ihtimalle V2'dir: `firmware/controller/include/lcd_config.h` içindeki pinleri Waveshare'in V2 örneğine göre değiştirmen gerekir ([notlar](waveshare-amoled-notes.md)). Yükleme olmazsa USB'yi **BOOT** düğmesine basılı tutarak tak. Monitörden `Ctrl+C` ile çık.
 
-1. Terminale tıkla, **bir kez Enter**'a bas.
-2. **Büyük `W`** yaz (başında/sonunda boşluk ya da ok tuşu olmasın), Enter.
-3. Çevredeki ağlar numaralı listelenir, **numarayı** (ya da ağ adını) yaz, Enter.
-4. Şifreyi yaz, Enter. Cihaz kaydedip yeniden başlar ve `WiFi Connected!` yazar.
+✅ `SONUC: OK`.
 
-Hub açılırken **3 saniye boyunca dokunma bandına dokunma** (kalibrasyon).
+## Aşama 3: Yatak düğümü masa üstünde
 
-Apple Home'da **Aksesuar Ekle**'ye bas, HomeSpan'ın varsayılan kurulum koduyla (`466-37-726`) ekle. HomeSpan CLI'da `?` yazarsan komutları görürsün. Kendi kodunu belirlemek için `homeSpan.setPairingCode(...)` kullan.
+1. Bir röle modülünün **sadece düşük gerilim tarafını** bir ESP32-S3 Super Mini'ye bağla:
 
-## 4) Router ayarı (önemli)
+   | S3 Super Mini | Röle modülü |
+   |---|---|
+   | `5V` | `VCC` |
+   | `GND` | `GND` |
+   | `5` (GPIO5) | `IN` |
 
-ESP-NOW kanalı, hub'ın router'a bağlandığı kanaldır. Router'ın 2,4 GHz kanalını **"Otomatik"ten sabit bir kanala (1, 6 ya da 11)** al, kanal genişliğini 20 MHz yap. Otomatik kanal seçen router, yeniden başlayınca kanal değiştirip ESP-NOW bağlantısını bir süre koparabilir. Kumanda ve yatak düğümü kanalı `NOW_ROUTER_SSID`'yi tarayıp kendiliğinden bulur, yine de kanalın sabit olması sorunları azaltır. Hub'a modemden sabit IP (DHCP rezervasyonu) vermek de faydalıdır.
+   **Rölenin vidalı klemenslerine henüz hiçbir şey bağlama.**
+2. **Röle mantığı testi:**
+   ```bash
+   cd firmware/tools/relay-test
+   pio run -t upload --upload-port <PORT>
+   pio device monitor -b 115200 -p <PORT>
+   ```
+   Monitör 2 saniyede bir `GPIO5 = LOW` / `GPIO5 = HIGH` yazar. Yaygın **ters mantıklı (active-low)** modülde röle **LOW yazarken tık yapar** (modül LED'i yanar). HIGH iken tık yapıyorsa modülün normal mantıklıdır: `firmware/hub/src/main.cpp`'de `RELAY_ACTIVE_LOW`'u `0` yap, `firmware/bed-node/src/main.cpp`'de `RELAY_ON`/`RELAY_OFF` değerlerini ters çevir.
+3. **Yatak düğümünü yükle:**
+   ```bash
+   cd ../../bed-node
+   pio run -t upload --upload-port <PORT>
+   pio device monitor -b 115200 -p <PORT>
+   ```
+   Röle **kapalı** açılır, `YATAK ESP  MAC = …` yazar, ardından bir WiFi tarama sonucu (hub henüz çalışmadığı için "SSID bulunamadı" demesi normaldir).
 
-Hub'ı zayıf sinyalli bir yere koyacaksan (`Durum` sayfasında hub `-80 dBm`'den kötü görünüyorsa) WiFi'li bir powerline adaptörü ya da repeater kullan. Bunu yaparsan `NOW_ROUTER_SSID` **hub'ın gerçekte bağlandığı** ağın adı olmalı ve o cihazın kanalı router'la aynı sabit kanala ayarlanmalıdır.
+✅ Yazdığı MAC, `NOW_BED_MAC` ile aynı. Röle açılışta kapalı kalıyor.
 
-## 5) İlk açılış kontrol listesi
+## Aşama 4: Hub
 
-- [ ] Hub seri log'unda `[wifi] baglandi: '...' kanal N` görünüyor.
-- [ ] Kumanda log'unda `[now] kanal kilitlendi: N` (hub ile aynı kanal).
-- [ ] Kumandadan **Masa** düğmesi röleyi tıklatıyor, ekran yeşil/kırmızı doğru gösteriyor.
-- [ ] Dokunma bandı lambayı açıp kapatıyor, kumanda ekranı güncelleniyor.
-- [ ] Apple Home'dan aç/kapat kumandaya yansıyor.
-- [ ] Yatak düğümünü yükledin, rölesi kumandadan tık yapıyor (**220V bağlamadan önce**).
-- [ ] Kumanda **Durum** sayfasında hub/yatak dBm görünüyor.
+1. **Hub'ı bağla:** yatak düğümü gibi (`5V`→`VCC`, `GND`→`GND`, `GPIO5`→`IN`) ve ek olarak **dokunma bandı**: **GPIO4**'ten bir kabloyu masana/kasana yapıştırdığın **alüminyum folyo banda** bağla.
+2. **Yükle** (her açılışta ilk **3 saniye folyoya dokunma**, kalibrasyon yapıyor):
+   ```bash
+   cd firmware/hub
+   pio run -t upload --upload-port <PORT>
+   ```
+3. **Hub'a WiFi'ni ver.** Seri monitörü aç:
+   ```bash
+   pio device monitor -b 115200 -p <PORT>
+   ```
+   - terminale tıkla, **bir kez Enter**'a bas,
+   - büyük **`W`** (Shift+W) yaz, **Enter**'a bas. Öncesinde ve sonrasında **hiçbir şey olmasın: boşluk yok, ok tuşu yok** (hub yazdığın her karakteri olduğu gibi alır, ok tuşları ağ adına girer),
+   - hub çevredeki ağları listeler. Ağının **numarasını** (ya da tam adını) yaz, Enter,
+   - WiFi şifresini yaz, Enter. Hub kaydedip yeniden başlar.
+4. ✅ **Kontrol:** yeniden başladıktan sonra monitörde:
+   ```
+   WiFi Connected! (RSSI=-52 …)
+   [wifi] baglandi: 'AgAdin' kanal 6 RSSI -52 dBm (uyku kapali)
+   ```
+   **Kanal numarasını** not et.
+5. **Apple Home'a ekle** (iPhone hub ile **aynı WiFi**'de): Home uygulaması → **+** → **Aksesuar Ekle** → **Diğer seçenekler…** → **"Masa Lambasi"** → kurulum kodu **`466-37-726`** → sertifikasız aksesuar uyarısında "Yine de Ekle".
+6. **Test:** Apple Home'dan aç/kapa → röle tıklar. Folyoya dokun → röle değişir, Home güncellenir.
 
-Sorun çıkarsa [troubleshooting.md](troubleshooting.md).
+   Folyo tepki vermiyor ya da çok hassassa: `firmware/hub/src/main.cpp` içinde `TOUCH_DEBUG`'ı `1` yap, yeniden yükle, monitörde `deger=` / `baseline=` değerlerine dokunarak/bırakarak bak ve `TOUCH_DELTA_PCT`'yi ayarla. *ESP32-S3'te dokununca değer **yükselir**.* (Bu S3 hub sürümü yazar tarafından donanımda test edilmedi, README'deki durum tablosuna bak.)
+
+## Aşama 5: Kumanda (Waveshare)
+
+1. MX1.25 konnektöre **korumalı** bir LiPo pil bağla. **Önce kutbu kontrol et**: jenerik piller kartın konnektörüyle ters olabilir.
+2. Yükle:
+   ```bash
+   cd firmware/controller
+   pio run -t upload --upload-port <WAVESHARE_PORTU>
+   ```
+3. ✅ **Kontrol:** ekranda menü görünür. Seri log'da `[now] kanal kilitlendi: 6` (**hub'ın bildirdiği kanalla aynı**). Hub çalışırken sol üstteki uyarı üçgeni birkaç saniye içinde kaybolur.
+4. Sayfalar arasında kaydır, **MASA**'daki büyük düğmeye bas: hub'ın rölesi tıklar, düğme sarı/yeşile döner. **YATAK**'a bas: yatak düğümünün rölesi tıklar.
+
+## Aşama 6: Router ayarları (önerilir)
+
+- **2,4 GHz kanalını** sabit bir değere (1, 6 ya da 11) ve kanal genişliğini **20 MHz**'e ayarla. "Otomatik"te router yeniden başlayınca başka kanal seçebilir, ESP-NOW bir süre kopar.
+- Hub'a **sabit IP** (DHCP rezervasyonu) ver.
+- Hub **2,4 GHz** bir ağa bağlanmalı (ESP32 5 GHz bilmez). Her iki bant için tek ağ adı kullanmak sorun değil.
+
+## Aşama 7: Uçtan uca test (hala 220V yok)
+
+- [ ] Kumanda → **MASA** → hub rölesi tıklıyor, renkler doğru.
+- [ ] Folyoya dokun → röle değişiyor, kumanda ekranı takip ediyor.
+- [ ] Apple Home → röle değişiyor, kumanda ekranı takip ediyor.
+- [ ] Kumanda → **YATAK** → yatak rölesi tıklıyor.
+- [ ] Kumanda → **HEPSİ** → iki röle de tepki veriyor.
+- [ ] Kumandanın son sayfası (**menü sırası**) ile bir sayfayı oklarla taşı, yeniden başlatınca kalıyor.
+- [ ] **Durum** sayfası: hub ve yatak için dBm görünüyor (yeşil, yaklaşık −65 dBm'den iyi).
+- [ ] Hub'ın fişini çek: kumanda uyarı üçgenini gösteriyor ve basılan düğme ~2 sn sonra eski haline dönüyor.
+
+Bir şey olmazsa [troubleshooting.md](troubleshooting.md).
+
+## Aşama 8: Lambaları bağla (220V)
+
+Ancak şimdi. **Önce [hardware.md → 220V tarafı](hardware.md#220v-tarafı-güvenlik) bölümünü tamamen oku.** Özet: sigorta kapalı, röleden **sadece faz** geçer (`COM` giriş, `NO` çıkış), nötr röleyi atlar, hepsi kapalı yalıtkan kutuda, ilk denemede lamba prizde değil.
+
+Bağladıktan sonra Aşama 7'deki röle testlerini lambayla tekrarla: **kumanda "kapalı" derken lamba sönük olmalı** ve **ESP'nin fişini çekip taktığında (elektrik kesintisi gibi) lamba kapalı başlamalı.** Lamba ters çalışıyorsa `NC`'ye bağlıdır: `NO`'ya taşı.
+
+🎉 Bitti.

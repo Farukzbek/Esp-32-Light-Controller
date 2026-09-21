@@ -1,5 +1,7 @@
 # Sorun giderme ve öğrenilen dersler
 
+> 🇬🇧 English version: [en/troubleshooting.md](en/troubleshooting.md)
+
 Geliştirme sırasında yaşadığımız sorunlar ve çözümleri.
 
 ## Ekran

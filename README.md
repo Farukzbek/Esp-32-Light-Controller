@@ -3,7 +3,7 @@
 **🇬🇧** A **battery-powered touch AMOLED remote** that switches lamps (and later an LED strip) over **ESP-NOW**: no internet, no router needed. One lamp is also exposed to **Apple Home** (HomeKit) through an ESP32-S3 hub.
 **🇹🇷** ESP-NOW ile **internetsiz çalışan, pilli, dokunmatik AMOLED ışık kumandası**. Bir lamba ayrıca ESP32-S3 hub üzerinden **Apple Home**'a bağlıdır.
 
-> 🇹🇷 Türkçe README: [README.tr.md](README.tr.md). **Note:** the detailed documents in [`docs/`](docs) are currently written in Turkish (the code comments too). This README is enough to get started, feel free to open an issue for questions.
+> 🇹🇷 Türkçe README: [README.tr.md](README.tr.md). The install guide, hardware and troubleshooting docs are available in English ([`docs/en`](docs/en)); the design notes and code comments are in Turkish.
 
 ```
                     Apple Home (iPhone)
@@ -31,44 +31,51 @@
 
 **Bed node (ESP32-S3 Super Mini):** ESP-NOW only (no WiFi at all), relay, always boots **off**.
 
-**Reliability:** absolute-value commands acknowledged by an application-level reply (not the radio ACK), retries, on-screen rollback on failure; channel discovery by scanning the router's SSID and locking the radio to that channel (SpanPoint's own channel hopping is avoided, see [architecture](docs/architecture.md)).
+**Reliability:** absolute-value commands acknowledged by an application-level reply (not the radio ACK), retries, on-screen rollback on failure; channel discovery by scanning the router's SSID and locking the radio to that channel (SpanPoint's own channel hopping is avoided, see [architecture](docs/architecture.md), Turkish).
 
 ## Hardware
 
 | Qty | Part | Notes |
 |---|---|---|
-| 1 | Waveshare **ESP32-S3-Touch-AMOLED-1.64** | Remote. This repo targets the **V1 pinout** (V2 differs, see [notes](docs/waveshare-amoled-notes.md)) |
+| 1 | Waveshare **ESP32-S3-Touch-AMOLED-1.64** | Remote. This repo targets the **V1 pinout** (V2 differs, see [notes](docs/waveshare-amoled-notes.md), Turkish) |
 | 2 | ESP32-S3 Super Mini | Hub and bed node |
 | 2 | 1-channel 5 V relay module (**active-low**) | Switches the lamp's phase wire |
 | 1 | LiPo cell **with protection circuit (PCM)** | The Waveshare board has **no** protection circuit |
 | 1 | Aluminium foil tape | Touch switch on the hub |
 | 2 | 5 V USB adapters (>=1 A) | Hub and bed node (they also power the relay) |
 
-Pins, wiring and mains safety: [docs/hardware.md](docs/hardware.md).
+Pins, wiring and mains safety: [docs/en/hardware.md](docs/en/hardware.md).
 
 ## Quick start
 
-1. Copy `firmware/shared/now_config.example.h` to **`now_config.h`** (git-ignored) and fill in the three devices' MAC addresses, your 2.4 GHz WiFi SSID (the network the **hub** connects to) and an ESP-NOW passphrase.
-2. In each of `firmware/controller`, `firmware/hub`, `firmware/bed-node`:
-   ```bash
-   pio run -t upload --upload-port <PORT>
-   ```
-   ([PlatformIO](https://platformio.org/) is required; the [pioarduino](https://github.com/pioarduino/platform-espressif32) platform and all libraries are downloaded automatically.)
-3. Give the hub its WiFi credentials with the `W` command of the HomeSpan serial CLI (`pio device monitor`), then add it in Apple Home with the default HomeSpan code `466-37-726`.
-4. Set your router's 2.4 GHz channel to a fixed one (1, 6 or 11).
+> **Full step-by-step guide with a check after every stage: [docs/en/setup.md](docs/en/setup.md).** Mains wiring comes last.
 
-Full walkthrough with a checklist: [docs/setup.md](docs/setup.md) (Turkish).
+1. Install [PlatformIO](https://platformio.org/) (`pip install -U platformio`) and clone this repo.
+2. Read the three boards' MAC addresses (`esptool --port <PORT> read-mac`), copy `firmware/shared/now_config.example.h` to **`now_config.h`** (git-ignored) and fill in the MACs, the 2.4 GHz WiFi SSID the **hub** joins, and an ESP-NOW passphrase.
+3. Check your Waveshare board is a V1 with `firmware/tools/board-check`, test the relay with `firmware/tools/relay-test`.
+4. In each of `firmware/controller`, `firmware/hub`, `firmware/bed-node`: `pio run -t upload --upload-port <PORT>`.
+5. Give the hub its WiFi with the `W` command of the HomeSpan serial CLI, add it in Apple Home (default code `466-37-726`).
+6. Fix your router's 2.4 GHz channel (1, 6 or 11).
 
-## Documentation (Turkish)
+## Documentation
+
+**English** ([`docs/en`](docs/en)):
 
 | Doc | Content |
 |---|---|
-| [docs/setup.md](docs/setup.md) | Build, flash, pairing, first-run checklist |
-| [docs/hardware.md](docs/hardware.md) | BOM, pin tables, relay wiring, **mains safety**, power, magnetic dock idea |
-| [docs/architecture.md](docs/architecture.md) | Roles, data flow, reliability, channel handling, sleep strategy |
-| [docs/protocol.md](docs/protocol.md) | 9-byte `NowMsg`, flows, how to add a node (e.g. LED strip) |
-| [docs/waveshare-amoled-notes.md](docs/waveshare-amoled-notes.md) | V1 pins, CO5300 display quirks, touch, IMU fault, charger/battery path from the schematic |
-| [docs/troubleshooting.md](docs/troubleshooting.md) | Symptom → cause → fix table with lessons learned |
+| [setup.md](docs/en/setup.md) | **Step-by-step install guide** (8 stages with checks, mains last) |
+| [hardware.md](docs/en/hardware.md) | BOM, pins, relay wiring, terminal identification, **mains safety**, power |
+| [troubleshooting.md](docs/en/troubleshooting.md) | Install, Apple Home, ESP-NOW and remote problems with fixes |
+
+**Turkish** ([`docs`](docs)): the same guides plus deeper design notes:
+
+| Doc | Content |
+|---|---|
+| [architecture.md](docs/architecture.md) | Roles, data flow, reliability, channel handling, sleep strategy |
+| [protocol.md](docs/protocol.md) | 9-byte `NowMsg`, flows, how to add a node (e.g. LED strip) |
+| [waveshare-amoled-notes.md](docs/waveshare-amoled-notes.md) | V1 pins, CO5300 display quirks, touch, IMU fault, charger/battery path from the schematic |
+
+Helper tools: [`firmware/tools/board-check`](firmware/tools/board-check) (is my Waveshare a V1?) and [`firmware/tools/relay-test`](firmware/tools/relay-test) (relay polarity, no mains needed).
 
 ## Status
 
@@ -76,7 +83,7 @@ Full walkthrough with a checklist: [docs/setup.md](docs/setup.md) (Turkish).
 |---|---|
 | Remote | Tested on real hardware (V1 board) |
 | Bed node | Tested on real hardware (ESP32-S3 Super Mini + 5 V relay) |
-| Hub for ESP32-S3 Super Mini | **Compiles, NOT hardware-tested.** The author's hub is a classic ESP32 running the same logic. Touch readings *rise* on S3 and *fall* on the classic ESP32; see [docs/hardware.md](docs/hardware.md#hub-dokunma-bandı) for tuning (`TOUCH_DEBUG`, `TOUCH_DELTA_PCT`) |
+| Hub for ESP32-S3 Super Mini | **Compiles, NOT hardware-tested.** The author's hub is a classic ESP32 running the same logic. Touch readings *rise* on S3 and *fall* on the classic ESP32; see [docs/en/hardware.md](docs/en/hardware.md#hub-touch-switch) for tuning (`TOUCH_DEBUG`, `TOUCH_DELTA_PCT`) |
 | LED strip node | Planned (the protocol already reserves a device slot) |
 
 Known limitations: the on-screen font is ASCII only; the battery percentage is an estimate (no fuel gauge); the author's board has a faulty accelerometer axis, so orientation uses the gyro; ESP-NOW between the remote and the bed node shows ~10 % radio-ACK loss in the author's setup (commands are retried and idempotent).
@@ -87,7 +94,7 @@ The relay switches **mains voltage**. Only wire it if you know what you are doin
 
 ## Contributing
 
-Issues and pull requests are welcome, especially: a tested ESP32-S3 hub configuration, the Waveshare **V2** pinout, an LED-strip node, and English translations of the docs.
+Issues and pull requests are welcome, especially: a tested ESP32-S3 hub configuration, the Waveshare **V2** pinout, an LED-strip node, and English translations of the design notes (`architecture.md`, `protocol.md`, `waveshare-amoled-notes.md`).
 
 ## License and credits
 

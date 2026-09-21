@@ -1,5 +1,7 @@
 # Donanım, pinler ve kablolama
 
+> 🇬🇧 English version: [en/hardware.md](en/hardware.md)
+
 ## Malzeme listesi
 
 | Adet | Parça | Not |

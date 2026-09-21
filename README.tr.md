@@ -44,16 +44,21 @@ ESP-NOW ile çalışan, **pilli ve dokunmatik AMOLED ışık kumandası**. Masa 
 
 ## Hızlı başlangıç
 
-1. `firmware/shared/now_config.example.h` dosyasını **`now_config.h`** olarak kopyala, MAC adreslerini, Wi-Fi ağ adını ve ESP-NOW parolasını doldur.
-2. Her klasörde `pio run -t upload` ile yükle.
-3. Hub'ın WiFi'sini seri monitörden `W` komutuyla gir, Apple Home'a ekle.
+> **Her aşamada kontrol içeren tam rehber: [docs/setup.md](docs/setup.md).** 220V bağlantısı en sonda yapılır.
 
-Ayrıntılar: **[docs/setup.md](docs/setup.md)**
+1. [PlatformIO](https://platformio.org/) kur (`pip install -U platformio`), depoyu indir.
+2. Üç kartın MAC adresini oku (`esptool --port <PORT> read-mac`), `firmware/shared/now_config.example.h` dosyasını **`now_config.h`** olarak kopyala (git'e girmez) ve MAC'leri, **hub'ın bağlanacağı** 2,4 GHz WiFi ağ adını ve bir ESP-NOW parolasını doldur.
+3. Waveshare kartının V1 olduğunu `firmware/tools/board-check` ile, rölenin mantığını `firmware/tools/relay-test` ile doğrula.
+4. `firmware/controller`, `firmware/hub`, `firmware/bed-node` klasörlerinin her birinde `pio run -t upload --upload-port <PORT>`.
+5. Hub'ın WiFi'sini seri monitörden `W` komutuyla gir, Apple Home'a ekle (varsayılan kod `466-37-726`).
+6. Router'ın 2,4 GHz kanalını sabitle (1, 6 ya da 11).
 
 ## Dokümanlar
 
 - [Mimari ve tasarım kararları](docs/architecture.md)
 - [Donanım, pinler, kablolama, 220V güvenliği](docs/hardware.md)
+- Yardımcı araçlar: [`firmware/tools/board-check`](firmware/tools/board-check) (Waveshare V1 mi?), [`firmware/tools/relay-test`](firmware/tools/relay-test) (röle mantığı, 220V gerekmez)
+- 🇬🇧 English guides: [docs/en](docs/en)
 - [Waveshare AMOLED 1.64" notları (V1 pinleri, ekran, IMU, şarj devresi)](docs/waveshare-amoled-notes.md)
 - [ESP-NOW protokolü](docs/protocol.md)
 - [Kurulum](docs/setup.md)
