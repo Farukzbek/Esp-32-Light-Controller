@@ -4,11 +4,11 @@
 
 | Cihaz | Görev | WiFi'ye bağlı mı? |
 |---|---|---|
-| **Kumanda** (Waveshare AMOLED) | Kullanıcı arayüzü, komut gönderir, durumu gösterir | Hayır (sadece ESP-NOW, WiFi radyosu açık ama bir ağa bağlı değil) |
-| **Hub** (ESP32-S3 Super Mini) | Apple Home lambası + dokunma bandı + röle; kumandanın ESP-NOW karşılığı | **Evet** (HomeKit için) |
-| **Yatak düğümü** (ESP32-S3 Super Mini) | Röleyi sürer | **Hayır** |
+| **Kumanda** (Waveshare AMOLED) | Kullanıcı arayüzü, komut gönderir, durumu gösterir | Hayır |
+| **Masa düğümü / hub** (ESP32-S3 Super Mini) | Dokunma bandı + röle; kumandanın ESP-NOW karşılığı | Hayır |
+| **Yatak düğümü** (ESP32-S3 Super Mini) | Röleyi sürer | Hayır |
 
-Neden hub? HomeKit sürekli açık bir WiFi bağlantısı ister, pilli bir kumanda için uygun değildir. Bu yüzden Apple Home'a bağlı tek cihaz prizde sürekli çalışan hub'dır. Diğerleri modemle hiç konuşmaz, bu da modeme yük bindirmez ve internet gitse bile lambaların çalışmasını sağlar.
+Üç cihaz da yalnızca ESP-NOW konuşur: router, modem, internet ya da bulut gerekmez, bir şey kesilse lambalar çalışmaya devam eder. Cihazlar bir ağa bağlanmadığı için WiFi ağ listesinde de görünmez (yalnızca istasyon modu). Apple Home/HomeKit desteği bilinçli olarak **yoktur**: HomeKit sürekli açık bir WiFi bağlantısı ister ve kanalın router'a bağlanmasına yol açar (bu projenin ilk sürümü böyleydi, aşağıya bak).
 
 ## Veri akışı
 
@@ -16,14 +16,14 @@ Neden hub? HomeKit sürekli açık bir WiFi bağlantısı ister, pilli bir kuman
 Kumanda ekranında düğmeye basılır
    -> UI durumu hemen gösterir (iyimser)
    -> now_send_set(dev, 0/1) kuyruğa girer (ayrı FreeRTOS görevi, arayüz hiç beklemez)
-   -> SpanPoint::send() ile hedef cihaza gider (masa/LED -> hub, yatak -> yatak düğümü)
+   -> SpanPoint::send() ile hedef cihaza gider (masa/LED -> masa düğümü, yatak -> yatak düğümü)
    -> hedef röleyi sürer, aynı seq numarasıyla STATE yanıtı döner
    -> kumanda yanıtı görünce onaylı durumu günceller
    -> 350 ms'de yanıt yoksa yeniden dener (3 kez); hala yoksa ekran onaylı duruma döner
       ve sol üstte uyarı çıkar (hangi cihaz sustu yazar)
 ```
 
-Hub'da bir şey değişirse (dokunma bandı ya da Apple Home) hub `STATE` mesajını kendiliğinden kumandaya iter (`seq = 0`). Kumanda uykudaysa hub bunu atlar (son 25 sn'de kumandadan ses gelmediyse).
+Masa düğümünde bir şey değişirse (dokunma bandı) düğüm `STATE` mesajını kendiliğinden kumandaya iter (`seq = 0`). Kumanda uykudaysa düğüm bunu atlar (son 25 sn'de kumandadan ses gelmediyse).
 
 ## Güvenilirlik kararları
 
@@ -33,19 +33,16 @@ Hub'da bir şey değişirse (dokunma bandı ya da Apple Home) hub `STATE` mesaj�
 
 ## Kanal yönetimi (en kritik kısım)
 
-ESP-NOW cihazları aynı WiFi kanalında olmalıdır. Hub bir router'a bağlı olduğu için router'ın kanalında çalışır. Diğer iki cihaz bu kanalı bulmalıdır.
+ESP-NOW cihazları aynı WiFi kanalında olmalıdır. Üç cihaz `now_config.h` içindeki **`NOW_CHANNEL`** kanalında (varsayılan 1) **sabit** buluşur. Router'a ya da başka bir ağa bağımlılık yoktur.
 
-`SpanPoint` kütüphanesi, karşı taraftan yanıt alamayan uzak cihazda **tüm kanalları sırayla tarar** (her kanalda 3 deneme) ve bunu kalıcı depoya (NVS) yazar. Denediğimizde bunun üç sorunu çıktı:
-1. Uykudaki bir cihaza gönderirken radyo, hub'ın kanalından kopuyordu.
+`SpanPoint` kütüphanesi, karşı taraftan yanıt alamayan uzak cihazda **tüm kanalları sırayla tarar** (her kanalda 3 deneme) ve bunu kalıcı depoya (NVS) yazar. Kilitlemeden önce bunun üç sorunu çıktı:
+1. Uykudaki bir cihaza gönderirken radyo, diğer cihazların kanalından kopuyordu.
 2. Her taramada flash'a yazıldığı için NVS yıpranıyordu.
-3. Yatak düğümü tarama sırasında ~1 sn "sağır" kalıyordu.
+3. Düğüm tarama sırasında ~1 sn "sağır" kalıyordu.
 
-Çözüm (bkz. `firmware/controller/src/now_link.cpp`, `firmware/bed-node/src/main.cpp`):
-- Radyo, `SpanPoint::setChannelMask(1 << kanal)` ile **tek kanala kilitlenir**. Yanıt vermeyen cihaz sadece hızlıca "başarısız" olur, kanal taramaz.
-- Doğru kanal, mesaj onaylarına güvenmeden, **router'ın SSID'sinin WiFi taramasıyla** okunur (`esp_wifi_scan_start` ile o SSID'yi filtreleyip kanalına bakılır, NVS'ye yazmaz). Açılışta ve hub uzun süre sessiz kalırsa seyrek yapılır.
-- Yatak düğümü kontrolcüyle konuşurken (son 8 sn'de mesaj varsa) tarama yapmaz.
+Çözüm (bkz. `firmware/controller/src/now_link.cpp`, `firmware/hub/src/main.cpp`, `firmware/bed-node/src/main.cpp`): radyo `SpanPoint::setChannelMask(1 << NOW_CHANNEL)` ile **tek kanala kilitlenir**. Yanıt vermeyen cihaz sadece hızlıca "başarısız" olur, kanal taramaz.
 
-Bu yüzden `now_config.h` içindeki `NOW_ROUTER_SSID`, **hub'ın gerçekte bağlandığı** ağ adı olmalıdır (powerline/repeater varsa onun yayın adı) ve router'ın kanalını sabitlemeni öneririz (1, 6 ya da 11).
+**Neden router'a bağlı kanal değil?** İlk sürümde hub WiFi'ye bağlıydı (HomeKit için) ve diğer cihazlar hub'ın kanalını router'ın SSID'sini tarayarak buluyordu. Router/powerline'ın WiFi'si kapatılınca ya da kanalı değişince cihazlar birbirini kaybetti. Sabit kanal bu sorun sınıfını ortadan kaldırır. Evinde aynı kanalı yoğun kullanan bir 2,4 GHz ağ varsa `NOW_CHANNEL`'ı değiştir (üç cihazı da yeniden yükle).
 
 ## Uyku stratejisi (kumanda)
 

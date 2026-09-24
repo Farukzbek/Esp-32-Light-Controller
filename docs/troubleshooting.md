@@ -18,22 +18,19 @@ Geliştirme sırasında yaşadığımız sorunlar ve çözümleri.
 | Belirti | Sebep | Çözüm |
 |---|---|---|
 | Komut gitti gibi ama karşı taraf çalışmadı | `SpanPoint::send() == true` sadece radyo ACK'i demektir | Uygulama seviyesinde onay kullan: aynı `seq` ile dönen `STATE` (bkz. protocol.md) |
-| Uykudaki/kapalı bir cihaza gönderince kumanda diğer cihazlarla da konuşamıyor, log sessiz | `SpanPoint` yanıtsız cihaz için **tüm kanalları tarar**, radyo hub'ın kanalından kopar (ve her kanalda NVS'ye yazar) | Radyoyu `setChannelMask(1 << kanal)` ile kilitle. Kanalı router SSID taramasıyla bul (bkz. architecture.md) |
-| Router'ı yeniden başlatınca ya da kanalını değiştirince yatak düğümü kayboluyor | Düğüm eski kanalda kaldı | SSID taramasıyla kanalı yeniden oku (açılışta ve periyodik). Router kanalını sabitle |
+| Uykudaki/kapalı bir cihaza gönderince kumanda diğer cihazlarla da konuşamıyor, log sessiz | `SpanPoint` yanıtsız cihaz için **tüm kanalları tarar**, radyo hub'ın kanalından kopar (ve her kanalda NVS'ye yazar) | Radyoyu `setChannelMask(1 << kanal)` ile kilitle. Sabit `NOW_CHANNEL` kullan (bkz. architecture.md) |
+| Kumanda/düğümler birbirini görmüyor | `NOW_CHANNEL`, `NOW_PASSWORD` ya da MAC üç cihazda farklı | Üç cihazın `now_config.h` değerlerini karşılaştır, hepsini aynı ayarla yeniden yükle. Her cihazın log'unda "sabit kanal = N" aynı olmalı |
+| Bir ağ/router çevresinde sık paket kaybı | Aynı 2,4 GHz kanalında yoğun trafik | `NOW_CHANNEL`'ı boş bir kanala (1, 6, 11) değiştirip üç cihazı yeniden yükle |
 | Aynı komut yatakta 2–5 kez işleniyor | ESP-NOW yeniden denemeleri, ACK kaybı | Sorun değil: `SET` mutlak değer taşır (idempotent) |
 | ~%10–15 paket/ACK kaybı, ara sıra 1 sn gecikme | Radyo ortamı (metal kutu, röle/220V kabloları yakınında anten, ucuz adaptör) | Düğümü metal ve kablolardan uzağa, anteni açıkta tut, sağlam adaptör kullan. Kumandanın **Durum** sayfasındaki dBm'e bak (−65 üstü iyi, −78 altı sınırda) |
 | Yatak lambası ters (ekran "açık" derken sönük) | Lamba rölenin **NC** ucuna bağlanmış | Lambayı **NO**'ya bağla (bkz. hardware.md). Yazılımda tersine çevirme: elektrik kesilince lamba yanar |
-| Tarama sırasında ~1 sn gecikme | WiFi taraması kanal atlar, radyo sağır kalır | Tarama sadece sessizken (yatak: son 8 sn'de mesaj yoksa) yapılır |
 
-## Hub / HomeKit
+## Masa düğümü (hub)
 
 | Belirti | Sebep | Çözüm |
 |---|---|---|
-| Yeniden yükleyince Apple Home eşleşmesi kayboldu | NVS ya da bölüm tablosu değişti, aksesuar yapısı değişti | Aynı `huge_app.csv` bölüm tablosunu kullan, NVS'yi silme, aksesuar/servis/karakteristik sırasını (AID/IID) değiştirme |
-| Hub'ın WiFi ağı adında anlamsız karakterler (`␛[B`) | Seri monitörde `W` komutundan sonra **ok tuşlarına** basıldı, hub bunları ağ adı sandı | `W` komutunu tekrar çalıştır, sadece ağ **numarasını** ya da adını yaz, ok/boşluk kullanma |
-| `Unknown command: ' W'` | `W`'den önce bir boşluk gitti | Önce bir kez Enter, sonra sadece büyük `W` ve Enter |
-| Hub yanıtı arada 100+ ms dalgalanıyor | ESP32 WiFi güç tasarrufu | `esp_wifi_set_ps(WIFI_PS_NONE)` (kodda `onConnected` içinde) |
 | Dokunma bandı hiç/çok hassas çalışıyor | Eşik, kablo/bant boyutuna göre farklı; **S3'te değer yükselir**, klasik ESP32'de düşer | `TOUCH_DEBUG=1` ile değerlere bak, `TOUCH_DELTA_PCT`'yi ayarla |
+| Açılışta dokunulunca yanlış durum | Kalibrasyon dokunuşlu ölçüldü | Yeniden başlat, ilk 3 sn elini çek |
 
 ## Kumanda (Waveshare)
 
@@ -43,7 +40,7 @@ Geliştirme sırasında yaşadığımız sorunlar ve çözümleri.
 | Elde tutarken dönmüyor | Sırt üstü kilit çok hassastı (hafif arkaya yatık tutuş) | Eşik `FLAT_ON_G = 0.97` ve 1 sn şartı ile sıkılaştırıldı |
 | Kısa dokunuş uykuyu uyandırmıyor | Derin uykuda 300 ms'de bir bakılıyor | Ekrana ~0,5 sn basılı tut |
 | USB takılıyken uyumuyor | Tasarım gereği (harici güç varken uyku kapalı) | Test için `-DSLEEP_TEST_ON_USB=1` |
-| Pil bitiyor | ESP-NOW için WiFi radyosu açık, uyku 90 sn sonra | Kullanmıyorken dock'a koy, uyku zamanını `IDLE_SLEEP_MS` ile kısalt |
+| Pil bitiyor | ESP-NOW için radyo açık, uyku 90 sn sonra | Kullanmıyorken dock'a koy, uyku zamanını `IDLE_SLEEP_MS` ile kısalt |
 
 ## Araçlar
 

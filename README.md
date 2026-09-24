@@ -1,21 +1,19 @@
 # ESP32 Light Controller
 
-**🇬🇧** A **battery-powered touch AMOLED remote** that switches lamps (and later an LED strip) over **ESP-NOW**: no internet, no router needed. One lamp is also exposed to **Apple Home** (HomeKit) through an ESP32-S3 hub.
-**🇹🇷** ESP-NOW ile **internetsiz çalışan, pilli, dokunmatik AMOLED ışık kumandası**. Bir lamba ayrıca ESP32-S3 hub üzerinden **Apple Home**'a bağlıdır.
+**🇬🇧** A **battery-powered touch AMOLED remote** that switches lamps (and later an LED strip) over **ESP-NOW**: no internet, no router, no WiFi needed (the devices never appear in WiFi network lists).
+**🇹🇷** ESP-NOW ile **internetsiz çalışan, pilli, dokunmatik AMOLED ışık kumandası**. Router/WiFi gerekmez.
 
 > 🇹🇷 Türkçe README: [README.tr.md](README.tr.md). The install guide, hardware and troubleshooting docs are available in English ([`docs/en`](docs/en)); the design notes and code comments are in Turkish.
 
 ```
-                    Apple Home (iPhone)
-                           |  WiFi (HomeKit)
-                           v
  +--------------+  ESP-NOW  +---------------------+
- |  Remote      |<--------->|  Hub (ESP32-S3)     |-- relay -- desk lamp
- |  Waveshare   |           |  HomeSpan + touch   |-- foil tape (touch switch)
+ |  Remote      |<--------->|  Desk node (hub)    |-- relay -- desk lamp
+ |  Waveshare   |           |  ESP32-S3 Super Mini|-- foil tape (touch switch)
  |  AMOLED 1.64"|  ESP-NOW  +---------------------+
  |  (battery)   |<--------->+---------------------+
  +--------------+           |  Bed node (ESP32-S3)|-- relay -- bedside lamp
                             +---------------------+
+     All three meet on one fixed ESP-NOW channel (NOW_CHANNEL)
 ```
 
 ## Features
@@ -27,11 +25,11 @@
 - Dim after 15 s, off after 60 s, **deep sleep after 90 s on battery** with touch wake-up. Charging icon. Warning when the hub or bed node is unreachable.
 - **Status page:** RSSI (dBm) of the hub and bed node, battery/charging, ESP-NOW channel, lock state.
 
-**Hub (ESP32-S3 Super Mini)** ([HomeSpan](https://github.com/HomeSpan/HomeSpan)): Apple Home light, capacitive-touch switch (aluminium foil tape), relay, ESP-NOW link to the remote.
+**Desk node / hub (ESP32-S3 Super Mini):** capacitive-touch switch (aluminium foil tape), relay, ESP-NOW link to the remote. ESP-NOW only, no WiFi and no Apple Home.
 
 **Bed node (ESP32-S3 Super Mini):** ESP-NOW only (no WiFi at all), relay, always boots **off**.
 
-**Reliability:** absolute-value commands acknowledged by an application-level reply (not the radio ACK), retries, on-screen rollback on failure; channel discovery by scanning the router's SSID and locking the radio to that channel (SpanPoint's own channel hopping is avoided, see [architecture](docs/architecture.md), Turkish).
+**Reliability:** absolute-value commands acknowledged by an application-level reply (not the radio ACK), retries, on-screen rollback on failure; the radio of all three devices is locked to one fixed channel, so nothing depends on a router (SpanPoint's own channel scanning is avoided, see [architecture](docs/architecture.md), Turkish).
 
 ## Hardware
 
@@ -51,11 +49,9 @@ Pins, wiring and mains safety: [docs/en/hardware.md](docs/en/hardware.md).
 > **Full step-by-step guide with a check after every stage: [docs/en/setup.md](docs/en/setup.md).** Mains wiring comes last.
 
 1. Install [PlatformIO](https://platformio.org/) (`pip install -U platformio`) and clone this repo.
-2. Read the three boards' MAC addresses (`esptool --port <PORT> read-mac`), copy `firmware/shared/now_config.example.h` to **`now_config.h`** (git-ignored) and fill in the MACs, the 2.4 GHz WiFi SSID the **hub** joins, and an ESP-NOW passphrase.
+2. Read the three boards' MAC addresses (`esptool --port <PORT> read-mac`), copy `firmware/shared/now_config.example.h` to **`now_config.h`** (git-ignored) and fill in the MACs, the ESP-NOW channel (`NOW_CHANNEL`, default 1) and an ESP-NOW passphrase.
 3. Check your Waveshare board is a V1 with `firmware/tools/board-check`, test the relay with `firmware/tools/relay-test`.
 4. In each of `firmware/controller`, `firmware/hub`, `firmware/bed-node`: `pio run -t upload --upload-port <PORT>`.
-5. Give the hub its WiFi with the `W` command of the HomeSpan serial CLI, add it in Apple Home (default code `466-37-726`).
-6. Fix your router's 2.4 GHz channel (1, 6 or 11).
 
 ## Documentation
 
@@ -63,9 +59,9 @@ Pins, wiring and mains safety: [docs/en/hardware.md](docs/en/hardware.md).
 
 | Doc | Content |
 |---|---|
-| [setup.md](docs/en/setup.md) | **Step-by-step install guide** (8 stages with checks, mains last) |
+| [setup.md](docs/en/setup.md) | **Step-by-step install guide** (7 stages with checks, mains last) |
 | [hardware.md](docs/en/hardware.md) | BOM, pins, relay wiring, terminal identification, **mains safety**, power |
-| [troubleshooting.md](docs/en/troubleshooting.md) | Install, Apple Home, ESP-NOW and remote problems with fixes |
+| [troubleshooting.md](docs/en/troubleshooting.md) | Install, ESP-NOW and remote problems with fixes |
 
 **Turkish** ([`docs`](docs)): the same guides plus deeper design notes:
 
@@ -83,10 +79,10 @@ Helper tools: [`firmware/tools/board-check`](firmware/tools/board-check) (is my 
 |---|---|
 | Remote | Tested on real hardware (V1 board) |
 | Bed node | Tested on real hardware (ESP32-S3 Super Mini + 5 V relay) |
-| Hub for ESP32-S3 Super Mini | **Compiles, NOT hardware-tested.** The author's hub is a classic ESP32 running the same logic. Touch readings *rise* on S3 and *fall* on the classic ESP32; see [docs/en/hardware.md](docs/en/hardware.md#hub-touch-switch) for tuning (`TOUCH_DEBUG`, `TOUCH_DELTA_PCT`) |
+| Desk node for ESP32-S3 Super Mini | **Compiles, NOT hardware-tested.** The author's desk node is a classic ESP32 running the same logic. Touch readings *rise* on S3 and *fall* on the classic ESP32; see [docs/en/hardware.md](docs/en/hardware.md#hub-touch-switch) for tuning (`TOUCH_DEBUG`, `TOUCH_DELTA_PCT`) |
 | LED strip node | Planned (the protocol already reserves a device slot) |
 
-Known limitations: the on-screen font is ASCII only; the battery percentage is an estimate (no fuel gauge); the author's board has a faulty accelerometer axis, so orientation uses the gyro; ESP-NOW between the remote and the bed node shows ~10 % radio-ACK loss in the author's setup (commands are retried and idempotent).
+Known limitations: the on-screen font is ASCII only; the battery percentage is an estimate (no fuel gauge); the author's board has a faulty accelerometer axis, so orientation uses the gyro; the ESP-NOW link to the bed node can lose a few packets if the node sits near metal or mains wiring (commands are retried and idempotent).
 
 ## ⚠️ Safety
 
@@ -102,4 +98,4 @@ Issues and pull requests are welcome, especially: a tested ESP32-S3 hub configur
 - Third-party files (details in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)):
   - `firmware/controller/src/esp_lcd_sh8601.c` and `include/esp_lcd_sh8601.h`: Espressif Systems, Apache-2.0 (see file headers).
   - Display/touch initialisation and `lcd_bsp.c` / `FT3168.cpp`: adapted from [Waveshare's ESP32-S3-Touch-AMOLED-1.64 demo](https://www.waveshare.com/wiki/ESP32-S3-Touch-AMOLED-1.64).
-- Libraries (downloaded at build time): [LVGL](https://lvgl.io) (MIT), [HomeSpan](https://github.com/HomeSpan/HomeSpan) (MIT).
+- Libraries (downloaded at build time): [LVGL](https://lvgl.io) (MIT), [HomeSpan](https://github.com/HomeSpan/HomeSpan) (MIT, used only for its ESP-NOW `SpanPoint` class).

@@ -6,7 +6,7 @@
 #include <string.h>
 
 // Kontrolcu iki cihazla konusur:
-//   0 = hub (masa ESP32):  DEV_MASA, DEV_LED
+//   0 = masa dugumu:       DEV_MASA, DEV_LED
 //   1 = yatak ESP'si:      DEV_YATAK
 // SpanPoint::send() true donse bile karsi uygulama mesaji anlamis olmayabilir (802.11 donanim ACK'i
 // yazilimdan bagimsiz gelir). Gercek onay, karsinin ayni seq ile dondurdugu STATE mesajidir.
@@ -74,50 +74,12 @@ static void enqueue(const NowMsg &m, uint8_t link) {
   if (s_q) xQueueSend(s_q, &o, 0);
 }
 
-// --- Kanal kilidi ---
-// SpanPoint::send() karsi taraf yanit vermezse TUM kanallari tarar (her kanalda 3 deneme) ve her kanal
-// degisiminde kalici depolamaya (NVS) yazar. Yatak ESP'si kapaliyken bu, radyoyu hub'in kanalindan koparir
-// ve flash'i yorar. Bu yuzden normalde radyoyu tek kanala kilitli tutariz: yanit vermeyen cihaz sadece
-// hizla "basarisiz" olur. Hub susarsa seyrek (60 sn'de bir) tek seferlik kanal taramasi yapilir.
-static uint8_t s_ch = 10;   // kilitli kanal
-static uint32_t s_lastDiscover = 0;
-
+// --- Sabit kanal ---
+// Uc cihaz (kumanda, masa dugumu, yatak dugumu) NOW_CHANNEL kanalinda sabit bulusur; router/WiFi'ye bagimli degil.
+// SpanPoint::send() yanit vermeyen bir cihaz icin normalde TUM kanallari tarar (radyoyu koparir, NVS'yi yipratir).
+// Radyoyu tek kanala kilitleyince yanit vermeyen cihaz sadece hizla "basarisiz" olur.
 static void applyLock(uint8_t ch) {
   SpanPoint::setChannelMask(1 << ch);   // radyoyu da bu kanala alir
-  s_ch = ch;
-}
-
-static void lockCurrent() {
-  uint8_t ch; wifi_second_chan_t c2;
-  esp_wifi_get_channel(&ch, &c2);
-  if (ch < 1 || ch > 13) ch = s_ch;
-  applyLock(ch);
-  Serial.printf("[now] kanal kilitlendi: %d\n", ch);
-}
-
-// Modemin (hub'in bagli oldugu agin) kanalini WiFi taramasiyla oku: mesaj onayina bagli degil, NVS'ye yazmaz.
-static uint8_t scanRouterChannel() {
-  wifi_scan_config_t cfg = {};
-  cfg.ssid = (uint8_t *)NOW_ROUTER_SSID;      // sadece bu SSID
-  cfg.scan_type = WIFI_SCAN_TYPE_ACTIVE;
-  cfg.scan_time.active.min = 60;
-  cfg.scan_time.active.max = 120;
-  esp_wifi_set_promiscuous(false);   // tarama sirasinda kapali olmali
-  uint8_t best = 0;
-  if (esp_wifi_scan_start(&cfg, true) == ESP_OK) {   // bloklar (~1.5 sn)
-    wifi_ap_record_t recs[8];
-    uint16_t m = 8;
-    if (esp_wifi_scan_get_ap_records(&m, recs) == ESP_OK) {
-      int bestRssi = -127;
-      for (int i = 0; i < m; i++) {
-        if (strcmp((const char *)recs[i].ssid, NOW_ROUTER_SSID) == 0 && recs[i].primary >= 1 && recs[i].primary <= 13 && recs[i].rssi > bestRssi) {
-          best = recs[i].primary; bestRssi = recs[i].rssi;
-        }
-      }
-    }
-  }
-  esp_wifi_set_promiscuous(s_promisc);
-  return best;
 }
 
 static void pollIncoming() {
@@ -138,35 +100,8 @@ static void pollIncoming() {
   }
 }
 
-// Hub susuyorsa modemin kanalini tara ve ona kilitlen (hub her zaman router kanalinda)
-static void discoverHub() {
-  const uint8_t prev = s_ch;
-  Serial.printf("[now] hub susuyor: modem kanali taraniyor (eski kanal %d)\n", prev);
-  const uint8_t ch = scanRouterChannel();
-  if (ch) { applyLock(ch); Serial.printf("[now] modem kanali %d, kilitlendi\n", ch); }
-  else    { applyLock(prev); Serial.println("[now] modem SSID'si bulunamadi, eski kanalda bekleniyor"); }
-  NowMsg q = {};
-  q.type = NOW_QUERY; q.seq = ++s_seq;
-  s_link[0].sp->send(&q);
-}
-
 static void nowTask(void *) {
-  // Acilis: once sadece hub'i bul (yatak ESP'sine gonderip kanal taramasi baslatma)
-  {
-    NowMsg q = {};
-    q.type = NOW_QUERY; q.seq = ++s_seq;
-    s_link[0].sp->send(&q);
-    const uint32_t before = s_link[0].lastRxMs;
-    for (uint32_t t0 = millis(); millis() - t0 < 4000 && s_link[0].lastRxMs == before; vTaskDelay(pdMS_TO_TICKS(20))) pollIncoming();
-    if (s_link[0].lastRxMs == before) {          // hub son bilinen kanalda cevap vermedi: modemin kanalina bak
-      const uint8_t ch = scanRouterChannel();
-      if (ch) { applyLock(ch); Serial.printf("[now] modem kanali %d, kilitlendi\n", ch); }
-      else lockCurrent();
-    } else {
-      lockCurrent();   // hub bulundu: radyoyu tek kanala kilitle (yatak icin tarama olmasin)
-    }
-  }
-
+  now_query();   // acilista durumu hemen sor
   uint32_t lastQuery = millis();
 
   for (;;) {
@@ -203,12 +138,6 @@ static void nowTask(void *) {
       }
     }
 
-    // hub uzun suredir susuyorsa (baska kanala gecmis olabilir) seyrek kanal taramasi yap
-    if (millis() - s_link[0].lastRxMs > 25000 && millis() - s_lastDiscover > 60000) {
-      s_lastDiscover = millis();
-      discoverHub();
-    }
-
     // periyodik durum sorgusu (ayni zamanda baglanti kontrolu)
     if (millis() - lastQuery > 10000) {
       lastQuery = millis();
@@ -234,7 +163,8 @@ void now_init(void) {
   filt.filter_mask = WIFI_PROMIS_FILTER_MASK_MGMT | WIFI_PROMIS_FILTER_MASK_DATA;
   esp_wifi_set_promiscuous_filter(&filt);
   esp_wifi_set_promiscuous_rx_cb(promiscCb);   // acmak icin now_rssi_enable(true)
-  Serial.printf("[now] kumanda MAC = %s  hub = %s  yatak = %s\n", Network.macAddress().c_str(), NOW_HUB_MAC, NOW_BED_MAC);
+  applyLock(NOW_CHANNEL);
+  Serial.printf("[now] kumanda MAC = %s  masa = %s  yatak = %s  sabit kanal = %d\n", Network.macAddress().c_str(), NOW_HUB_MAC, NOW_BED_MAC, NOW_CHANNEL);
   xTaskCreate(nowTask, "now", 8192, nullptr, 1, nullptr);
 }
 

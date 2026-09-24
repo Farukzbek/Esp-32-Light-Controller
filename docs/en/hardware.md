@@ -11,7 +11,6 @@
 | 1 | Aluminium foil tape + wire | The hub's touch switch |
 | 2 | 5 V USB adapters (≥1 A) + USB-C cables | Hub and bed node. They also power the relay through the ESP's 5 V pin |
 | — | Closed insulated enclosure, terminal blocks, wire (≥0.75 mm²) | For the mains part |
-| — | (optional) WiFi powerline adapter / repeater | If the hub's WiFi signal is weak |
 | — | (recommended) Multimeter | To identify relay terminals; a non-contact voltage tester to find the phase wire |
 
 ## Pins

@@ -7,14 +7,13 @@
 // ya da ilk acilis seri log'unda "MAC = ..." satirina bak.
 
 // Wi-Fi STA MAC adresleri (buyuk harf, iki nokta ustuste ile)
-#define NOW_HUB_MAC         "AA:BB:CC:00:00:01"   // masa ESP32-S3 (HomeSpan hub)
+#define NOW_HUB_MAC         "AA:BB:CC:00:00:01"   // masa lambasi dugumu (hub)
 #define NOW_CONTROLLER_MAC  "AA:BB:CC:00:00:02"   // Waveshare AMOLED kumanda
 #define NOW_BED_MAC         "AA:BB:CC:00:00:03"   // yatak ESP32-S3 Super Mini
 
-// Hub'in baglandigi 2.4 GHz Wi-Fi agi. ESP-NOW kanali, hub'in bu aga bagli oldugu kanaldir;
-// kumanda ve yatak dugumu bu ag adini tarayip kanali okur. Tam olarak hub'in baglandigi ag olmali
-// (powerline / repeater varsa onun yayin adi).
-#define NOW_ROUTER_SSID     "YOUR_WIFI_SSID"
+// ESP-NOW kanali (1..13). Uc cihaz bu kanalda SABIT bulusur; WiFi/router/modem gerekmez.
+// Evde ayni kanali kullanan baska bir 2.4 GHz ag varsa (router) farkli bir kanal secmek iyi olur.
+#define NOW_CHANNEL         1
 
 // ESP-NOW sifreleme anahtari uretmek icin parola. Uc cihazda AYNI olmali. Degistir!
 #define NOW_PASSWORD        "change-me-please"

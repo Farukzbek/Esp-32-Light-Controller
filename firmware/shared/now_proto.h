@@ -1,10 +1,10 @@
 #pragma once
 #include <stdint.h>
 
-// Kumanda (Waveshare AMOLED) <-> hub (HomeSpan) ve yatak dugumu ESP-NOW protokolu.
+// Kumanda (Waveshare AMOLED) <-> masa dugumu (hub) ve yatak dugumu ESP-NOW protokolu.
 // Iki uc da BU dosyayi kullanir: mesaj boyutu (sizeof(NowMsg)) iki tarafta ayni olmak zorunda.
 
-// Cihaza ozel ayarlar (MAC adresleri, Wi-Fi ag adi, sifreleme parolasi) now_config.h icinde.
+// Cihaza ozel ayarlar (MAC adresleri, ESP-NOW kanali, sifreleme parolasi) now_config.h icinde.
 #if __has_include("now_config.h")
 #include "now_config.h"
 #else

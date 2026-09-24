@@ -14,15 +14,10 @@
 | Boards with a **CH340** USB chip fail with `Invalid head of packet` | Upload speed too high | Set `upload_speed = 115200` in `platformio.ini` |
 | Serial log starts empty | Opening the port resets the board | Wait for the next messages or press the board's reset |
 
-## Hub / Apple Home
+## Desk node (hub)
 
 | Symptom | Cause | Fix |
 |---|---|---|
-| Hub tries to join a network named `␛[B␛[B1…` | Arrow keys were pressed inside the serial monitor during `W` | Run `W` again; type only the network **number** or exact name, no arrows/spaces |
-| `Unknown command: ' W'` | A space or stray character was sent before `W` | Press Enter once, then type only `W` and Enter |
-| Apple Home cannot find "Masa Lambasi" | iPhone not on the same WiFi, router client isolation, no local-network permission | Same network, disable AP isolation, allow *Local Network* for the Home app |
-| Pairing lost after re-flashing | NVS or partition table changed, or accessory structure changed | Keep `huge_app.csv`, do not erase flash, do not change accessory/service/characteristic order |
-| Home response jitters by 100+ ms | WiFi power save | Already disabled in the hub firmware (`WIFI_PS_NONE`) |
 | Touch switch does nothing / too sensitive | Threshold depends on foil size and wire length; S3 readings **rise** | `TOUCH_DEBUG=1`, tune `TOUCH_DELTA_PCT` |
 | Wrong lamp state after touching during boot | Calibration ran while touched | Reboot and keep hands off for the first 3 s |
 
@@ -30,12 +25,12 @@
 
 | Symptom | Cause | Fix |
 |---|---|---|
-| Remote shows a warning triangle with `HUB` or `YATAK` | Device not reachable / different channel | Check the device is powered; compare the channel in the logs (`kanal`), fix your router's 2.4 GHz channel; make sure `NOW_ROUTER_SSID` is the network the **hub** joins |
-| Everything worked, then stopped after a router reboot | Router picked another channel | Set a fixed channel; nodes re-read the channel by scanning the SSID (may take up to a minute) |
+| Remote shows a warning triangle with `HUB` or `YATAK` | Device not reachable / different channel | Check the device is powered; every device's log must print the same `sabit kanal = N` (fixed channel) |
+| Frequent packet loss near a busy router | Same 2.4 GHz channel is crowded | Change `NOW_CHANNEL` to a quiet one (1, 6, 11) and re-flash all three devices |
 | A tap reverts after ~2 s | The command was not answered (device off, other channel, weak signal) | See above; open the **Status** page and check dBm (better than −65 good, worse than −78 marginal) |
 | Command sometimes takes ~1 s | Radio packet loss, retried | Move the node away from metal, relays and mains wires; use a good 5 V adapter; keep the antenna end of the board free |
 | Lamp state on the screen is inverted | Lamp wired to relay `NC` | Move it to `NO` ([hardware](hardware.md#mains-wiring)) |
-| Devices don't see each other at all | Different `NOW_PASSWORD`, wrong MAC in config | The three devices need the same passphrase; re-check the MAC addresses (`esptool read-mac`) |
+| Devices don't see each other at all | Different `NOW_CHANNEL` / `NOW_PASSWORD`, wrong MAC in config | The three devices need the same passphrase; re-check the MAC addresses (`esptool read-mac`) |
 
 ## Remote (Waveshare)
 

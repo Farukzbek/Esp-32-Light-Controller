@@ -13,7 +13,6 @@
 | 1 | Alüminyum folyo bant + iki tel | Hub'ın dokunma bandı |
 | 2 | 5V USB adaptör (≥1 A) + USB-C kablo | Hub ve yatak düğümü için |
 | — | Kapalı, yalıtkan kutu, klemens, kablo (≥0,75 mm²) | 220V bağlantıları için |
-| — | (İsteğe bağlı) WiFi'li powerline adaptörü | Hub'ın sinyali zayıfsa |
 
 ## Kumanda: Waveshare ESP32-S3-Touch-AMOLED-1.64 (V1)
 

@@ -12,11 +12,10 @@ Tahmini süre: 1–2 saat (ilk derleme araç zincirini indirdiği için birkaç 
 | 1 | MAC adreslerini oku, `now_config.h` oluştur | 3 kart |
 | 2 | Waveshare kartının **V1** olduğunu doğrula | Waveshare kart |
 | 3 | Yatak düğümü masa üstünde (röle tık testi) | S3 Super Mini + röle |
-| 4 | Hub: WiFi + Apple Home + dokunma bandı | S3 Super Mini + röle + folyo bant |
+| 4 | Masa düğümü (hub): dokunma bandı + röle | S3 Super Mini + röle + folyo bant |
 | 5 | Kumanda (Waveshare) | Waveshare + LiPo |
-| 6 | Router ayarları | Router erişimi |
-| 7 | Uçtan uca test (hala 220V yok) | hepsi |
-| 8 | Lambaları bağla (220V) | [hardware.md](hardware.md#220v-tarafı-güvenlik), önce güvenlik bölümünü oku |
+| 6 | Uçtan uca test (hala 220V yok) | hepsi |
+| 7 | Lambaları bağla (220V) | [hardware.md](hardware.md#220v-tarafı-güvenlik), önce güvenlik bölümünü oku |
 
 ---
 
@@ -68,7 +67,7 @@ cp firmware/shared/now_config.example.h firmware/shared/now_config.h
 
 `now_config.h` içinde şunları doldur:
 - üç MAC adresi (**BÜYÜK harf**, iki nokta ile ayrılmış),
-- `NOW_ROUTER_SSID`: **hub'ın bağlanacağı 2,4 GHz** WiFi ağının adı. Hub için ileride bir repeater/powerline kullanırsan onun ağ adını yaz,
+- `NOW_CHANNEL`: üç cihazın buluşacağı ESP-NOW kanalı (1–13, varsayılan 1). WiFi/router gerekmez. Komşu/router'ın 2,4 GHz kanalıyla çakışmamasında fayda var,
 - `NOW_PASSWORD`: üç cihazda **aynı** olacak bir parola. Varsayılanı değiştir.
 
 ✅ Bu dosya yokken derlersen `#error "now_config.h yok…"` mesajı görürsün. Dosya varken `pio run` çalışır.
@@ -117,11 +116,11 @@ Dokunmatik **bulunamadı** derse kartın büyük ihtimalle V2'dir: `firmware/con
    pio run -t upload --upload-port <PORT>
    pio device monitor -b 115200 -p <PORT>
    ```
-   Röle **kapalı** açılır, `YATAK ESP  MAC = …` yazar, ardından bir WiFi tarama sonucu (hub henüz çalışmadığı için "SSID bulunamadı" demesi normaldir).
+   Röle **kapalı** açılır ve `YATAK DUGUMU  MAC = …  sabit kanal = 1` yazar.
 
-✅ Yazdığı MAC, `NOW_BED_MAC` ile aynı. Röle açılışta kapalı kalıyor.
+✅ Yazdığı MAC `NOW_BED_MAC` ile, kanal `NOW_CHANNEL` ile aynı. Röle açılışta kapalı kalıyor.
 
-## Aşama 4: Hub
+## Aşama 4: Masa düğümü (hub)
 
 1. **Hub'ı bağla:** yatak düğümü gibi (`5V`→`VCC`, `GND`→`GND`, `GPIO5`→`IN`) ve ek olarak **dokunma bandı**: **GPIO4**'ten bir kabloyu masana/kasana yapıştırdığın **alüminyum folyo banda** bağla.
 2. **Yükle** (her açılışta ilk **3 saniye folyoya dokunma**, kalibrasyon yapıyor):
@@ -129,22 +128,12 @@ Dokunmatik **bulunamadı** derse kartın büyük ihtimalle V2'dir: `firmware/con
    cd firmware/hub
    pio run -t upload --upload-port <PORT>
    ```
-3. **Hub'a WiFi'ni ver.** Seri monitörü aç:
+3. **Kontrol için seri monitörü aç** (başlangıçta 3 sn dokunma kalibrasyonu var):
    ```bash
    pio device monitor -b 115200 -p <PORT>
    ```
-   - terminale tıkla, **bir kez Enter**'a bas,
-   - büyük **`W`** (Shift+W) yaz, **Enter**'a bas. Öncesinde ve sonrasında **hiçbir şey olmasın: boşluk yok, ok tuşu yok** (hub yazdığın her karakteri olduğu gibi alır, ok tuşları ağ adına girer),
-   - hub çevredeki ağları listeler. Ağının **numarasını** (ya da tam adını) yaz, Enter,
-   - WiFi şifresini yaz, Enter. Hub kaydedip yeniden başlar.
-4. ✅ **Kontrol:** yeniden başladıktan sonra monitörde:
-   ```
-   WiFi Connected! (RSSI=-52 …)
-   [wifi] baglandi: 'AgAdin' kanal 6 RSSI -52 dBm (uyku kapali)
-   ```
-   **Kanal numarasını** not et.
-5. **Apple Home'a ekle** (iPhone hub ile **aynı WiFi**'de): Home uygulaması → **+** → **Aksesuar Ekle** → **Diğer seçenekler…** → **"Masa Lambasi"** → kurulum kodu **`466-37-726`** → sertifikasız aksesuar uyarısında "Yine de Ekle".
-6. **Test:** Apple Home'dan aç/kapa → röle tıklar. Folyoya dokun → röle değişir, Home güncellenir.
+   ✅ `MASA DUGUMU  MAC = …  sabit kanal = 1` yazar (MAC `NOW_HUB_MAC` ile aynı olmalı). Hub WiFi'ye bağlanmaz, Apple Home yoktur.
+4. **Test (kumanda Aşama 5'te hazır olunca):** kumandadan aç/kapa → röle tıklar. Folyoya dokun → röle değişir, kumanda ekranı takip eder.
 
    Folyo tepki vermiyor ya da çok hassassa: `firmware/hub/src/main.cpp` içinde `TOUCH_DEBUG`'ı `1` yap, yeniden yükle, monitörde `deger=` / `baseline=` değerlerine dokunarak/bırakarak bak ve `TOUCH_DELTA_PCT`'yi ayarla. *ESP32-S3'te dokununca değer **yükselir**.* (Bu S3 hub sürümü yazar tarafından donanımda test edilmedi, README'deki durum tablosuna bak.)
 
@@ -156,20 +145,13 @@ Dokunmatik **bulunamadı** derse kartın büyük ihtimalle V2'dir: `firmware/con
    cd firmware/controller
    pio run -t upload --upload-port <WAVESHARE_PORTU>
    ```
-3. ✅ **Kontrol:** ekranda menü görünür. Seri log'da `[now] kanal kilitlendi: 6` (**hub'ın bildirdiği kanalla aynı**). Hub çalışırken sol üstteki uyarı üçgeni birkaç saniye içinde kaybolur.
+3. ✅ **Kontrol:** ekranda menü görünür. Seri log'da `[now] kumanda MAC = … sabit kanal = 1` (**`NOW_CHANNEL` ile aynı**). Hub çalışırken sol üstteki uyarı üçgeni birkaç saniye içinde kaybolur.
 4. Sayfalar arasında kaydır, **MASA**'daki büyük düğmeye bas: hub'ın rölesi tıklar, düğme sarı/yeşile döner. **YATAK**'a bas: yatak düğümünün rölesi tıklar.
 
-## Aşama 6: Router ayarları (önerilir)
-
-- **2,4 GHz kanalını** sabit bir değere (1, 6 ya da 11) ve kanal genişliğini **20 MHz**'e ayarla. "Otomatik"te router yeniden başlayınca başka kanal seçebilir, ESP-NOW bir süre kopar.
-- Hub'a **sabit IP** (DHCP rezervasyonu) ver.
-- Hub **2,4 GHz** bir ağa bağlanmalı (ESP32 5 GHz bilmez). Her iki bant için tek ağ adı kullanmak sorun değil.
-
-## Aşama 7: Uçtan uca test (hala 220V yok)
+## Aşama 6: Uçtan uca test (hala 220V yok)
 
 - [ ] Kumanda → **MASA** → hub rölesi tıklıyor, renkler doğru.
 - [ ] Folyoya dokun → röle değişiyor, kumanda ekranı takip ediyor.
-- [ ] Apple Home → röle değişiyor, kumanda ekranı takip ediyor.
 - [ ] Kumanda → **YATAK** → yatak rölesi tıklıyor.
 - [ ] Kumanda → **HEPSİ** → iki röle de tepki veriyor.
 - [ ] Kumandanın son sayfası (**menü sırası**) ile bir sayfayı oklarla taşı, yeniden başlatınca kalıyor.
@@ -178,10 +160,10 @@ Dokunmatik **bulunamadı** derse kartın büyük ihtimalle V2'dir: `firmware/con
 
 Bir şey olmazsa [troubleshooting.md](troubleshooting.md).
 
-## Aşama 8: Lambaları bağla (220V)
+## Aşama 7: Lambaları bağla (220V)
 
 Ancak şimdi. **Önce [hardware.md → 220V tarafı](hardware.md#220v-tarafı-güvenlik) bölümünü tamamen oku.** Özet: sigorta kapalı, röleden **sadece faz** geçer (`COM` giriş, `NO` çıkış), nötr röleyi atlar, hepsi kapalı yalıtkan kutuda, ilk denemede lamba prizde değil.
 
-Bağladıktan sonra Aşama 7'deki röle testlerini lambayla tekrarla: **kumanda "kapalı" derken lamba sönük olmalı** ve **ESP'nin fişini çekip taktığında (elektrik kesintisi gibi) lamba kapalı başlamalı.** Lamba ters çalışıyorsa `NC`'ye bağlıdır: `NO`'ya taşı.
+Bağladıktan sonra Aşama 6'daki röle testlerini lambayla tekrarla: **kumanda "kapalı" derken lamba sönük olmalı** ve **ESP'nin fişini çekip taktığında (elektrik kesintisi gibi) lamba kapalı başlamalı.** Lamba ters çalışıyorsa `NC`'ye bağlıdır: `NO`'ya taşı.
 
 🎉 Bitti.

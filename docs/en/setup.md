@@ -10,11 +10,10 @@ Estimated time: 1–2 hours (the first build downloads toolchains and takes a fe
 | 1 | Read the boards' MAC addresses, create `now_config.h` | 3 boards |
 | 2 | Check your Waveshare board is **V1** | Waveshare board |
 | 3 | Bed node on the bench (relay click test) | S3 Super Mini + relay |
-| 4 | Hub: WiFi + Apple Home + touch switch | S3 Super Mini + relay + foil tape |
+| 4 | Desk node (hub): touch switch + relay | S3 Super Mini + relay + foil tape |
 | 5 | Remote (Waveshare) | Waveshare + LiPo |
-| 6 | Router settings | Router access |
-| 7 | End-to-end test (still no mains) | everything |
-| 8 | Connect the lamps (mains) | see [hardware.md](hardware.md#mains-wiring) — read the safety section first |
+| 6 | End-to-end test (still no mains) | everything |
+| 7 | Connect the lamps (mains) | see [hardware.md](hardware.md#mains-wiring) — read the safety section first |
 
 ---
 
@@ -68,7 +67,7 @@ cp firmware/shared/now_config.example.h firmware/shared/now_config.h
 
 Open `now_config.h` and set:
 - the three MAC addresses (**UPPER CASE**, colon separated),
-- `NOW_ROUTER_SSID`: the name of the **2.4 GHz** WiFi network the **hub** will join. If you later use a WiFi extender/powerline for the hub, use *its* network name,
+- `NOW_CHANNEL`: the ESP-NOW channel (1–13, default 1) where the three devices meet. No WiFi/router needed; avoid your router's 2.4 GHz channel if you can,
 - `NOW_PASSWORD`: any passphrase, the same for all three devices. Change it from the default.
 
 ✅ Check: building without this file shows a clear `#error "now_config.h yok…"` message; with the file, `pio run` works.
@@ -119,11 +118,11 @@ If the upload fails, hold the **BOOT** button while plugging the USB cable in, t
    pio run -t upload --upload-port <PORT>
    pio device monitor -b 115200 -p <PORT>
    ```
-   It boots with the relay **off**, and prints `YATAK ESP  MAC = …`, then a WiFi scan result (it will say the channel it found, or that the SSID was not found; the hub is not running yet, that is fine for now).
+   It boots with the relay **off**, and prints `YATAK DUGUMU  MAC = …  sabit kanal = 1` ("fixed channel").
 
-✅ Check: MAC printed matches `NOW_BED_MAC`. Relay stays off after boot.
+✅ Check: MAC printed matches `NOW_BED_MAC`, channel matches `NOW_CHANNEL`. Relay stays off after boot.
 
-## Stage 4: Hub
+## Stage 4: Desk node (hub)
 
 1. **Wire the hub** like the bed node (`5V`→`VCC`, `GND`→`GND`, `GPIO5`→`IN`), plus the **touch switch**: solder/attach a wire from **GPIO4** to a piece of **aluminium foil tape** stuck on your desk/case.
 2. **Flash it** (do **not touch the foil** during the first 3 s after every boot, it calibrates):
@@ -131,22 +130,12 @@ If the upload fails, hold the **BOOT** button while plugging the USB cable in, t
    cd firmware/hub
    pio run -t upload --upload-port <PORT>
    ```
-3. **Give the hub your WiFi.** Open the serial monitor:
+3. **Open the serial monitor** to check (the first 3 s are the touch calibration):
    ```bash
    pio device monitor -b 115200 -p <PORT>
    ```
-   - click into the terminal and press **Enter once**,
-   - type a capital **`W`** (Shift+W) and press **Enter**. Nothing before or after it: **no spaces, no arrow keys** (the hub takes every character literally, arrow keys end up in the network name),
-   - the hub lists nearby networks. Type the **number** of your network (or its exact name) and press Enter,
-   - type the WiFi password and press Enter. The hub saves it and restarts.
-4. ✅ **Check** in the monitor after the restart:
-   ```
-   WiFi Connected! (RSSI=-52 …)
-   [wifi] baglandi: 'YourSSID' kanal 6 RSSI -52 dBm (uyku kapali)
-   ```
-   Note the **channel number**.
-5. **Add it to Apple Home** (iPhone on the **same WiFi**): Home app → **+** → **Add Accessory** → **More options…** → pick **"Masa Lambasi"** → enter the setup code **`466-37-726`** → "Add anyway" for the uncertified-accessory warning.
-6. **Test:** switch it in Apple Home → the relay clicks. Touch the foil → the relay toggles and the Home app updates.
+   ✅ It prints `MASA DUGUMU  MAC = …  sabit kanal = 1` (the MAC must match `NOW_HUB_MAC`). The hub never joins a WiFi network and there is no Apple Home.
+4. **Test (once the remote is ready in stage 5):** switch it from the remote → the relay clicks. Touch the foil → the relay toggles and the remote screen follows.
 
    If the foil does nothing or is too sensitive: set `TOUCH_DEBUG` to `1` in `firmware/hub/src/main.cpp`, re-flash, watch `deger=` / `baseline=` in the monitor (touch and release), and adjust `TOUCH_DELTA_PCT`. *On ESP32-S3 the value goes **up** when touched.* (This S3 hub build is not hardware-tested by the author, see the README status table.)
 
@@ -158,20 +147,13 @@ If the upload fails, hold the **BOOT** button while plugging the USB cable in, t
    cd firmware/controller
    pio run -t upload --upload-port <PORT_OF_WAVESHARE>
    ```
-3. ✅ Check: the screen shows the menu. In the serial log you should see `[now] kanal kilitlendi: 6` (**the same channel the hub reported**). While the hub is running, the top-left warning triangle disappears after a few seconds.
+3. ✅ Check: the screen shows the menu. In the serial log you should see `[now] kumanda MAC = … sabit kanal = 1` (**the same as `NOW_CHANNEL`**). While the hub is running, the top-left warning triangle disappears after a few seconds.
 4. Swipe between pages; tap the big button on **MASA**: the hub's relay clicks and the button turns yellow/green. Tap **YATAK**: the bed node's relay clicks.
 
-## Stage 6: Router settings (recommended)
-
-- Set the **2.4 GHz channel** to a **fixed** value (1, 6 or 11) and the channel width to **20 MHz**. On *Auto*, a router that reboots may pick another channel and the ESP-NOW link drops for a while.
-- Give the hub a **fixed IP** (DHCP reservation) for stability.
-- The hub must join a **2.4 GHz** network (ESP32 has no 5 GHz). One SSID shared by both bands is fine.
-
-## Stage 7: End-to-end test (still no mains)
+## Stage 6: End-to-end test (still no mains)
 
 - [ ] Remote → **MASA** → hub relay clicks, colours correct.
 - [ ] Touch foil → relay toggles, remote screen follows.
-- [ ] Apple Home → relay toggles, remote screen follows.
 - [ ] Remote → **YATAK** → bed relay clicks.
 - [ ] Remote → **HEPSI / ALL** → both relays react.
 - [ ] Open the remote's last page (**menu order**) and move a page with the arrows; it stays after a reboot.
@@ -180,10 +162,10 @@ If the upload fails, hold the **BOOT** button while plugging the USB cable in, t
 
 If something fails, see [troubleshooting.md](troubleshooting.md).
 
-## Stage 8: Connect the lamps (mains)
+## Stage 6: Connect the lamps (mains)
 
 Only now. **Read [hardware.md → Mains wiring](hardware.md#mains-wiring) completely first.** In short: breaker off, only the **phase wire** goes through the relay (`COM` in, `NO` out), neutral bypasses the relay, everything in a closed insulated box, and test with the lamp still unplugged.
 
-After wiring, repeat Stage 7's relay tests with the lamp: **lamp off when the remote says off, and lamp off after you unplug and re-plug the ESP** (power cut). If the lamp is inverted, it is wired to `NC`: move it to `NO`.
+After wiring, repeat Stage 6's relay tests with the lamp: **lamp off when the remote says off, and lamp off after you unplug and re-plug the ESP** (power cut). If the lamp is inverted, it is wired to `NC`: move it to `NO`.
 
 🎉 Done.

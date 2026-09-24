@@ -1,21 +1,19 @@
 # ESP32 Light Controller (Masa Kumanda)
 
-ESP-NOW ile çalışan, **pilli ve dokunmatik AMOLED ışık kumandası**. Masa ve yatak lambasını, ileride LED şeridi, internet olmadan da kontrol eder. Masadaki lamba ayrıca **Apple Home**'a (HomeKit) bağlıdır.
+ESP-NOW ile çalışan, **pilli ve dokunmatik AMOLED ışık kumandası**. Masa ve yatak lambasını, ileride LED şeridi, internet olmadan da kontrol eder. Router, modem ya da WiFi gerekmez; cihazlar WiFi ağ listesinde de görünmez.
 
 > 🇬🇧 English (main README): [README.md](README.md)
 
 ```
-                      Apple Home (iPhone)
-                             |  WiFi (HomeKit)
-                             v
    +----------------+   ESP-NOW   +------------------------+
-   |  Kumanda       |<----------->|  Hub (ESP32-S3 Mini)   |--- role --- masa lambasi
-   |  Waveshare     |             |  HomeSpan + dokunma    |--- alüminyum bant (dokunma)
+   |  Kumanda       |<----------->|  Masa düğümü (hub)     |--- role --- masa lambasi
+   |  Waveshare     |             |  ESP32-S3 Super Mini   |--- alüminyum bant (dokunma)
    |  AMOLED 1.64"  |   ESP-NOW   +------------------------+
    |  (pilli)       |<----------->+------------------------+
    +----------------+             |  Yatak düğümü          |--- role --- yatak lambasi
                                   |  ESP32-S3 Super Mini   |
                                   +------------------------+
+        Üç cihaz sabit bir ESP-NOW kanalında buluşur (NOW_CHANNEL)
 ```
 
 ## Özellikler
@@ -28,7 +26,7 @@ ESP-NOW ile çalışan, **pilli ve dokunmatik AMOLED ışık kumandası**. Masa 
 - Sağ üstte şarj simgesi, hub/yatak bağlantısı kopunca uyarı.
 - **Durum sayfası:** hub ve yatak sinyal gücü (dBm), pil/şarj, ESP-NOW kanalı, yön kilidi.
 
-**Hub (ESP32-S3 Super Mini)** — HomeSpan ile Apple Home lambası, kapasitif dokunma bandı ile açma/kapama, röle, kumanda ile ESP-NOW.
+**Masa düğümü / hub (ESP32-S3 Super Mini)** — kapasitif dokunma bandı ile açma/kapama, röle, kumanda ile ESP-NOW. WiFi/Apple Home yok.
 
 **Yatak düğümü (ESP32-S3 Super Mini)** — Sadece ESP-NOW, WiFi/modem yok. Elektrik gelince lamba her zaman kapalı başlar.
 
@@ -37,7 +35,7 @@ ESP-NOW ile çalışan, **pilli ve dokunmatik AMOLED ışık kumandası**. Masa 
 | Klasör | İçerik |
 |---|---|
 | [`firmware/controller`](firmware/controller) | Kumanda yazılımı (PlatformIO, LVGL 8.3) |
-| [`firmware/hub`](firmware/hub) | Hub yazılımı (ESP32-S3 Super Mini, HomeSpan) |
+| [`firmware/hub`](firmware/hub) | Masa düğümü / hub yazılımı (ESP32-S3 Super Mini) |
 | [`firmware/bed-node`](firmware/bed-node) | Yatak düğümü yazılımı |
 | [`firmware/shared`](firmware/shared) | Ortak ESP-NOW protokolü ve kişisel ayar şablonu |
 | [`docs`](docs) | Mimari, donanım, protokol, kurulum, sorun giderme |
@@ -47,11 +45,9 @@ ESP-NOW ile çalışan, **pilli ve dokunmatik AMOLED ışık kumandası**. Masa 
 > **Her aşamada kontrol içeren tam rehber: [docs/setup.md](docs/setup.md).** 220V bağlantısı en sonda yapılır.
 
 1. [PlatformIO](https://platformio.org/) kur (`pip install -U platformio`), depoyu indir.
-2. Üç kartın MAC adresini oku (`esptool --port <PORT> read-mac`), `firmware/shared/now_config.example.h` dosyasını **`now_config.h`** olarak kopyala (git'e girmez) ve MAC'leri, **hub'ın bağlanacağı** 2,4 GHz WiFi ağ adını ve bir ESP-NOW parolasını doldur.
+2. Üç kartın MAC adresini oku (`esptool --port <PORT> read-mac`), `firmware/shared/now_config.example.h` dosyasını **`now_config.h`** olarak kopyala (git'e girmez) ve MAC'leri, ESP-NOW kanalını (`NOW_CHANNEL`, varsayılan 1) ve bir ESP-NOW parolasını doldur.
 3. Waveshare kartının V1 olduğunu `firmware/tools/board-check` ile, rölenin mantığını `firmware/tools/relay-test` ile doğrula.
 4. `firmware/controller`, `firmware/hub`, `firmware/bed-node` klasörlerinin her birinde `pio run -t upload --upload-port <PORT>`.
-5. Hub'ın WiFi'sini seri monitörden `W` komutuyla gir, Apple Home'a ekle (varsayılan kod `466-37-726`).
-6. Router'ın 2,4 GHz kanalını sabitle (1, 6 ya da 11).
 
 ## Dokümanlar
 
@@ -86,4 +82,4 @@ Pil için **korumalı (PCM'li)** LiPo kullan: Waveshare kartında aşırı deşa
 - Bu deponun kendi kodu: [MIT](LICENSE).
 - `firmware/controller/src/esp_lcd_sh8601.c` ve `include/esp_lcd_sh8601.h`: Espressif Systems, Apache-2.0 (dosya başlıklarında belirtilmiştir).
 - Ekran/dokunmatik başlatma kodu ve `lcd_bsp.c` / `FT3168.cpp`: [Waveshare'in ESP32-S3-Touch-AMOLED-1.64 örnek kodundan](https://www.waveshare.com/wiki/ESP32-S3-Touch-AMOLED-1.64) uyarlanmıştır.
-- Kullanılan kütüphaneler: [LVGL](https://lvgl.io) (MIT), [HomeSpan](https://github.com/HomeSpan/HomeSpan) (MIT).
+- Kullanılan kütüphaneler: [LVGL](https://lvgl.io) (MIT), [HomeSpan](https://github.com/HomeSpan/HomeSpan) (MIT, yalnızca ESP-NOW/`SpanPoint` sınıfı için).

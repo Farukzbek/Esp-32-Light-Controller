@@ -20,7 +20,7 @@ Taşıma katmanı: HomeSpan'ın [`SpanPoint`](https://github.com/HomeSpan/HomeSp
 
 **Sorgu:** kumanda → `QUERY{seq=N}` → cihaz → `STATE{seq=N}`. Kumanda her 10 sn'de ve ekran uyanınca sorar. Bu aynı zamanda bağlantı denetimidir (30 sn yanıt yoksa uyarı çıkar).
 
-**Kendiliğinden bildirim:** hub'da dokunma bandı ya da Apple Home ile durum değişince hub `STATE{seq=0}` gönderir (kumanda uykudaysa atlar).
+**Kendiliğinden bildirim:** masa düğümünde dokunma bandı ile durum değişince düğüm `STATE{seq=0}` gönderir (kumanda uykudaysa atlar).
 
 ## Hangi cihaz hangi `dev`'e sahip?
 
@@ -33,6 +33,6 @@ Taşıma katmanı: HomeSpan'ın [`SpanPoint`](https://github.com/HomeSpan/HomeSp
 ## Yeni bir düğüm eklemek (örn. LED şerit)
 
 1. `now_config.h`'a yeni düğümün MAC'ini ekle (`NOW_LED_MAC`).
-2. Düğüm, yatak düğümünün `main.cpp`'sini örnek alır: `SpanPoint`, radyo kilidi + SSID taraması, `SET`'te çıkışı sür, `STATE` ile yanıtla, sahibi olmadığı cihazlar için `NOW_UNKNOWN` gönder.
+2. Düğüm, yatak düğümünün `main.cpp`'sini örnek alır: `SpanPoint`, radyo kilidi (`setChannelMask(1 << NOW_CHANNEL)`), `SET`'te çıkışı sür, `STATE` ile yanıtla, sahibi olmadığı cihazlar için `NOW_UNKNOWN` gönder.
 3. `firmware/controller/src/now_link.cpp`: `LINKS`'i artır, yeni `SpanPoint`'i ekle, `linkOfDev()` içinde `DEV_LED`'i yeni linke yönlendir, hub tarafındaki sanal LED durumunu kaldır.
 4. Renk/parlaklık gerekiyorsa `NowMsg`'a alan ekle (boyutu iki uçta birlikte değiştir) ya da yeni bir mesaj tipi tanımla.
