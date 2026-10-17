@@ -145,6 +145,7 @@ Dokunmatik **bulunamadı** derse kartın büyük ihtimalle V2'dir: `firmware/con
    cd firmware/controller
    pio run -t upload --upload-port <WAVESHARE_PORTU>
    ```
+   Ekran dili varsayılan olarak Türkçe. **İngilizce arayüz** için komuta `-e waveshare-amoled164-en` ekle: `pio run -e waveshare-amoled164-en -t upload --upload-port <WAVESHARE_PORTU>`.
 3. ✅ **Kontrol:** ekranda menü görünür. Seri log'da `[now] kumanda MAC = … sabit kanal = 1` (**`NOW_CHANNEL` ile aynı**). Hub çalışırken sol üstteki uyarı üçgeni birkaç saniye içinde kaybolur.
 4. Sayfalar arasında kaydır, **MASA**'daki büyük düğmeye bas: hub'ın rölesi tıklar, düğme sarı/yeşile döner. **YATAK**'a bas: yatak düğümünün rölesi tıklar.
 

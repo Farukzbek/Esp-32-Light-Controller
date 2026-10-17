@@ -33,9 +33,11 @@
 
 ## Screens
 
-Portrait (vertical menu) and landscape (horizontal menu) on the 280x456 AMOLED, drawn from the real layout values in `app_ui.cpp`. Source: [`docs/images/ui-pages.html`](docs/images/ui-pages.html).
+Portrait (vertical menu) and landscape (horizontal menu) on the 280x456 AMOLED, drawn from the real layout values in `app_ui.cpp`. The on-screen language is a build option: Turkish (default, ASCII) or English (`pio run -e waveshare-amoled164-en -t upload --upload-port <PORT>` in `firmware/controller`). Source of the previews: [`docs/images/ui-pages.html`](docs/images/ui-pages.html) (add `#en` to the address for English).
 
-<p align="center"><img src="docs/images/ui-pages.png" alt="Remote screens: lamp pages, status, menu order, pull-down orientation lock and warnings" width="640"></p>
+<p align="center"><img src="docs/images/ui-pages-en.png" alt="Remote screens (English build): lamp pages, status, menu order, pull-down orientation lock and warnings" width="640"></p>
+
+Turkish version: [ui-pages-tr.png](docs/images/ui-pages-tr.png).
 
 ## Hardware
 

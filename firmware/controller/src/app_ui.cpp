@@ -8,6 +8,64 @@
 #include "sleep_ctl.h"
 #include <math.h>
 
+// ---- Arayuz dili ----
+// Varsayilan Turkce (ASCII; ekran fontunda Ç, Ş, Ğ vb. yok). Ingilizce icin: pio run -e waveshare-amoled164-en
+// (yani -DUI_LANG_EN=1). Seri porta yazilan teshis mesajlari her iki dilde de Turkce kalir.
+#ifndef UI_LANG_EN
+#define UI_LANG_EN 0
+#endif
+#if UI_LANG_EN
+  #define T_MASA_TITLE   "DESK\nLAMP"
+  #define T_YATAK_TITLE  "BED\nLAMP"
+  #define T_LED_TITLE    "LED\nSTRIP"
+  #define T_ALL_TITLE    "ALL\nLIGHTS"
+  #define T_STATUS       "STATUS"
+  #define T_SHORTCUT     "SHORTCUT\nASSIGN"
+  #define T_ON           "ON"
+  #define T_OFF          "OFF"
+  #define T_ORDER_TITLE  "MENU\nORDER"
+  #define T_ORDER_NAME_X 188   // yatayda isim sutunu (STATUS oka binmesin)
+  #define T_ORDER_NAMES  {"DESK", "BED", "LED", "ALL", "STATUS"}
+  #define T_ST_NAMES     {"DESK", "BED", "POWER", "CHANNEL", "ORIENT"}
+  #define T_OFFLINE      "OFFLINE"
+  #define T_CHARGING_FMT "CHARGE %.2fV"
+  #define T_BATT_FMT     "~%d%% %.2fV"
+  #define T_LOCKED       "LOCKED"
+  #define T_FREE         "FREE"
+  #define T_PORT         "PORT"
+  #define T_LAND         "LAND"
+  #define T_LOCK_ON      "ORIENT LOCKED"
+  #define T_LOCK_OFF     "ORIENT FREE"
+  #define T_WARN_BOTH    "DESK+BED"
+  #define T_WARN_HUB     "DESK"
+  #define T_WARN_BED     "BED"
+#else
+  #define T_MASA_TITLE   "MASA\nLAMBASI"
+  #define T_YATAK_TITLE  "YATAK\nLAMBASI"
+  #define T_LED_TITLE    "LED\nSERIT"
+  #define T_ALL_TITLE    "TUM\nISIKLAR"
+  #define T_STATUS       "DURUM"
+  #define T_SHORTCUT     "KISAYOL\nATAMA"
+  #define T_ON           "ACIK"
+  #define T_OFF          "KAPALI"
+  #define T_ORDER_TITLE  "MENU\nSIRASI"
+  #define T_ORDER_NAME_X 200
+  #define T_ORDER_NAMES  {"MASA", "YATAK", "LED", "HEPSI", "DURUM"}
+  #define T_ST_NAMES     {"HUB", "YATAK", "GUC", "KANAL", "YON"}
+  #define T_OFFLINE      "YOK"
+  #define T_CHARGING_FMT "SARJDA %.2fV"
+  #define T_BATT_FMT     "PIL ~%d%% %.2fV"
+  #define T_LOCKED       "KILITLI"
+  #define T_FREE         "SERBEST"
+  #define T_PORT         "DIKEY"
+  #define T_LAND         "YATAY"
+  #define T_LOCK_ON      "YON KILITLI"
+  #define T_LOCK_OFF     "YON SERBEST"
+  #define T_WARN_BOTH    "HUB+YATAK"
+  #define T_WARN_HUB     "HUB"
+  #define T_WARN_BED     "YATAK"
+#endif
+
 // Ekran sabit fontla Turkce karakter gostermedigi icin etiketler ASCII.
 // Dokununca simdilik sadece ekrandaki durum degisiyor; ESP-NOW sonraki adim.
 
@@ -52,12 +110,12 @@ struct Page {
 };
 
 static Page s_page[PAGE_COUNT] = {
-  {"MASA\nLAMBASI",   false, nullptr, nullptr, nullptr, nullptr},
-  {"YATAK\nLAMBASI",  false, nullptr, nullptr, nullptr, nullptr},
-  {"LED\nSERIT",      false, nullptr, nullptr, nullptr, nullptr},
-  {"TUM\nISIKLAR",    false, nullptr, nullptr, nullptr, nullptr},
-  {"DURUM",           false, nullptr, nullptr, nullptr, nullptr},
-  {"KISAYOL\nATAMA",  false, nullptr, nullptr, nullptr, nullptr},
+  {T_MASA_TITLE,          false, nullptr, nullptr, nullptr, nullptr},
+  {T_YATAK_TITLE,         false, nullptr, nullptr, nullptr, nullptr},
+  {T_LED_TITLE,           false, nullptr, nullptr, nullptr, nullptr},
+  {T_ALL_TITLE,           false, nullptr, nullptr, nullptr, nullptr},
+  {T_STATUS,              false, nullptr, nullptr, nullptr, nullptr},
+  {T_SHORTCUT,            false, nullptr, nullptr, nullptr, nullptr},
 };
 static lv_obj_t *s_tv = nullptr;
 static lv_obj_t *s_dots[PAGE_COUNT];
@@ -96,11 +154,11 @@ static void paint(Page &p, bool on, const char *text) {
 
 static void refresh_all() {
   for (int i = 0; i < DEV_COUNT; i++) {
-    paint(s_page[i], s_page[i].on, s_page[i].on ? "ACIK" : "KAPALI");
+    paint(s_page[i], s_page[i].on, s_page[i].on ? T_ON : T_OFF);
   }
   int n = count_on();
   char buf[16];
-  snprintf(buf, sizeof(buf), "%d/%d ACIK", n, DEV_COUNT);
+  snprintf(buf, sizeof(buf), "%d/%d " T_ON, n, DEV_COUNT);
   paint(s_page[PAGE_ALL], n > 0, buf);
 }
 
@@ -186,17 +244,17 @@ static void move_cb(lv_event_t *e) {
 
 // Menu siralama sayfasi: her satirda cihaz adi ve iki ok. Dikeyde ok yukari/asagi, yatayda sol/sag.
 static void build_order_page(lv_obj_t *tile, bool land, int W, int H) {
-  static const char *kName[ORDER_N] = {"MASA", "YATAK", "LED", "HEPSI", "DURUM"};
+  static const char *kName[ORDER_N] = T_ORDER_NAMES;
   const char *sLater = land ? LV_SYMBOL_RIGHT : LV_SYMBOL_DOWN;
   const char *sEarlier = land ? LV_SYMBOL_LEFT : LV_SYMBOL_UP;
 
-  lv_obj_t *title = make_label(tile, "MENU\nSIRASI", &lv_font_montserrat_28, 0xFFFFFF, land ? 170 : 250);
+  lv_obj_t *title = make_label(tile, T_ORDER_TITLE, &lv_font_montserrat_28, 0xFFFFFF, land ? 170 : 250);
   if (land) lv_obj_align(title, LV_ALIGN_LEFT_MID, 12, -10);
   else      lv_obj_align(title, LV_ALIGN_TOP_MID, 0, 26);
 
   const int rowH = land ? 46 : 62;
   const int y0 = land ? 16 : 100;
-  const int nameX = land ? 200 : 20;
+  const int nameX = land ? T_ORDER_NAME_X : 20;
   const int btnW = land ? 60 : 56, btnH = land ? 40 : 50;
   const int btn1X = land ? W - 20 - 2 * btnW - 12 : W - 20 - 2 * btnW - 10;
   const int btn2X = btn1X + btnW + (land ? 12 : 10);
@@ -244,27 +302,27 @@ static void status_update() {
   for (int k = 0; k < 2; k++) {          // 0 = hub, 1 = yatak
     const int8_t r = now_rssi(k, &age);
     if (r && age < 30000) { snprintf(b, sizeof(b), "%d dBm", r); set_st(k, b, rssi_color(r)); }
-    else set_st(k, (down & (1 << k)) ? "YOK" : "--", (down & (1 << k)) ? COL_RED : 0x8E8E93);
+    else set_st(k, (down & (1 << k)) ? T_OFFLINE : "--", (down & (1 << k)) ? COL_RED : 0x8E8E93);
   }
   const float v = battery_read_vcc();
   if (s_ext) {
-    snprintf(b, sizeof(b), "SARJDA %.2fV", v);
+    snprintf(b, sizeof(b), T_CHARGING_FMT, v);
     set_st(2, b, COL_GREEN);
   } else {
     int pct = (int)((v - 3.30f) / (4.15f - 3.30f) * 100.0f + 0.5f);   // yaklasik: gercek pil olcer yok
     if (pct < 0) pct = 0; if (pct > 100) pct = 100;
-    snprintf(b, sizeof(b), "PIL ~%d%% %.2fV", pct, v);
+    snprintf(b, sizeof(b), T_BATT_FMT, pct, v);
     set_st(2, b, pct > 40 ? COL_GREEN : pct > 15 ? 0xFFB300 : COL_RED);
   }
   snprintf(b, sizeof(b), "%d", now_channel());
   set_st(3, b, 0xFFFFFF);
-  snprintf(b, sizeof(b), "%s / %s", s_lock ? "KILITLI" : "SERBEST", s_rot == 0 ? "DIKEY" : "YATAY");
+  snprintf(b, sizeof(b), "%s / %s", s_lock ? T_LOCKED : T_FREE, s_rot == 0 ? T_PORT : T_LAND);
   set_st(4, b, s_lock ? 0xFFB300 : 0xFFFFFF);
 }
 
 static void build_status_page(lv_obj_t *tile, bool land, int W, int H) {
-  static const char *kStName[5] = {"HUB", "YATAK", "GUC", "KANAL", "YON"};
-  lv_obj_t *title = make_label(tile, "DURUM", &lv_font_montserrat_28, 0xFFFFFF, land ? 160 : 250);
+  static const char *kStName[5] = T_ST_NAMES;
+  lv_obj_t *title = make_label(tile, T_STATUS, &lv_font_montserrat_28, 0xFFFFFF, land ? 160 : 250);
   if (land) lv_obj_align(title, LV_ALIGN_LEFT_MID, 12, -10);
   else      lv_obj_align(title, LV_ALIGN_TOP_MID, 0, 26);
 
@@ -410,7 +468,7 @@ static void lock_visuals() {
   lv_obj_set_style_bg_color(s_lockBtn, lv_color_hex(s_lock ? 0xFFB300 : 0x3A3A3C), 0);
   lv_obj_set_style_text_color(s_lockIcon, lv_color_hex(fg), 0);
   lv_obj_set_style_text_color(s_lockCap, lv_color_hex(fg), 0);
-  lv_label_set_text(s_lockCap, s_lock ? "YON KILITLI" : "YON SERBEST");
+  lv_label_set_text(s_lockCap, s_lock ? T_LOCK_ON : T_LOCK_OFF);
   if (s_lock) lv_obj_clear_flag(s_lockInd, LV_OBJ_FLAG_HIDDEN);
   else        lv_obj_add_flag(s_lockInd, LV_OBJ_FLAG_HIDDEN);
 }
@@ -583,7 +641,7 @@ static void now_tick(lv_timer_t *) {
   if (!down) {
     lv_obj_add_flag(s_warn, LV_OBJ_FLAG_HIDDEN);
   } else {
-    lv_label_set_text(s_warn, down == 3 ? LV_SYMBOL_WARNING " HUB+YATAK" : (down & 1) ? LV_SYMBOL_WARNING " HUB" : LV_SYMBOL_WARNING " YATAK");
+    lv_label_set_text(s_warn, down == 3 ? LV_SYMBOL_WARNING " " T_WARN_BOTH : (down & 1) ? LV_SYMBOL_WARNING " " T_WARN_HUB : LV_SYMBOL_WARNING " " T_WARN_BED);
     lv_obj_clear_flag(s_warn, LV_OBJ_FLAG_HIDDEN);
   }
 }

@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="tr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<html lang="tr" id="root"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Masa Kumanda Ekranları</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;600&family=Montserrat:wght@500;600&display=swap">
@@ -35,11 +35,34 @@
 </style>
 </head><body>
 <main>
-<h1>Masa Kumanda ekranları</h1>
-<p class="sub">Waveshare ESP32-S3-Touch-AMOLED-1.64 ekranının (280x456) gerçek ölçüleriyle, kumanda kodundaki (<code>app_ui.cpp</code>) renk ve yerleşim değerlerinden çizilmiş önizleme. Cihaz dik tutulunca menü dikey, yatay tutulunca yatay kayar. Ekranda Türkçe karakter olmadığı için etiketler ASCII.</p>
+<h1 id="h1"></h1>
+<p class="sub" id="sub"></p>
 <div id="app"></div>
 </main>
 <script>
+// Dil: sayfa adresinin sonuna #en eklenirse Ingilizce (kumanda yazilimindaki -e waveshare-amoled164-en ile ayni etiketler).
+const EN=location.hash==='#en';
+document.documentElement.lang=EN?'en':'tr';
+const T=EN?{
+  title:'Remote screens',
+  sub:'Drawn at the real size of the Waveshare ESP32-S3-Touch-AMOLED-1.64 screen (280x456) from the colours and layout values in <code>app_ui.cpp</code>. Hold the device upright and the menu scrolls vertically; hold it sideways and it scrolls horizontally. Labels use the English build (<code>-e waveshare-amoled164-en</code>).',
+  portrait:'Portrait (menu scrolls top to bottom)',landscape:'Landscape (menu scrolls left to right)',panel:'Pull-down panel and warnings',
+  desk:'DESK\nLAMP',bed:'BED\nLAMP',led:'LED\nSTRIP',all:'ALL\nLIGHTS',on:'ON',off:'OFF',n23:'2/3 ON',
+  status:'STATUS',menu:'MENU\nORDER',order:['DESK','BED','LED','ALL','STATUS'],stNames:['DESK','BED','POWER','CHANNEL','ORIENT'],
+  batt:'~82% 4.01V',free_p:'FREE / PORT',free_l:'FREE / LAND',lockOn:'ORIENT LOCKED',lockOff:'ORIENT FREE',warn:'BED',
+  c1:'1 · Desk lamp (on)',c2:'2 · Bed lamp (off)',c3:'3 · LED strip',c4:'4 · All lights',c4b:'4 · All lights (all off)',c5:'5 · Status',c6:'6 · Menu order (settings page, always last)',
+  p1:'Swipe down from the top edge: orientation lock (free)',p2:'Orientation locked',p3:'Bed unreachable (yellow warning) + charging icon (top right)'
+}:{
+  title:'Masa Kumanda ekranları',
+  sub:'Waveshare ESP32-S3-Touch-AMOLED-1.64 ekranının (280x456) gerçek ölçüleriyle, kumanda kodundaki (<code>app_ui.cpp</code>) renk ve yerleşim değerlerinden çizilmiş önizleme. Cihaz dik tutulunca menü dikey, yatay tutulunca yatay kayar. Ekranda Türkçe karakter olmadığı için etiketler ASCII.',
+  portrait:'Dikey (menü yukarıdan aşağı kayar)',landscape:'Yatay (menü soldan sağa kayar)',panel:'Üst menü ve uyarılar',
+  desk:'MASA\nLAMBASI',bed:'YATAK\nLAMBASI',led:'LED\nSERIT',all:'TUM\nISIKLAR',on:'ACIK',off:'KAPALI',n23:'2/3 ACIK',
+  status:'DURUM',menu:'MENU\nSIRASI',order:['MASA','YATAK','LED','HEPSI','DURUM'],stNames:['HUB','YATAK','GUC','KANAL','YON'],
+  batt:'PIL ~82% 4.01V',free_p:'SERBEST / DIKEY',free_l:'SERBEST / YATAY',lockOn:'YON KILITLI',lockOff:'YON SERBEST',warn:'YATAK',
+  c1:'1 · Masa lambası (açık)',c2:'2 · Yatak lambası (kapalı)',c3:'3 · LED şerit',c4:'4 · Tüm ışıklar',c4b:'4 · Tüm ışıklar (hepsi kapalı)',c5:'5 · Durum',c6:'6 · Menü sırası (ayar sayfası, hep sonda)',
+  p1:'Üstten aşağı kaydırınca: yön kilidi (serbest)',p2:'Yön kilitli',p3:'Yatak ulaşılamıyor (sarı uyarı) + şarj simgesi (sağ üst)'
+};
+document.title=T.title;document.getElementById('h1').textContent=T.title;document.getElementById('sub').innerHTML=T.sub;
 const COL={on:'#FFC93C',off:'#2A2A2A',green:'#00C853',red:'#E53935'};
 const power=c=>`<svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="${c}" stroke-width="3" stroke-linecap="round"><path d="M12 3v9"/><path d="M6.4 6.6a8 8 0 1 0 11.2 0"/></svg>`;
 const chev=(dir,c)=>{const r={up:'M5 15l7-7 7 7',down:'M5 9l7 7 7-7',left:'M15 5l-7 7 7 7',right:'M9 5l7 7-7 7'}[dir];return `<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="${c}" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"><path d="${r}"/></svg>`};
@@ -50,7 +73,7 @@ function dots(land,active){let s='';const n=6,total=n*10+(n-1)*14,W=land?456:280
 function device(land,inner,cap){return `<figure><div class="dev"><div class="scr ${land?'l':'p'}">${inner}</div></div><figcaption>${cap}</figcaption></figure>`}
 
 function lamp(land,title,on,label,active,extra){
-  const status=on?'ACIK':'KAPALI',sc=on?COL.green:COL.red,bg=on?COL.on:COL.off;
+  const status=on?T.on:T.off,sc=on?COL.green:COL.red,bg=on?COL.on:COL.off;
   const t=title.replace('\n','<br>');
   let h='';
   if(land){
@@ -66,19 +89,19 @@ function lamp(land,title,on,label,active,extra){
   return h;
 }
 function status(land){
-  const rows=[['HUB','-58 dBm','#00C853'],['YATAK','-71 dBm','#FFB300'],['GUC','PIL ~82% 4.01V','#00C853'],['KANAL','1','#fff'],['YON',land?'SERBEST / YATAY':'SERBEST / DIKEY','#fff']];
+  const n=T.stNames,rows=[[n[0],'-58 dBm','#00C853'],[n[1],'-71 dBm','#FFB300'],[n[2],T.batt,'#00C853'],[n[3],'1','#fff'],[n[4],land?T.free_l:T.free_p,'#fff']];
   const W=land?456:280,rowH=land?46:62,y0=land?22:100,nameX=land?180:20,valW=land?170:150;
-  let h=land?`<div class="abs t28" style="width:160px;left:12px;top:${140-10-17}px">DURUM</div>`:`<div class="abs t28" style="width:250px;left:15px;top:26px">DURUM</div>`;
+  let h=land?`<div class="abs t28" style="width:160px;left:12px;top:${140-10-17}px">${T.status}</div>`:`<div class="abs t28" style="width:250px;left:15px;top:26px">${T.status}</div>`;
   rows.forEach((r,i)=>{const y=y0+i*rowH;
     h+=`<div class="abs t14" style="left:${nameX}px;top:${y+9}px;color:#8E8E93;width:70px">${r[0]}</div>`;
     h+=`<div class="abs t20" style="left:${W-20-valW}px;top:${y+4}px;width:${valW}px;text-align:right;color:${r[2]}">${r[1]}</div>`});
   return h+dots(land,4);
 }
 function order(land){
-  const names=['MASA','YATAK','LED','HEPSI','DURUM'];const W=land?456:280;
-  const rowH=land?46:62,y0=land?16:100,nameX=land?200:20,bw=land?60:56,bh=land?40:50;
+  const names=T.order;const W=land?456:280;
+  const rowH=land?46:62,y0=land?16:100,nameX=land?(EN?188:200):20,bw=land?60:56,bh=land?40:50;
   const b1=W-20-2*bw-(land?12:10),b2=b1+bw+(land?12:10);
-  let h=land?`<div class="abs t28" style="width:170px;left:12px;top:${140-10-33}px">MENU<br>SIRASI</div>`:`<div class="abs t28" style="width:250px;left:15px;top:26px">MENU<br>SIRASI</div>`;
+  let h=land?`<div class="abs t28" style="width:170px;left:12px;top:${140-10-33}px">${T.menu.replace("\n","<br>")}</div>`:`<div class="abs t28" style="width:250px;left:15px;top:26px">${T.menu.replace("\n","<br>")}</div>`;
   names.forEach((n,pos)=>{const y=y0+pos*rowH;
     h+=`<div class="abs t28" style="left:${nameX}px;top:${y+(bh-30)/2}px;font-size:28px">${n}</div>`;
     [0,1].forEach(k=>{const later=k==1,ok=later?pos<4:pos>0;const d=land?(later?'right':'left'):(later?'down':'up');
@@ -89,29 +112,28 @@ function panel(locked){
   const bg=locked?'#FFB300':'#3A3A3C',fg=locked?'#000':'#fff';
   return `<div class="abs scrim"></div><div class="abs panel"><div class="abs arrow" style="left:74px;top:${36+22}px;width:132px;height:92px;border-radius:22px;background:${bg};flex-direction:column;gap:8px;color:${fg}">
   <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="${fg}" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12a8 8 0 1 1-2.3-5.7"/><path d="M20 3v5h-5"/></svg>
-  <span class="t14" style="font-weight:600">${locked?'YON KILITLI':'YON SERBEST'}</span></div>
+  <span class="t14" style="font-weight:600">${locked?T.lockOn:T.lockOff}</span></div>
   <div class="abs" style="left:117px;bottom:8px;width:46px;height:5px;border-radius:3px;background:#666"></div></div>`;
 }
 const A=document.getElementById('app');
 const sec=(t,h)=>{A.insertAdjacentHTML('beforeend',`<h2>${t}</h2><div class="row">${h}</div>`)};
 
-sec('Dikey (menü yukarıdan aşağı kayar)',
-  device(0,lamp(0,'MASA\nLAMBASI',true,'',0),'1 · Masa lambası (açık)')+
-  device(0,lamp(0,'YATAK\nLAMBASI',false,'',1),'2 · Yatak lambası (kapalı)')+
-  device(0,lamp(0,'LED\nSERIT',false,'',2),'3 · LED şerit')+
-  device(0,lamp(0,'TUM\nISIKLAR',true,'2/3 ACIK',3),'4 · Tüm ışıklar')+
-  device(0,status(0),'5 · Durum')+
-  device(0,order(0),'6 · Menü sırası (ayar sayfası, hep sonda)'));
+sec(T.portrait,
+  device(0,lamp(0,T.desk,true,'',0),T.c1)+
+  device(0,lamp(0,T.bed,false,'',1),T.c2)+
+  device(0,lamp(0,T.led,false,'',2),T.c3)+
+  device(0,lamp(0,T.all,true,T.n23,3),T.c4)+
+  device(0,status(0),T.c5)+
+  device(0,order(0),T.c6));
 
-sec('Yatay (menü soldan sağa kayar)',
-  device(1,lamp(1,'MASA\nLAMBASI',true,'',0),'1 · Masa lambası (açık)')+
-  device(1,lamp(1,'TUM\nISIKLAR',false,'',3),'4 · Tüm ışıklar (hepsi kapalı)')+
-  device(1,status(1),'5 · Durum')+
-  device(1,order(1),'6 · Menü sırası'));
+sec(T.landscape,
+  device(1,lamp(1,T.desk,true,'',0),T.c1)+
+  device(1,lamp(1,T.all,false,'',3),T.c4b)+
+  device(1,status(1),T.c5)+
+  device(1,order(1),T.c6));
 
-sec('Üst menü ve uyarılar',
-  device(0,lamp(0,'MASA\nLAMBASI',true,'',0)+panel(false),'Üstten aşağı kaydırınca: yön kilidi (serbest)')+
-  device(0,lamp(0,'MASA\nLAMBASI',true,'',0)+panel(true),'Yön kilitli')+
-  device(0,lamp(0,'YATAK\nLAMBASI',false,'',1,warn('YATAK')+bolt),'Yatak ulaşılamıyor (sarı uyarı) + şarj simgesi (sağ üst)'));
-</script>
-</body></html>
+sec(T.panel,
+  device(0,lamp(0,T.desk,true,'',0)+panel(false),T.p1)+
+  device(0,lamp(0,T.desk,true,'',0)+panel(true),T.p2)+
+  device(0,lamp(0,T.bed,false,'',1,warn(T.warn)+bolt),T.p3));
+</script></body></html>

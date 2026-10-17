@@ -32,9 +32,11 @@ ESP-NOW ile çalışan, **pilli ve dokunmatik AMOLED ışık kumandası**. Masa 
 
 ## Ekranlar
 
-280x456 AMOLED'de dikey (dikey menü) ve yatay (yatay menü) görünüm. `app_ui.cpp` içindeki gerçek yerleşim değerlerinden çizildi. Kaynak: [`docs/images/ui-pages.html`](docs/images/ui-pages.html).
+280x456 AMOLED'de dikey (dikey menü) ve yatay (yatay menü) görünüm. `app_ui.cpp` içindeki gerçek yerleşim değerlerinden çizildi. Ekran dili derleme seçeneğidir: Türkçe (varsayılan, ASCII) ya da İngilizce (`firmware/controller` içinde `pio run -e waveshare-amoled164-en -t upload --upload-port <PORT>`). Önizleme kaynağı: [`docs/images/ui-pages.html`](docs/images/ui-pages.html) (İngilizce için adrese `#en` ekle).
 
-<p align="center"><img src="docs/images/ui-pages.png" alt="Kumanda ekranları: lamba sayfaları, durum, menü sırası, yön kilidi paneli ve uyarılar" width="640"></p>
+<p align="center"><img src="docs/images/ui-pages-tr.png" alt="Kumanda ekranları: lamba sayfaları, durum, menü sırası, yön kilidi paneli ve uyarılar" width="640"></p>
+
+İngilizce hâli: [ui-pages-en.png](docs/images/ui-pages-en.png).
 
 ## Depo yapısı
 

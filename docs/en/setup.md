@@ -147,6 +147,7 @@ If the upload fails, hold the **BOOT** button while plugging the USB cable in, t
    cd firmware/controller
    pio run -t upload --upload-port <PORT_OF_WAVESHARE>
    ```
+   The on-screen language is Turkish by default. For the **English UI** add `-e waveshare-amoled164-en`: `pio run -e waveshare-amoled164-en -t upload --upload-port <PORT_OF_WAVESHARE>`.
 3. ✅ Check: the screen shows the menu. In the serial log you should see `[now] kumanda MAC = … sabit kanal = 1` (**the same as `NOW_CHANNEL`**). While the hub is running, the top-left warning triangle disappears after a few seconds.
 4. Swipe between pages; tap the big button on **MASA**: the hub's relay clicks and the button turns yellow/green. Tap **YATAK**: the bed node's relay clicks.
 
