@@ -31,6 +31,12 @@
 
 **Reliability:** absolute-value commands acknowledged by an application-level reply (not the radio ACK), retries, on-screen rollback on failure; the radio of all three devices is locked to one fixed channel, so nothing depends on a router (SpanPoint's own channel scanning is avoided, see [architecture](docs/architecture.md), Turkish).
 
+## Screens
+
+Portrait (vertical menu) and landscape (horizontal menu) on the 280x456 AMOLED, drawn from the real layout values in `app_ui.cpp`. Source: [`docs/images/ui-pages.html`](docs/images/ui-pages.html).
+
+<p align="center"><img src="docs/images/ui-pages.png" alt="Remote screens: lamp pages, status, menu order, pull-down orientation lock and warnings" width="640"></p>
+
 ## Hardware
 
 | Qty | Part | Notes |

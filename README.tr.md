@@ -30,6 +30,12 @@ ESP-NOW ile çalışan, **pilli ve dokunmatik AMOLED ışık kumandası**. Masa 
 
 **Yatak düğümü (ESP32-S3 Super Mini)** — Sadece ESP-NOW, WiFi/modem yok. Elektrik gelince lamba her zaman kapalı başlar.
 
+## Ekranlar
+
+280x456 AMOLED'de dikey (dikey menü) ve yatay (yatay menü) görünüm. `app_ui.cpp` içindeki gerçek yerleşim değerlerinden çizildi. Kaynak: [`docs/images/ui-pages.html`](docs/images/ui-pages.html).
+
+<p align="center"><img src="docs/images/ui-pages.png" alt="Kumanda ekranları: lamba sayfaları, durum, menü sırası, yön kilidi paneli ve uyarılar" width="640"></p>
+
 ## Depo yapısı
 
 | Klasör | İçerik |

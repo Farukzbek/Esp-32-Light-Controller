@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="tr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Masa Kumanda Ekranları</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;600&family=Montserrat:wght@500;600&display=swap">
+<style>
+  /* Düzen: cihaz önizlemeleri bölüm bölüm, her bölüm kendi içinde kayar (dar ekranda sayfa yana taşmaz). */
+  :root{--bg:#f1f2f5;--fg:#16171b;--muted:#5f626b;--line:#d8dae0;--chip:#e4e6ec}
+  @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#121317;--fg:#e8e8ea;--muted:#9a9ca6;--line:#2a2c33;--chip:#23252c;color-scheme:dark}}
+  :root[data-theme="dark"]{--bg:#121317;--fg:#e8e8ea;--muted:#9a9ca6;--line:#2a2c33;--chip:#23252c;color-scheme:dark}
+  body{margin:0;background:var(--bg);color:var(--fg);font-family:"IBM Plex Sans",system-ui,sans-serif;font-size:15px;line-height:1.55;
+    padding-block:32px 48px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+  main{max-width:1180px;margin:0 auto}
+  h1{font-size:26px;line-height:1.2;margin:0 0 8px;text-wrap:balance}
+  p.sub{margin:0;color:var(--muted);max-width:66ch}
+  code{background:var(--chip);padding:1px 6px;border-radius:5px;font-size:13px}
+  h2{font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin:40px 0 14px;font-weight:600;padding-top:14px;border-top:1px solid var(--line)}
+  .row{display:flex;gap:26px;align-items:flex-start;overflow-x:auto;padding-bottom:10px;flex-wrap:wrap}
+  figure{margin:0;flex:none}
+  figcaption{margin-top:10px;font-size:13px;color:var(--muted);text-align:center;max-width:300px;margin-inline:auto}
+  /* Cihaz ekranı hep siyah: AMOLED panelin kendisi. */
+  .dev{background:#0b0b0d;padding:9px;border-radius:34px;box-shadow:0 0 0 2px #2c2c31}
+  .scr{position:relative;background:#000;overflow:hidden;border-radius:26px;font-family:"Montserrat","Helvetica Neue",Arial,sans-serif;color:#fff}
+  .p{width:280px;height:456px}.l{width:456px;height:280px}
+  .abs{position:absolute}
+  .t28{font-size:28px;line-height:33px;text-align:center;font-weight:500}
+  .t20{font-size:20px;line-height:24px}.t14{font-size:14px;line-height:17px}
+  .btn{border-radius:50%;width:150px;height:150px;display:flex;align-items:center;justify-content:center}
+  .bar{left:0;right:0;bottom:0;height:14px}
+  .dot{width:10px;height:10px;border-radius:50%;background:#555}.dot.on{background:#fff}
+  .arrow{display:flex;align-items:center;justify-content:center;border-radius:12px}
+  svg{display:block}
+  .panel{background:#1c1c1e;border-radius:24px;width:100%;height:152px;left:0;top:-22px}
+  .scrim{inset:0;background:rgba(0,0,0,.5)}
+</style>
+</head><body>
+<main>
+<h1>Masa Kumanda ekranları</h1>
+<p class="sub">Waveshare ESP32-S3-Touch-AMOLED-1.64 ekranının (280x456) gerçek ölçüleriyle, kumanda kodundaki (<code>app_ui.cpp</code>) renk ve yerleşim değerlerinden çizilmiş önizleme. Cihaz dik tutulunca menü dikey, yatay tutulunca yatay kayar. Ekranda Türkçe karakter olmadığı için etiketler ASCII.</p>
+<div id="app"></div>
+</main>
+<script>
+const COL={on:'#FFC93C',off:'#2A2A2A',green:'#00C853',red:'#E53935'};
+const power=c=>`<svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="${c}" stroke-width="3" stroke-linecap="round"><path d="M12 3v9"/><path d="M6.4 6.6a8 8 0 1 0 11.2 0"/></svg>`;
+const chev=(dir,c)=>{const r={up:'M5 15l7-7 7 7',down:'M5 9l7 7 7-7',left:'M15 5l-7 7 7 7',right:'M9 5l7 7-7 7'}[dir];return `<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="${c}" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"><path d="${r}"/></svg>`};
+const warn=t=>`<div class="abs t14" style="left:14px;top:10px;color:#FFB300;display:flex;gap:5px;align-items:center"><svg width="14" height="14" viewBox="0 0 24 24" fill="#FFB300"><path d="M12 2 1 21h22L12 2zm1 15h-2v-2h2v2zm0-4h-2V9h2v4z"/></svg>${t}</div>`;
+const bolt=`<div class="abs" style="right:14px;top:8px"><svg width="22" height="28" viewBox="0 0 22 28" fill="#fff"><path d="M13 0 1 16h8l-2 12 14-18h-8z"/></svg></div>`;
+function dots(land,active){let s='';const n=6,total=n*10+(n-1)*14,W=land?456:280,H=land?280:456;
+  for(let i=0;i<n;i++){const st=land?`left:${(W-total)/2+i*24}px;top:${H-36}px`:`left:${W-20}px;top:${(H-total)/2+i*24}px`;s+=`<div class="abs dot ${i==active?'on':''}" style="${st}"></div>`}return s}
+function device(land,inner,cap){return `<figure><div class="dev"><div class="scr ${land?'l':'p'}">${inner}</div></div><figcaption>${cap}</figcaption></figure>`}
+
+function lamp(land,title,on,label,active,extra){
+  const status=on?'ACIK':'KAPALI',sc=on?COL.green:COL.red,bg=on?COL.on:COL.off;
+  const t=title.replace('\n','<br>');
+  let h='';
+  if(land){
+    h+=`<div class="abs t28" style="width:210px;left:${228+105-105}px;top:${140-50-33}px">${t}</div>`;
+    h+=`<div class="abs btn" style="left:45px;top:${140-10-75}px;background:${bg}">${power('#000')}</div>`;
+    h+=`<div class="abs t28" style="width:210px;left:228px;top:${140+45-17}px;color:${sc}">${label||status}</div>`;
+  }else{
+    h+=`<div class="abs t28" style="width:250px;left:15px;top:26px">${t}</div>`;
+    h+=`<div class="abs btn" style="left:65px;top:${228+20-75}px;background:${bg}">${power('#000')}</div>`;
+    h+=`<div class="abs t28" style="width:250px;left:15px;top:${228+125-17}px;color:${sc}">${label||status}</div>`;
+  }
+  h+=`<div class="abs bar" style="background:${sc}"></div>`+dots(land,active)+(extra||'');
+  return h;
+}
+function status(land){
+  const rows=[['HUB','-58 dBm','#00C853'],['YATAK','-71 dBm','#FFB300'],['GUC','PIL ~82% 4.01V','#00C853'],['KANAL','1','#fff'],['YON',land?'SERBEST / YATAY':'SERBEST / DIKEY','#fff']];
+  const W=land?456:280,rowH=land?46:62,y0=land?22:100,nameX=land?180:20,valW=land?170:150;
+  let h=land?`<div class="abs t28" style="width:160px;left:12px;top:${140-10-17}px">DURUM</div>`:`<div class="abs t28" style="width:250px;left:15px;top:26px">DURUM</div>`;
+  rows.forEach((r,i)=>{const y=y0+i*rowH;
+    h+=`<div class="abs t14" style="left:${nameX}px;top:${y+9}px;color:#8E8E93;width:70px">${r[0]}</div>`;
+    h+=`<div class="abs t20" style="left:${W-20-valW}px;top:${y+4}px;width:${valW}px;text-align:right;color:${r[2]}">${r[1]}</div>`});
+  return h+dots(land,4);
+}
+function order(land){
+  const names=['MASA','YATAK','LED','HEPSI','DURUM'];const W=land?456:280;
+  const rowH=land?46:62,y0=land?16:100,nameX=land?200:20,bw=land?60:56,bh=land?40:50;
+  const b1=W-20-2*bw-(land?12:10),b2=b1+bw+(land?12:10);
+  let h=land?`<div class="abs t28" style="width:170px;left:12px;top:${140-10-33}px">MENU<br>SIRASI</div>`:`<div class="abs t28" style="width:250px;left:15px;top:26px">MENU<br>SIRASI</div>`;
+  names.forEach((n,pos)=>{const y=y0+pos*rowH;
+    h+=`<div class="abs t28" style="left:${nameX}px;top:${y+(bh-30)/2}px;font-size:28px">${n}</div>`;
+    [0,1].forEach(k=>{const later=k==1,ok=later?pos<4:pos>0;const d=land?(later?'right':'left'):(later?'down':'up');
+      h+=`<div class="abs arrow" style="left:${k?b2:b1}px;top:${y}px;width:${bw}px;height:${bh}px;background:${ok?'#3A6EA5':'#222'}">${chev(d,ok?'#fff':'#555')}</div>`})});
+  return h+dots(land,5);
+}
+function panel(locked){
+  const bg=locked?'#FFB300':'#3A3A3C',fg=locked?'#000':'#fff';
+  return `<div class="abs scrim"></div><div class="abs panel"><div class="abs arrow" style="left:74px;top:${36+22}px;width:132px;height:92px;border-radius:22px;background:${bg};flex-direction:column;gap:8px;color:${fg}">
+  <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="${fg}" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12a8 8 0 1 1-2.3-5.7"/><path d="M20 3v5h-5"/></svg>
+  <span class="t14" style="font-weight:600">${locked?'YON KILITLI':'YON SERBEST'}</span></div>
+  <div class="abs" style="left:117px;bottom:8px;width:46px;height:5px;border-radius:3px;background:#666"></div></div>`;
+}
+const A=document.getElementById('app');
+const sec=(t,h)=>{A.insertAdjacentHTML('beforeend',`<h2>${t}</h2><div class="row">${h}</div>`)};
+
+sec('Dikey (menü yukarıdan aşağı kayar)',
+  device(0,lamp(0,'MASA\nLAMBASI',true,'',0),'1 · Masa lambası (açık)')+
+  device(0,lamp(0,'YATAK\nLAMBASI',false,'',1),'2 · Yatak lambası (kapalı)')+
+  device(0,lamp(0,'LED\nSERIT',false,'',2),'3 · LED şerit')+
+  device(0,lamp(0,'TUM\nISIKLAR',true,'2/3 ACIK',3),'4 · Tüm ışıklar')+
+  device(0,status(0),'5 · Durum')+
+  device(0,order(0),'6 · Menü sırası (ayar sayfası, hep sonda)'));
+
+sec('Yatay (menü soldan sağa kayar)',
+  device(1,lamp(1,'MASA\nLAMBASI',true,'',0),'1 · Masa lambası (açık)')+
+  device(1,lamp(1,'TUM\nISIKLAR',false,'',3),'4 · Tüm ışıklar (hepsi kapalı)')+
+  device(1,status(1),'5 · Durum')+
+  device(1,order(1),'6 · Menü sırası'));
+
+sec('Üst menü ve uyarılar',
+  device(0,lamp(0,'MASA\nLAMBASI',true,'',0)+panel(false),'Üstten aşağı kaydırınca: yön kilidi (serbest)')+
+  device(0,lamp(0,'MASA\nLAMBASI',true,'',0)+panel(true),'Yön kilitli')+
+  device(0,lamp(0,'YATAK\nLAMBASI',false,'',1,warn('YATAK')+bolt),'Yatak ulaşılamıyor (sarı uyarı) + şarj simgesi (sağ üst)'));
+</script>
+</body></html>
