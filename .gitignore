@@ -7,3 +7,8 @@ backup/
 
 # Kisisel ayarlar (MAC adresleri, Wi-Fi ag adi, ESP-NOW parolasi). Sablon: now_config.example.h
 firmware/shared/now_config.h
+
+# iOS: proje dosyasi XcodeGen ile uretilir (ios/Nowlight/project.yml)
+ios/Nowlight/Nowlight.xcodeproj/
+*.xcuserstate
+xcuserdata/

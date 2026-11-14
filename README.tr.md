@@ -1,4 +1,9 @@
-# ESP32 Light Controller (Masa Kumanda)
+# Nowlight
+
+*ESP32 Light Controller: ESP-NOW ile açık kaynak oda aydınlatması.*
+
+**Sistemin parçaları:** pilli AMOLED kumanda ([`firmware/controller`](firmware/controller)), CYD kapı/duvar paneli ([`firmware/controller-cyd`](firmware/controller-cyd)), lamba düğümleri ([`firmware/hub`](firmware/hub), [`firmware/bed-node`](firmware/bed-node)), telefon için WiFi köprüsü ([`firmware/bridge`](firmware/bridge)) ve widget'lı iOS uygulaması ([`ios`](ios)).
+
 
 ESP-NOW ile çalışan, **pilli ve dokunmatik AMOLED ışık kumandası**. Masa ve yatak lambasını, ileride LED şeridi, internet olmadan da kontrol eder. Router, modem ya da WiFi gerekmez; cihazlar WiFi ağ listesinde de görünmez.
 

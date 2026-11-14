@@ -1,4 +1,9 @@
-# ESP32 Light Controller
+# Nowlight
+
+*ESP32 Light Controller: open-source room lighting over ESP-NOW.*
+
+**Parts of the system:** the battery-powered AMOLED remote ([`firmware/controller`](firmware/controller)), a CYD door/wall panel ([`firmware/controller-cyd`](firmware/controller-cyd)), the lamp nodes ([`firmware/hub`](firmware/hub), [`firmware/bed-node`](firmware/bed-node)), a WiFi phone bridge ([`firmware/bridge`](firmware/bridge)) and the iOS app with widgets ([`ios`](ios)).
+
 
 **🇬🇧** A **battery-powered touch AMOLED remote** that switches lamps (and later an LED strip) over **ESP-NOW**: no internet, no router, no WiFi needed (the devices never appear in WiFi network lists).
 **🇹🇷** ESP-NOW ile **internetsiz çalışan, pilli, dokunmatik AMOLED ışık kumandası**. Router/WiFi gerekmez.

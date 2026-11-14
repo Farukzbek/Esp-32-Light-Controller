@@ -1,0 +1,51 @@
+# Nowlight - iOS uygulamasi + widget. Proje dosyasini uretmek icin: xcodegen generate
+# Imzalama: Xcode'da her iki hedefte Signing & Capabilities > Team sec (Apple Developer hesabin). Kimlikler:
+#   uygulama  online.matestudios.nowlight
+#   widget    online.matestudios.nowlight.widget
+#   App Group group.online.matestudios.nowlight   (uygulama ve widget ayni ayarlari okur)
+# Kendi hesabinla farkli bir onek kullanacaksan bundleIdPrefix ve App Group adini (Shared/BridgeConfig.swift + entitlements) birlikte degistir.
+name: Nowlight
+options:
+  bundleIdPrefix: online.matestudios
+  deploymentTarget:
+    iOS: "17.0"
+  createIntermediateGroups: true
+settings:
+  base:
+    SWIFT_VERSION: "5.0"
+    MARKETING_VERSION: "1.0"
+    CURRENT_PROJECT_VERSION: "1"
+    DEVELOPMENT_TEAM: ""
+targets:
+  Nowlight:
+    type: application
+    platform: iOS
+    sources: [App, Shared]
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: online.matestudios.nowlight
+        GENERATE_INFOPLIST_FILE: NO
+        INFOPLIST_FILE: App/Info.plist
+        CODE_SIGN_ENTITLEMENTS: App/Nowlight.entitlements
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+    dependencies:
+      - target: NowlightWidget
+  NowlightWidget:
+    type: app-extension
+    platform: iOS
+    sources: [Widget, Shared]
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: online.matestudios.nowlight.widget
+        GENERATE_INFOPLIST_FILE: NO
+        INFOPLIST_FILE: Widget/Info.plist
+        CODE_SIGN_ENTITLEMENTS: Widget/NowlightWidget.entitlements
+schemes:
+  Nowlight:
+    build:
+      targets:
+        Nowlight: all
+        NowlightWidget: all
+    run:
+      config: Debug
