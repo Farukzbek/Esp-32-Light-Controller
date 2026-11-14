@@ -19,7 +19,10 @@
 static SpanPoint *g_ctrl = nullptr;   // kumanda (komutlar / durum)
 static bool g_on = false;
 static float g_baseline = 0;
-static uint32_t g_lastCtrlRx = 0;
+// Kumandalar: [0] panel (CYD), [1] telefon koprusu (NOW_BRIDGE_MAC tanimliysa). Her biriyle ayri ESP-NOW baglantisi.
+struct Peer { SpanPoint *sp; uint32_t lastRx; };
+static Peer g_peers[2] = {{nullptr, 0}, {nullptr, 0}};
+static int g_npeers = 1;
 
 static void relaySet(bool on) {
   g_on = on;
@@ -38,8 +41,8 @@ static void touchCalibrate() {
   Serial.printf("Baseline: %.0f (en kucuk %lu, en buyuk %lu)\n", g_baseline, (unsigned long)v[0], (unsigned long)v[39]);
 }
 
-static void sendState(uint16_t seq) {
-  if (seq == 0 && (g_lastCtrlRx == 0 || millis() - g_lastCtrlRx > PUSH_QUIET_MS)) {   // kumanda sessiz: bosuna bekleme
+static void sendStateTo(int pi, uint16_t seq) {
+  if (seq == 0 && (g_peers[pi].lastRx == 0 || millis() - g_peers[pi].lastRx > PUSH_QUIET_MS)) {   // kumanda sessiz: bosuna bekleme
     Serial.println("[now] kumanda sessiz, kendiliginden bildirim atlandi");
     return;
   }
@@ -50,8 +53,13 @@ static void sendState(uint16_t seq) {
   r.st[DEV_LED]   = NOW_UNKNOWN;
   r.st[3]         = NOW_UNKNOWN;
   r.seq = seq;
-  const boolean ok = g_ctrl->send(&r);   // kilitli kanalda kumanda uykudaysa hizla basarisiz olur, sorun degil
+  const boolean ok = g_peers[pi].sp->send(&r);   // kilitli kanalda kumanda uykudaysa hizla basarisiz olur, sorun degil
   Serial.printf("[now] STATE yatak=%d seq=%u -> %s\n", r.st[DEV_YATAK], seq, ok ? "ok" : "ulasilamadi");
+}
+
+// seq != 0: istegi yapan kumandaya yanit (sendStateTo); seq == 0: kendiliginden bildirim, tum kumandalara.
+static void sendState(uint16_t seq) {
+  for (int i = 0; i < g_npeers; i++) sendStateTo(i, seq);
 }
 
 void setup() {
@@ -67,6 +75,11 @@ void setup() {
 
   SpanPoint::setPassword(NOW_PASSWORD);
   g_ctrl = new SpanPoint(NOW_CONTROLLER_MAC, sizeof(NowMsg), sizeof(NowMsg), 4);
+  g_peers[0].sp = g_ctrl;
+#ifdef NOW_BRIDGE_MAC
+  g_peers[1].sp = new SpanPoint(NOW_BRIDGE_MAC, sizeof(NowMsg), sizeof(NowMsg), 4);   // telefon koprusu
+  g_npeers = 2;
+#endif
   homeSpan.setLogLevel(0);
   SpanPoint::setChannelMask(1 << NOW_CHANNEL);   // radyoyu sabit kanala kilitle
   Serial.printf("\nYATAK DUGUMU  MAC = %s  sabit kanal = %d\n", Network.macAddress().c_str(), NOW_CHANNEL);
@@ -110,14 +123,15 @@ static void touchLoop() {
 void loop() {
   touchLoop();
   NowMsg m;
-  while (g_ctrl->get(&m)) {
-    g_lastCtrlRx = millis();
+  for (int pi = 0; pi < g_npeers; pi++)   // her kumandadan gelen mesajlar
+  while (g_peers[pi].sp->get(&m)) {
+    g_peers[pi].lastRx = millis();
     if (m.type == NOW_SET && m.dev == DEV_YATAK) {
       relaySet(m.val ? 1 : 0);
       Serial.printf("[now] SET yatak=%d seq=%u\n", m.val, m.seq);
-      sendState(m.seq);
+      sendStateTo(pi, m.seq);
     } else if (m.type == NOW_QUERY) {
-      sendState(m.seq);
+      sendStateTo(pi, m.seq);
     }
   }
   delay(5);

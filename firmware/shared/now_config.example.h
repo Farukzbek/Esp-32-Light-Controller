@@ -11,6 +11,9 @@
 #define NOW_CONTROLLER_MAC  "AA:BB:CC:00:00:02"   // Waveshare AMOLED kumanda
 #define NOW_BED_MAC         "AA:BB:CC:00:00:03"   // yatak ESP32-S3 Super Mini
 
+// (Istege bagli) Telefon koprusunun MAC adresi (firmware/bridge). Tanimliysa masa ve yatak dugumleri koprüyle de konusur.
+// #define NOW_BRIDGE_MAC      "AA:BB:CC:00:00:04"
+
 // ESP-NOW kanali (1..13). Uc cihaz bu kanalda SABIT bulusur; WiFi/router/modem gerekmez.
 // Evde ayni kanali kullanan baska bir 2.4 GHz ag varsa (router) farkli bir kanal secmek iyi olur.
 #define NOW_CHANNEL         1
