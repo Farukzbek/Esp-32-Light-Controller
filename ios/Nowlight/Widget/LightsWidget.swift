@@ -11,8 +11,13 @@ struct LightsProvider: AppIntentTimelineProvider {
     }
 
     func timeline(for configuration: LightsConfigurationIntent, in context: Context) async -> Timeline<LightsEntry> {
+        // Dugmeye yeni basildiysa (iyimser durum) agi beklemeden hemen goster, 2 sn sonra gercek durumu oku.
+        if let c = StateCache.load(), c.optimistic, Date().timeIntervalSince(c.at) < 4 {
+            let e = LightsEntry(date: .now, state: c.state, stale: false, fetchedAt: c.at, error: nil, lights: configuration.lights, accent: configuration.accent)
+            return Timeline(entries: [e], policy: .after(.now.addingTimeInterval(2)))
+        }
         // iOS yenileme sikligini kendisi belirler; yine de 15 dakikada bir iste. Dugmeye basinca ayrica hemen yenilenir.
-        Timeline(entries: [await load(configuration)], policy: .after(.now.addingTimeInterval(15 * 60)))
+        return Timeline(entries: [await load(configuration)], policy: .after(.now.addingTimeInterval(15 * 60)))
     }
 
     private func load(_ c: LightsConfigurationIntent) async -> LightsEntry {

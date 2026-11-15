@@ -21,16 +21,15 @@ extension LightsEntry {
 
 enum TileSize { case compact, regular, large }
 
-/// Tek bir ışığın dokunulabilir karosu (iOS 17: uygulamayı açmadan ışığı değiştirir).
-struct WidgetLightButton: View {
+/// Karonun gorunumu (dugme ve Toggle ortak). `on`: yanik mi; `partial`: "Tum isiklar" icin bir kismi acik.
+struct TileFace: View {
     let light: LightID
     let entry: LightsEntry
     let size: TileSize
+    let on: Bool
+    var partial = false
 
     private var value: Int { entry.state?.value(light) ?? -1 }
-    /// "Tum isiklar" karti yalnizca hepsi aciksa tamamen yanar; kismi durumda koyu kalir, sadece 1/3 yazar ve vurgu renginde gorunur.
-    private var on: Bool { light == .all ? (entry.state?.allOn ?? false) : value == 1 }
-    private var partial: Bool { light == .all && (entry.state?.partial ?? false) }
     private var ink: Color { on ? entry.accent.ink : (partial ? entry.accent.color : .white) }
 
     private var status: String {
@@ -40,38 +39,70 @@ struct WidgetLightButton: View {
     }
 
     var body: some View {
-        Button(intent: ToggleLightIntent(light: light)) {
-            Group {
-                switch size {
-                case .compact:
-                    VStack(spacing: 3) {
-                        Image(systemName: light.symbol).font(.system(size: 20, weight: .semibold))
-                        Text(light.shortTitle).font(.system(size: 11, weight: .semibold)).lineLimit(1).minimumScaleFactor(0.7)
-                    }
-                case .regular:
-                    VStack(spacing: 4) {
-                        Image(systemName: light.symbol).font(.system(size: 26, weight: .semibold))
-                        Text(light.shortTitle).font(.system(size: 13, weight: .semibold)).lineLimit(1).minimumScaleFactor(0.7)
-                        Text(status).font(.system(size: 10, weight: .medium)).opacity(0.75)
-                    }
-                case .large:
-                    VStack(alignment: .leading, spacing: 0) {
-                        Image(systemName: light.symbol).font(.system(size: 30, weight: .semibold))
-                        Spacer(minLength: 4)
-                        Text(light.title).font(.system(size: 17, weight: .semibold)).lineLimit(1).minimumScaleFactor(0.7)
-                        Text(status).font(.system(size: 13, weight: .medium)).opacity(0.75)
-                    }
-                    .padding(14)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+        Group {
+            switch size {
+            case .compact:
+                VStack(spacing: 3) {
+                    Image(systemName: light.symbol).font(.system(size: 20, weight: .semibold))
+                    Text(light.shortTitle).font(.system(size: 11, weight: .semibold)).lineLimit(1).minimumScaleFactor(0.7)
                 }
+            case .regular:
+                VStack(spacing: 4) {
+                    Image(systemName: light.symbol).font(.system(size: 26, weight: .semibold))
+                    Text(light.shortTitle).font(.system(size: 13, weight: .semibold)).lineLimit(1).minimumScaleFactor(0.7)
+                    Text(status).font(.system(size: 10, weight: .medium)).opacity(0.75)
+                }
+            case .large:
+                VStack(alignment: .leading, spacing: 0) {
+                    Image(systemName: light.symbol).font(.system(size: 30, weight: .semibold))
+                    Spacer(minLength: 4)
+                    Text(light.title).font(.system(size: 17, weight: .semibold)).lineLimit(1).minimumScaleFactor(0.7)
+                    Text(status).font(.system(size: 13, weight: .medium)).opacity(0.75)
+                }
+                .padding(14)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
             }
-            .foregroundStyle(ink)
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(on ? entry.accent.color : Color.lampOff)
-            .clipShape(RoundedRectangle(cornerRadius: size == .large ? 20 : 14, style: .continuous))
-            .opacity(entry.state == nil ? 0.45 : (entry.stale ? 0.75 : 1))
         }
-        .buttonStyle(.plain)
+        .foregroundStyle(ink)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(on ? entry.accent.color : Color.lampOff)
+        .clipShape(RoundedRectangle(cornerRadius: size == .large ? 20 : 14, style: .continuous))
+        .opacity(entry.state == nil ? 0.45 : (entry.stale ? 0.75 : 1))
+    }
+}
+
+/// Toggle'in gorunumu: dokunulunca sistem `isOn`'u HEMEN cevirir, komut arkada calisirken karo aninda degisir.
+struct TileToggleStyle: ToggleStyle {
+    let light: LightID
+    let entry: LightsEntry
+    let size: TileSize
+
+    func makeBody(configuration: Configuration) -> some View {
+        TileFace(light: light, entry: entry, size: size, on: configuration.isOn)
+    }
+}
+
+/// Tek bir ışığın dokunulabilir karosu (iOS 17: uygulamayı açmadan ışığı değiştirir).
+/// Hedef durum cizim aninda degil, komut calisirken en guncel (iyimser) duruma gore hesaplanir (ToggleLightIntent):
+/// bu sayede hizli art arda basislar dogru calisir.
+struct WidgetLightButton: View {
+    let light: LightID
+    let entry: LightsEntry
+    let size: TileSize
+
+    private var value: Int { entry.state?.value(light) ?? -1 }
+
+    var body: some View {
+        if light == .all {
+            // "Tum isiklar": kismi durum gosterimi var, sistem Toggle'i yerine duz dugme
+            Button(intent: ToggleLightIntent(light: .all)) {
+                TileFace(light: .all, entry: entry, size: size, on: entry.state?.allOn ?? false, partial: entry.state?.partial ?? false)
+            }
+            .buttonStyle(.plain)
+        } else {
+            Toggle(isOn: value == 1, intent: ToggleLightIntent(light: light)) { Text(light.title) }
+                .toggleStyle(TileToggleStyle(light: light, entry: entry, size: size))
+        }
     }
 }
 

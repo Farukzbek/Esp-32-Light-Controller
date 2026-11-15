@@ -65,7 +65,10 @@ struct BridgeClient {
     /// Uygulama/widget icin: `.all` yalnizca kaldirilmamis cihazlara tek tek gider.
     func apply(_ light: LightID, on: Bool) async throws {
         if light == .all {
-            for d in LightID.devices { try await set(d, on: on) }
+            try await withThrowingTaskGroup(of: Void.self) { g in      // uc istek ayni anda
+                for d in LightID.devices { g.addTask { try await self.set(d, on: on) } }
+                try await g.waitForAll()
+            }
         } else {
             try await set(light, on: on)
         }
