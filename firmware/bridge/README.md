@@ -16,7 +16,13 @@ ESP32'nin tek radyosu var. WiFi'ye bağlıyken ESP-NOW da o kanalda çalışır.
    ```
    `token` komutu telefon uygulamasına girilecek anahtarı gösterir (ilk açılışta rastgele üretilir, `newtoken` ile yenilenir).
 
-Seri komutlar: `wifi`, `token`, `newtoken`, `status`, `reboot`.
+Seri komutlar: `wifi`, `ip`, `token`, `newtoken`, `status`, `reboot`.
+
+**Sabit IP (önerilir):** Modem ayarına dokunmadan köprünün adresini sabitlemek için, modemin DHCP aralığının **dışında** boş bir adres seç (örneğin DHCP aralığı 192.168.1.100-199 ise 192.168.1.50) ve seri monitörde yaz:
+```
+ip 192.168.1.50
+```
+Ağ geçidi varsayılan olarak adresin `.1`'i alınır (farklıysa `ip 192.168.1.50 192.168.1.254`). DHCP'ye dönmek için `ip auto`. Uygulamada adres olarak bu IP'yi kullan: `nowlight.local` (mDNS) yavaş ve güvenilmez.
 
 ## HTTP arayüzü
 Token, `X-Token` başlığında gönderilir (`/api/ping` hariç).

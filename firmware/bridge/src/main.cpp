@@ -14,7 +14,8 @@
 //   POST /api/set   dev=masa|yatak|led|all  val=0|1
 // Token: istek basligi "X-Token". Ilk acilista rastgele uretilir, seri porttan "token" ile gosterilir.
 //
-// Seri komutlar (115200): wifi <ssid> <sifre> | token | newtoken | status | reboot
+// Seri komutlar (115200): wifi <ssid> <sifre> | ip <adres> [ag_gecidi] | ip auto | token | newtoken | status | reboot
+// ip: sabit IP (modem ayarina dokunmadan); verilmezse ya da "ip auto" ile DHCP.
 // WiFi sifresi ve token yalnizca cihazin NVS'inde saklanir, koda ve depoya yazilmaz.
 
 static const char *DEV_NAMES[3] = {"masa", "yatak", "led"};
@@ -42,11 +43,24 @@ static void loadSettings() {
   if (g_token.length() < 16) { g_token = randomToken(); prefs.putString("token", g_token); }
 }
 
+// Kayitli sabit IP'yi uygular: "ip" NVS anahtari = adres, "gw" = ag gecidi. Maske /24 (255.255.255.0), DNS = ag gecidi.
+static void applyStaticIp() {
+  const String ip = getStr("ip");
+  if (!ip.length()) { WiFi.config(IPAddress(), IPAddress(), IPAddress()); return; }   // DHCP'ye don
+  IPAddress a, g;
+  if (!a.fromString(ip)) { Serial.printf("[ip] gecersiz adres: %s\n", ip.c_str()); return; }
+  String gws = getStr("gw");
+  if (!gws.length() || !g.fromString(gws)) g = IPAddress(a[0], a[1], a[2], 1);
+  WiFi.config(a, g, IPAddress(255, 255, 255, 0), g);
+  Serial.printf("[ip] sabit IP: %s  ag gecidi: %s\n", a.toString().c_str(), g.toString().c_str());
+}
+
 static void wifiConnect() {
   const String ssid = getStr("ssid");
   g_haveSsid = ssid.length() > 0;
   if (!g_haveSsid) { Serial.println("[wifi] kayitli ag yok. Seri porttan: wifi <ssid> <sifre>"); return; }
   Serial.printf("[wifi] baglaniliyor: %s\n", ssid.c_str());
+  applyStaticIp();                        // kayitli sabit IP varsa (yoksa DHCP)
   WiFi.disconnect(false, false);          // sureklenen bir denemeyi kes (yoksa "sta is connecting, cannot set config" hatasi); WiFi acik kalir, ESP-NOW etkilenmez
   delay(150);
   WiFi.begin(ssid.c_str(), getStr("pass").c_str());
@@ -83,7 +97,11 @@ static bool authorized() {
   return false;
 }
 
-static void handlePing() { server.send(200, "application/json", "{\"name\":\"nowlight-bridge\"}"); }
+static void handlePing() {
+  char b[100];
+  snprintf(b, sizeof(b), "{\"name\":\"nowlight-bridge\",\"ip\":\"%s\"}", WiFi.localIP().toString().c_str());
+  server.send(200, "application/json", b);
+}
 
 static void handleState() {
   if (!authorized()) return;
@@ -154,6 +172,22 @@ static void handleSerial() {   // (satir sonu: \n ya da \r)
       prefs.putString("pass", pass);
       Serial.printf("[wifi] kaydedildi: %s (sifre %d karakter)\n", ssid.c_str(), (int)pass.length());
       wifiConnect();
+    } else if (line.startsWith("ip ")) {
+      String rest = line.substring(3); rest.trim();
+      if (rest == "auto") {
+        prefs.remove("ip"); prefs.remove("gw");
+        Serial.println("[ip] DHCP'ye donuldu, yeniden baglaniliyor");
+      } else {
+        const int sp = rest.indexOf(' ');
+        const String ip = sp < 0 ? rest : rest.substring(0, sp);
+        const String gw = sp < 0 ? "" : rest.substring(sp + 1);
+        IPAddress t;
+        if (!t.fromString(ip)) { Serial.println("[ip] gecersiz adres. Ornek: ip 192.168.1.50   (ag gecidi 192.168.1.1 varsayilir) ya da: ip auto"); line = ""; continue; }
+        prefs.putString("ip", ip);
+        if (gw.length()) prefs.putString("gw", gw); else prefs.remove("gw");
+        Serial.printf("[ip] kaydedildi: %s, yeniden baglaniliyor\n", ip.c_str());
+      }
+      wifiConnect();
     } else if (line == "token") {
       Serial.printf("[token] %s\n", g_token.c_str());
     } else if (line == "newtoken") {
@@ -165,7 +199,7 @@ static void handleSerial() {   // (satir sonu: \n ya da \r)
     } else if (line == "reboot") {
       ESP.restart();
     } else {
-      Serial.println("komutlar: wifi <ssid> <sifre> | token | newtoken | status | reboot");
+      Serial.println("komutlar: wifi <ssid> <sifre> | ip <adres> [ag_gecidi] | ip auto | token | newtoken | status | reboot");
     }
     line = "";
   }
