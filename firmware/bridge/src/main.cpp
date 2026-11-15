@@ -24,6 +24,7 @@ static String g_token;
 static int8_t g_st[3] = {-1, -1, -1};      // son bilinen durum (-1 = henuz bildirilmedi)
 static uint32_t g_wifiTry = 0;
 static bool g_wifiWasUp = false;
+static bool g_haveSsid = false;            // kayitli ag var mi (dongude NVS okumamak icin onbellek)
 
 // ---------------------------------------------------------------- ayarlar
 static String randomToken() {
@@ -32,17 +33,23 @@ static String randomToken() {
   return String(b);
 }
 
+// Anahtar yokken getString NVS hatasi basar (ve dongude seri porti doldurur): once isKey ile bak.
+static String getStr(const char *key) { return prefs.isKey(key) ? prefs.getString(key, "") : String(); }
+
 static void loadSettings() {
   prefs.begin("bridge", false);
-  g_token = prefs.getString("token", "");
+  g_token = getStr("token");
   if (g_token.length() < 16) { g_token = randomToken(); prefs.putString("token", g_token); }
 }
 
 static void wifiConnect() {
-  const String ssid = prefs.getString("ssid", "");
-  if (!ssid.length()) { Serial.println("[wifi] kayitli ag yok. Seri porttan: wifi <ssid> <sifre>"); return; }
+  const String ssid = getStr("ssid");
+  g_haveSsid = ssid.length() > 0;
+  if (!g_haveSsid) { Serial.println("[wifi] kayitli ag yok. Seri porttan: wifi <ssid> <sifre>"); return; }
   Serial.printf("[wifi] baglaniliyor: %s\n", ssid.c_str());
-  WiFi.begin(ssid.c_str(), prefs.getString("pass", "").c_str());
+  WiFi.disconnect(false, false);          // sureklenen bir denemeyi kes (yoksa "sta is connecting, cannot set config" hatasi); WiFi acik kalir, ESP-NOW etkilenmez
+  delay(150);
+  WiFi.begin(ssid.c_str(), getStr("pass").c_str());
   g_wifiTry = millis();
 }
 
@@ -119,20 +126,33 @@ static void printStatus() {
   Serial.printf("[durum] %s\n", stateJson().c_str());
 }
 
-static void handleSerial() {
+static void handleSerial() {   // (satir sonu: \n ya da \r)
   static String line;
   while (Serial.available()) {
     const char c = Serial.read();
     if (c != '\n' && c != '\r') { line += c; continue; }
     if (!line.length()) continue;
     if (line.startsWith("wifi ")) {
-      const int sp = line.indexOf(' ', 5);
-      const String ssid = sp < 0 ? line.substring(5) : line.substring(5, sp);
-      const String pass = sp < 0 ? "" : line.substring(sp + 1);
+      // wifi <ag_adi> <sifre>   ya da   wifi "Ag Adi" sifre   (< > ve " isaretleri atilir; ag adinda bosluk varsa tirnak kullan)
+      String rest = line.substring(5);
+      rest.trim();
+      String ssid, pass;
+      if (rest.startsWith("\"")) {
+        const int q = rest.indexOf('"', 1);
+        ssid = q < 0 ? rest.substring(1) : rest.substring(1, q);
+        pass = q < 0 ? "" : rest.substring(q + 1);
+      } else {
+        const int sp = rest.indexOf(' ');
+        ssid = sp < 0 ? rest : rest.substring(0, sp);
+        pass = sp < 0 ? "" : rest.substring(sp + 1);
+      }
+      auto strip = [](String s) { s.trim(); if (s.startsWith("<") && s.endsWith(">") && s.length() >= 2) s = s.substring(1, s.length() - 1); if (s.startsWith("\"") && s.endsWith("\"") && s.length() >= 2) s = s.substring(1, s.length() - 1); return s; };
+      ssid = strip(ssid);
+      pass = strip(pass);
+      if (!ssid.length()) { Serial.println("[wifi] ag adi bos. Ornek: wifi AgAdim Sifrem"); line = ""; continue; }
       prefs.putString("ssid", ssid);
       prefs.putString("pass", pass);
-      Serial.printf("[wifi] kaydedildi: %s\n", ssid.c_str());
-      WiFi.disconnect();
+      Serial.printf("[wifi] kaydedildi: %s (sifre %d karakter)\n", ssid.c_str(), (int)pass.length());
       wifiConnect();
     } else if (line == "token") {
       Serial.printf("[token] %s\n", g_token.c_str());
@@ -179,6 +199,6 @@ void loop() {
     if (MDNS.begin("nowlight")) { MDNS.addService("http", "tcp", 80); Serial.println("[mdns] nowlight.local"); }
   }
   g_wifiWasUp = up;
-  if (!up && prefs.getString("ssid", "").length() && millis() - g_wifiTry > 20000) wifiConnect();   // takilirsa yeniden dene
+  if (!up && g_haveSsid && millis() - g_wifiTry > 20000) wifiConnect();   // takilirsa yeniden dene
   delay(2);
 }

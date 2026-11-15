@@ -12,13 +12,19 @@
 #define RELAY_OFF HIGH
 
 #define TOUCH_PIN        9     // ESP32-S3'te GPIO1..14 dokunmatiktir (T1..T14)
-#define TOUCH_DELTA_PCT  20    // baseline'a gore % sapma = dokunma. ESP32-S3'te dokununca deger YUKSELIR
+// Esik KAPALI KASAYLA (bant 1 mm duvarin arkasinda) olculdu: parmak ucu x1.09-1.11, avuc ici x1.17, yaklastirma (degmeden) x1.04'u gecmedi.
+// Kasa degisirse yeniden olc (TOUCH_DEBUG=1) ve bunu ayarla.
+#define TOUCH_DELTA_PCT  6.5   // dokunma: baseline'a gore % sapma. ESP32-S3'te dokununca deger YUKSELIR
+#define TOUCH_READS      3     // kac ardisik okuma (15 ms arayla) esigin ustunde olmali: tek seferlik parazit sayilmasin
+#define TOUCH_RELEASE_PCT 3    // birakma esigi (histerezis)
+#define TOUCH_BETWEEN_MS 500   // iki tetik arasi en az bekleme (pes pese dokunma korumasi)
 #define TOUCH_DEBUG      0     // 1: dokunma degerlerini seri porta yaz (esigi ayarlamak icin)
 #define PUSH_QUIET_MS    25000 // kumanda bu kadar sessizse (uykuda/kapali) kendiliginden bildirim atma
 
 static SpanPoint *g_ctrl = nullptr;   // kumanda (komutlar / durum)
 static bool g_on = false;
 static float g_baseline = 0;
+static uint32_t g_evStart = 0;   // debug: dokunma olayinin basladigi an
 // Kumandalar: [0] panel (CYD), [1] telefon koprusu (NOW_BRIDGE_MAC tanimliysa). Her biriyle ayri ESP-NOW baglantisi.
 struct Peer { SpanPoint *sp; uint32_t lastRx; };
 static Peer g_peers[2] = {{nullptr, 0}, {nullptr, 0}};
@@ -87,36 +93,36 @@ void setup() {
 
 static void touchLoop() {
   static bool touched = false;
-  static uint8_t activeCount = 0;
+  static uint8_t strongCount = 0;
   static uint32_t lastRead = 0, holdOff = 0;
 
-  if (millis() - lastRead < 30) return;
+  if (millis() - lastRead < 15) return;
   lastRead = millis();
   const float v = touchRead(TOUCH_PIN);
 #if TOUCH_DEBUG
-  static uint32_t lastDbg = 0;
-  if (millis() - lastDbg > 500) { lastDbg = millis(); Serial.printf("[touch] deger=%.0f baseline=%.0f\n", v, g_baseline); }
+  // Her dokunma/yaklasma olayinin gercek zirvesini yaz (baseline'in %4 ustuyle baslar, altina inince biter)
+  static uint32_t lastDbg = 0, evStart = 0, evPeakAt = 0; static float evPeak = 0; static bool inEv = false;
+  if (v > g_baseline * 1.04f) { if (!inEv) { inEv = true; evStart = millis(); g_evStart = evStart; evPeak = 0; } if (v > evPeak) { evPeak = v; evPeakAt = millis(); } }
+  else if (inEv) { inEv = false; Serial.printf("[touch] olay zirve=%.0f (x%.2f) sure=%lums yukselme=%lums\n", evPeak, evPeak / g_baseline, (unsigned long)(millis() - evStart), (unsigned long)(evPeakAt - evStart)); }
+  if (millis() - lastDbg > 3000) { lastDbg = millis(); Serial.printf("[touch] bosta deger=%.0f baseline=%.0f\n", v, g_baseline); }
 #endif
-  const float d = g_baseline * TOUCH_DELTA_PCT / 100.0f;
-  const bool active  = v > g_baseline + d;          // dokunma
-  const bool release = v < g_baseline + d / 2;      // birakma (histerezis)
+  const bool above   = v > g_baseline * (1.0f + TOUCH_DELTA_PCT / 100.0f);
+  const bool release = v < g_baseline * (1.0f + TOUCH_RELEASE_PCT / 100.0f);
 
   if (!touched) {
-    if (active) {
-      if (++activeCount >= 3 && millis() > holdOff) {   // 3 ardisik okuma: parazit filtresi
-        touched = true;
-        holdOff = millis() + 400;
-        relaySet(!g_on);
-        Serial.printf("[touch] lamba -> %s\n", g_on ? "ACIK" : "KAPALI");
-        sendState(0);
-      }
-    } else {
-      activeCount = 0;
-      g_baseline += 0.002f * (v - g_baseline);          // yavas kayma takibi
+    strongCount = above ? strongCount + 1 : 0;
+    if (strongCount >= TOUCH_READS && millis() > holdOff) {
+      touched = true;
+      holdOff = millis() + TOUCH_BETWEEN_MS;
+      relaySet(!g_on);
+      Serial.printf("[touch] lamba -> %s (gecikme %lu ms)\n", g_on ? "ACIK" : "KAPALI", (unsigned long)(millis() - g_evStart));
+      sendState(0);
+    } else if (!above) {
+      g_baseline += 0.002f * (v - g_baseline);          // yavas kayma takibi (yalnizca dokunma/yaklasma yokken)
     }
   } else if (release) {
     touched = false;
-    activeCount = 0;
+    strongCount = 0;
   }
 }
 
