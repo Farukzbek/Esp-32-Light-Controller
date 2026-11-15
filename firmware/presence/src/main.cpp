@@ -15,12 +15,16 @@
 // Seri komutlar: wifi <ag> <sifre> | ip <adres> [ag_gecidi] | ip auto | status | reboot
 // WiFi sifresi yalnizca cihazin NVS'inde saklanir (koda/depoya yazilmaz).
 
+#define PIR_PIN          4        // PIR sensorun OUT ucu (HC-SR501 / AM312 / HC-SR505)
 #define PING_INTERVAL_MS 40
 #define BASELINE_ALPHA   0.02f    // genlik tabaninin yavas takibi (yavas ortam degisimlerini sifirlar)
 #define SCORE_ALPHA      0.25f    // skor yumusatma
 #define MAX_SC           64       // islenecek alt tasiyici sayisi
 
 static Preferences prefs;
+static volatile uint8_t g_pir = 0;            // PIR su an hareket goruyor mu
+static volatile uint32_t g_pirEvents = 0;     // 0 -> 1 gecis sayisi (hareket olayi)
+static volatile uint32_t g_pirLastMs = 0;     // son olayin zamani
 static WebServer server(80);
 static bool g_haveSsid = false;
 static uint32_t g_wifiTry = 0;
@@ -210,7 +214,7 @@ h1{font-size:20px;margin:0 0 4px}.s{color:#888;font-size:13px;margin-bottom:14px
 .bar{height:22px;background:#222;border-radius:8px;overflow:hidden}.fill{height:100%;background:#FFC93C;width:0;transition:width .15s}
 canvas{width:100%;height:70px;background:#0b0b0b;border-radius:8px;margin-top:6px}.r{color:#777;font-size:13px}
 </style></head><body><h1>Hareket olcumu</h1><div class="s">Uc olcut yan yana. Her biri kendi olcegine gore cizilir (son 60 sn'nin en yuksegi = tam cubuk).</div>
-<div id="ms"></div><div class="r" id="r"></div>
+<div class="m"><div class="l"><span>PIR sensoru</span><b id="pir">-</b></div></div><div id="ms"></div><div class="r" id="r"></div>
 <script>
 const names={old:"old (ilk yontem)",win:"win (1 sn pencere)",corr:"corr (korelasyon)"};
 const keys=Object.keys(names),hist={},mx={};
@@ -221,6 +225,7 @@ keys.forEach(k=>{const v=d[k];hist[k].push(v);if(hist[k].length>300)hist[k].shif
 document.getElementById('v_'+k).textContent=v.toFixed(4);document.getElementById('f_'+k).style.width=Math.min(100,v/mx[k]*100)+'%';
 const c=document.getElementById('c_'+k),x=c.getContext('2d');x.clearRect(0,0,600,70);x.strokeStyle='#FFC93C';x.beginPath();
 hist[k].forEach((y,i)=>{const px=i*2,py=68-(y/mx[k])*64;i?x.lineTo(px,py):x.moveTo(px,py)});x.stroke();});
+document.getElementById('pir').textContent=d.pir?'HAREKET':'sakin';document.getElementById('pir').style.color=d.pir?'#FFC93C':'#888';
 document.getElementById('r').textContent='paket/sn '+d.rate.toFixed(0)+' | sinyal '+d.rssi.toFixed(0)+' dBm | atlanan '+d.skipped;}catch(e){}}
 setInterval(t,200);t();</script></body></html>)HTML";
 
@@ -228,9 +233,9 @@ static void startHttp() {
   server.on("/", HTTP_GET, []() { server.send_P(200, "text/html; charset=utf-8", PAGE); });
   server.on("/api/ping", HTTP_GET, []() { server.send(200, "application/json", "{\"name\":\"nowlight-presence\"}"); });
   server.on("/api/csi", HTTP_GET, []() {
-    char b[340];
-    snprintf(b, sizeof(b), "{\"old\":%.4f,\"win\":%.4f,\"corr\":%.4f,\"rate\":%.1f,\"rssi\":%.1f,\"pkts\":%u,\"skipped\":%u,\"age\":%lu,\"pingOk\":%u,\"pingTo\":%u,\"cb\":%u,\"warm\":%u,\"valid\":%u,\"len\":%u,\"mean\":%.1f}",
-             (float)g_old, (float)g_win, (float)g_corr, (float)g_rate, (float)g_rssi, (unsigned)g_pkts, (unsigned)g_skipped, (unsigned long)(millis() - g_lastPkt), (unsigned)g_pingOk, (unsigned)g_pingTo, (unsigned)g_cb, (unsigned)g_dbgWarm, (unsigned)g_dbgValid, (unsigned)g_dbgLen, (float)g_dbgMean);
+    char b[420];
+    snprintf(b, sizeof(b), "{\"old\":%.4f,\"win\":%.4f,\"corr\":%.4f,\"rate\":%.1f,\"rssi\":%.1f,\"pkts\":%u,\"skipped\":%u,\"age\":%lu,\"pingOk\":%u,\"pingTo\":%u,\"cb\":%u,\"warm\":%u,\"valid\":%u,\"len\":%u,\"mean\":%.1f,\"pir\":%u,\"pirEvents\":%u,\"pirAge\":%lu}",
+             (float)g_old, (float)g_win, (float)g_corr, (float)g_rate, (float)g_rssi, (unsigned)g_pkts, (unsigned)g_skipped, (unsigned long)(millis() - g_lastPkt), (unsigned)g_pingOk, (unsigned)g_pingTo, (unsigned)g_cb, (unsigned)g_dbgWarm, (unsigned)g_dbgValid, (unsigned)g_dbgLen, (float)g_dbgMean, (unsigned)g_pir, (unsigned)g_pirEvents, (unsigned long)(g_pirEvents ? millis() - g_pirLastMs : 0));
     server.sendHeader("Access-Control-Allow-Origin", "*");
     server.send(200, "application/json", b);
   });
@@ -287,6 +292,7 @@ static void handleSerial() {
 void setup() {
   Serial.begin(115200);
   delay(400);
+  pinMode(PIR_PIN, INPUT_PULLDOWN);              // sensor bagli degilken 0 okunur
   prefs.begin("presence", false);
   WiFi.mode(WIFI_STA);
   WiFi.setSleep(false);                // uyku modu paket zamanlamasini bozar
@@ -312,10 +318,22 @@ void loop() {
   g_wasUp = up;
   if (!up && g_haveSsid && millis() - g_wifiTry > 20000) wifiConnect();
 
+  // PIR: 15 ms'de bir oku, 3 ardisik ayni okumayla degisimi kabul et (parazit filtresi); 0->1 gecisi bir "hareket olayi"
+  static uint32_t lastPir = 0; static uint8_t pirSame = 0, pirRaw = 0;
+  if (millis() - lastPir >= 15) {
+    lastPir = millis();
+    const uint8_t r = digitalRead(PIR_PIN);
+    if (r == pirRaw) { if (pirSame < 255) pirSame++; } else { pirRaw = r; pirSame = 1; }
+    if (pirSame >= 3 && r != g_pir) {
+      g_pir = r;
+      if (r) { g_pirEvents++; g_pirLastMs = millis(); Serial.printf("[pir] HAREKET (olay %u)\n", (unsigned)g_pirEvents); }
+      else Serial.println("[pir] sakin");
+    }
+  }
   static uint32_t lastPrint = 0;
   if (up && millis() - lastPrint > 500) {
     lastPrint = millis();
-    Serial.printf("[csi] old=%.3f win=%.3f corr=%.4f paket/sn=%.0f ping ok/zaman asimi=%u/%u sinyal=%.0f\n", (float)g_old, (float)g_win, (float)g_corr, (float)g_rate, (unsigned)g_pingOk, (unsigned)g_pingTo, (float)g_rssi);
+    Serial.printf("[csi] pir=%u old=%.3f win=%.3f corr=%.4f paket/sn=%.0f ping ok/zaman asimi=%u/%u sinyal=%.0f\n", (unsigned)g_pir, (float)g_old, (float)g_win, (float)g_corr, (float)g_rate, (unsigned)g_pingOk, (unsigned)g_pingTo, (float)g_rssi);
   }
   delay(1);
 }

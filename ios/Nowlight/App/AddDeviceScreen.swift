@@ -62,6 +62,12 @@ struct AddDeviceScreen: View {
                     } header: { Text("Kaldırılanlar") }
                 }
 
+                Section {
+                    NavigationLink { AutomationScreen() } label: {
+                        Label("Kapı otomasyonu", systemImage: "figure.walk.motion")
+                    }
+                } header: { Text("Otomasyon") } footer: { Text("Kapının üstündeki sensör odaya girişi algılayınca seçtiğin ışıkları kendisi yakar.") }
+
                 Section("Köprü") {
                     Button { showSettings = true } label: {
                         Label("Köprü ayarları (adres ve token)", systemImage: "wifi.router.fill")
