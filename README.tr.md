@@ -2,6 +2,14 @@
 
 *ESP32 Light Controller: ESP-NOW ile açık kaynak oda aydınlatması.*
 
+<p align="center">
+  <img src="docs/images/app-lights.png" alt="Işıklar ekranı" width="180">
+  <img src="docs/images/app-widgets.png" alt="Widgetlar" width="180">
+  <img src="docs/images/app-pairing.png" alt="Eşleşmede cihaz bulundu" width="180">
+  <img src="docs/images/app-siri.png" alt="Siri komutları" width="180">
+</p>
+<p align="center"><sub>iOS uygulaması: ışıklar, widget'lar, rehberli eşleme, Siri komutları.</sub></p>
+
 **Sistemin parçaları:** pilli AMOLED kumanda ([`firmware/controller`](firmware/controller)), CYD kapı/duvar paneli ([`firmware/controller-cyd`](firmware/controller-cyd)), lamba düğümleri ([`firmware/hub`](firmware/hub), [`firmware/bed-node`](firmware/bed-node)), telefon için WiFi köprüsü ([`firmware/bridge`](firmware/bridge)) ve widget'lı iOS uygulaması ([`ios`](ios)).
 
 
@@ -50,6 +58,19 @@ ESP-NOW ağ anahtarı düz metin gitmez: 2 dakikalık eşleşme penceresinde X25
 **Telefon uygulaması (iOS):** ana ekran widget'ları (en fazla 8 ışık), ışıkları yeniden adlandırma ve simge seçme, yeni ışık düğümlerini rehberle eşleme, kapı sensörü otomasyon kuralları, köprüyü kablosuz güncelleme ve **telefon kilitliyken de çalışan Siri komutları** ("led kapat": tek dokunuşla tüm ışıklar için eklenir, bkz. [ios/README.md](ios/README.md)).
 
 ## Ekranlar
+
+**iOS uygulaması:** ışıklar ekranı, ana ekran widget'ları (en fazla 8 ışık), yeni ışığın rehberli eşlemesi (bulundu, sonra ad ve simge) ve telefon kilitliyken de çalışan tek dokunuşluk Siri komutları.
+
+<p align="center">
+  <img src="docs/images/app-lights.png" alt="Işıklar ekranı" width="180">
+  <img src="docs/images/app-widgets.png" alt="Widgetlar" width="180">
+  <img src="docs/images/app-pairing.png" alt="Cihaz bulundu" width="180">
+  <img src="docs/images/app-new-light.png" alt="Ad ve simge" width="180">
+  <img src="docs/images/app-siri.png" alt="Siri komutları" width="180">
+</p>
+
+**Kumanda (AMOLED)**
+
 
 280x456 AMOLED'de dikey (dikey menü) ve yatay (yatay menü) görünüm. `app_ui.cpp` içindeki gerçek yerleşim değerlerinden çizildi. Ekran dili derleme seçeneğidir: Türkçe (varsayılan, ASCII) ya da İngilizce (`firmware/controller` içinde `pio run -e waveshare-amoled164-en -t upload --upload-port <PORT>`). Önizleme kaynağı: [`docs/images/ui-pages.html`](docs/images/ui-pages.html) (İngilizce için adrese `#en` ekle).
 

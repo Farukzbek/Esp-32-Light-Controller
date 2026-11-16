@@ -2,6 +2,14 @@
 
 *ESP32 Light Controller: open-source room lighting over ESP-NOW.*
 
+<p align="center">
+  <img src="docs/images/app-lights.png" alt="Lights screen" width="180">
+  <img src="docs/images/app-widgets.png" alt="Widgets" width="180">
+  <img src="docs/images/app-pairing.png" alt="Device found while pairing" width="180">
+  <img src="docs/images/app-siri.png" alt="Add Siri commands" width="180">
+</p>
+<p align="center"><sub>iOS app (Turkish interface): lights, widgets, guided pairing, Siri commands.</sub></p>
+
 **Parts of the system:** the battery-powered AMOLED remote ([`firmware/controller`](firmware/controller)), a CYD door/wall panel ([`firmware/controller-cyd`](firmware/controller-cyd)), the lamp nodes ([`firmware/hub`](firmware/hub), [`firmware/bed-node`](firmware/bed-node)), a WiFi phone bridge ([`firmware/bridge`](firmware/bridge)), generic pairable light nodes ([`firmware/node`](firmware/node)), a door PIR node ([`firmware/door`](firmware/door)) and the iOS app with widgets ([`ios`](ios)).
 
 
@@ -51,6 +59,19 @@ The ESP-NOW network key never travels in clear text: it is delivered during a 2-
 **Phone app (iOS):** home-screen widgets (up to 8 lights), rename lights and pick icons, guided pairing of new light nodes, door-sensor automation rules, wireless bridge updates, and **Siri commands that work while the phone is locked** ("led off": one tap adds them for every light, see [ios/README.md](ios/README.md)).
 
 ## Screens
+
+**iOS app** (Turkish interface): the lights screen, home-screen widgets (up to 8 lights), guided pairing of a new light (found, then name and icon) and one-tap Siri commands that also work while the phone is locked.
+
+<p align="center">
+  <img src="docs/images/app-lights.png" alt="Lights screen" width="180">
+  <img src="docs/images/app-widgets.png" alt="Widgets" width="180">
+  <img src="docs/images/app-pairing.png" alt="Device found" width="180">
+  <img src="docs/images/app-new-light.png" alt="Name and icon" width="180">
+  <img src="docs/images/app-siri.png" alt="Siri commands" width="180">
+</p>
+
+**Remote (AMOLED)**
+
 
 Portrait (vertical menu) and landscape (horizontal menu) on the 280x456 AMOLED, drawn from the real layout values in `app_ui.cpp`. The on-screen language is a build option: Turkish (default, ASCII) or English (`pio run -e waveshare-amoled164-en -t upload --upload-port <PORT>` in `firmware/controller`). Source of the previews: [`docs/images/ui-pages.html`](docs/images/ui-pages.html) (add `#en` to the address for English).
 
