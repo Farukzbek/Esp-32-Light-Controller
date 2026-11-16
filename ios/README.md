@@ -7,7 +7,7 @@ Evdeyken (aynı WiFi'de) telefondan ışıkları kontrol eder. Telefon, [`firmwa
   - **Widgetlar:** üç boyutun (küçük, orta, büyük) gerçek durumla önizlemesi ve ana ekrana nasıl ekleneceği.
   - **Cihaz Ekle:** cihaz yönetimi. "Cihazlarım" listesinde bir cihazı sola kaydırıp **kaldırabilirsin** (yalnızca uygulamadan ve widget'lardan kalkar, ESP32 çalışmaya devam eder), "Kaldırılanlar"dan **geri ekleyebilirsin**. Köprü ayarları (adres, token) da buradan açılır. **Otomatik cihaz arama/kurulum (henüz hiçbir köprüye bağlanmamış bir ESP32'yi kod girmeden kurma) sonraki sürümde gelecek**; ekranda "Yakında" olarak duruyor.
   - Uygulama simgesi: `App/Assets.xcassets`.
-- **Widget (küçük, orta, büyük):** Widget'a uzun basıp **Widget'ı Düzenle** ile hangi ışıkların (en fazla 4, sırasıyla; "Boş" seçilen yuva gösterilmez) ve açık renginin (sarı, yeşil, mavi, beyaz) görüneceğini seçersin.
+- **Widget (küçük, orta, büyük):** Widget'a uzun basıp **Widget'ı Düzenle** ile hangi ışıkların (en fazla 8, sırasıyla; "Boş" seçilen yuva gösterilmez) ve açık renginin (sarı, yeşil, mavi, beyaz) görüneceğini seçersin.
   - Küçük: 2x2 küçük karolar. Orta: tek satırda karolar, durum yazısıyla. Büyük: başlık, büyük karolar ve "Hepsini aç / Hepsini kapat".
   - iOS 17 etkileşimli düğmeleri: basınca uygulamayı açmadan ışık değişir. Köprüye ulaşılamazsa son bilinen durum "Güncel değil" uyarısıyla soluk gösterilir.
 - **Kısayollar/Siri:** `ToggleLightIntent` ve `SetAllLightsIntent` Kısayollar uygulamasında görünür.
@@ -20,7 +20,7 @@ cd ios/Nowlight
 xcodegen generate
 open Nowlight.xcodeproj
 ```
-Xcode'da iki hedefte (Nowlight, NowlightWidget) **Signing & Capabilities → Team** seç. Kimlikler `project.yml`'de (`online.matestudios.nowlight`, App Group `group.online.matestudios.nowlight`); kendi hesabında farklı bir önek kullanacaksan `project.yml`, `Shared/BridgeConfig.swift` ve iki `.entitlements` dosyasında birlikte değiştir.
+Xcode'da üç hedefte (Nowlight, NowlightWidget, NowlightIntents) **Signing & Capabilities → Team** seç. Kimlikler `project.yml`'de (`online.matestudios.nowlight`, App Group `group.online.matestudios.nowlight`); kendi hesabında farklı bir önek kullanacaksan `project.yml`, `Shared/BridgeConfig.swift` ve üç `.entitlements` dosyasında birlikte değiştir.
 
 İlk açılışta Ayarlar'dan köprü adresini (`nowlight.local` ya da IP) ve köprünün `token` komutuyla gösterdiği anahtarı gir, **Bağlantıyı dene**'ye bas. iOS "yerel ağ" iznini isteyecek, ver.
 
@@ -36,3 +36,11 @@ Uygulamayı belirli bir sekmede açmak için `-tab 0|1|2` başlatma argümanı k
 ## Notlar
 - Token ve adres App Group UserDefaults'ta saklanır (uygulama ve widget ortak okur). Yalnızca ev ağında geçerli, düşük riskli bir anahtar için yeterli; internete açılan bir köprüde Keychain kullanılmalı.
 - Widget'ın yenilenme sıklığını iOS belirler; düğmeye basınca ve uygulamada işlem yapınca hemen yenilenir.
+
+## Siri komutları
+
+- **Hazır komutlar:** uygulama kurulunca "Nowlight tüm ışıkları aç/kapat" kendiliğinden gelir (App Shortcuts).
+- **Kendi cümlen ("led kapat"):** Işıklar ekranının altındaki **Siri'ye ekle** kartından ışıkları seç; her ışık için "aç" ve "kapat" Siri sayfaları art arda açılır, cümleyi bir kez sesli söylersin (Apple zorunlu tutuyor). Aynı ekleme ışığın düzenleme ekranından da yapılır.
+- **Kilitliyken de çalışır:** bu komutları `NowlightIntents` Siri uzantısı (`IntentsExt/`, tanım `Shared/Siri.intentdefinition`) uygulamayı açmadan arka planda çalıştırır.
+- Uzantının App Group'u Xcode'da bir kez seçilmelidir (NowlightIntents → Signing & Capabilities → App Groups → `group.online.matestudios.nowlight`); komut satırı derlemesi bunu kendiliğinden yapamaz.
+- Not: komutun başına "ışık" gibi kelimeler koyma, Siri bunu Apple Ev komutu sanıp "evinde ayarlanmış ışık yok" der. Sade adlar ("led kapat") güvenli.

@@ -73,6 +73,7 @@ struct LightsScreen: View {
                         LazyVGrid(columns: columns, spacing: 14) {
                             ForEach(tiles, id: \.self) { LightTile(light: $0) }
                         }
+                        SiriPromoCard().padding(.top, 10)
                     }
                 }
                 .padding(.horizontal, 18)

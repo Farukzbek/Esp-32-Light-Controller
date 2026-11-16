@@ -47,6 +47,8 @@ ESP-NOW ağ anahtarı düz metin gitmez: 2 dakikalık eşleşme penceresinde X25
 
 **Yatak düğümü (ESP32-S3 Super Mini)** — Sadece ESP-NOW, WiFi/modem yok. Elektrik gelince lamba her zaman kapalı başlar.
 
+**Telefon uygulaması (iOS):** ana ekran widget'ları (en fazla 8 ışık), ışıkları yeniden adlandırma ve simge seçme, yeni ışık düğümlerini rehberle eşleme, kapı sensörü otomasyon kuralları, köprüyü kablosuz güncelleme ve **telefon kilitliyken de çalışan Siri komutları** ("led kapat": tek dokunuşla tüm ışıklar için eklenir, bkz. [ios/README.md](ios/README.md)).
+
 ## Ekranlar
 
 280x456 AMOLED'de dikey (dikey menü) ve yatay (yatay menü) görünüm. `app_ui.cpp` içindeki gerçek yerleşim değerlerinden çizildi. Ekran dili derleme seçeneğidir: Türkçe (varsayılan, ASCII) ya da İngilizce (`firmware/controller` içinde `pio run -e waveshare-amoled164-en -t upload --upload-port <PORT>`). Önizleme kaynağı: [`docs/images/ui-pages.html`](docs/images/ui-pages.html) (İngilizce için adrese `#en` ekle).

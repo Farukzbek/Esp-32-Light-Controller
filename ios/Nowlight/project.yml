@@ -1,8 +1,9 @@
 # Nowlight - iOS uygulamasi + widget. Proje dosyasini uretmek icin: xcodegen generate
-# Imzalama: Xcode'da her iki hedefte Signing & Capabilities > Team sec (Apple Developer hesabin). Kimlikler:
+# Imzalama: Xcode'da uc hedefte (uygulama, widget, Siri uzantisi) Signing & Capabilities > Team sec (Apple Developer hesabin). Kimlikler:
 #   uygulama  online.matestudios.nowlight
 #   widget    online.matestudios.nowlight.widget
-#   App Group group.online.matestudios.nowlight   (uygulama ve widget ayni ayarlari okur)
+#   siri      online.matestudios.nowlight.intents  (kilitliyken calisan Siri komutlari)
+#   App Group group.online.matestudios.nowlight   (uygulama, widget ve Siri uzantisi ayni ayarlari okur)
 # Kendi hesabinla farkli bir onek kullanacaksan bundleIdPrefix ve App Group adini (Shared/BridgeConfig.swift + entitlements) birlikte degistir.
 name: Nowlight
 options:
@@ -31,6 +32,7 @@ targets:
         ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
     dependencies:
       - target: NowlightWidget
+      - target: NowlightIntents
   NowlightWidget:
     type: app-extension
     platform: iOS
@@ -41,11 +43,26 @@ targets:
         GENERATE_INFOPLIST_FILE: NO
         INFOPLIST_FILE: Widget/Info.plist
         CODE_SIGN_ENTITLEMENTS: Widget/NowlightWidget.entitlements
+  NowlightIntents:
+    type: app-extension
+    platform: iOS
+    sources: [IntentsExt, Shared]
+    attributes:
+      SystemCapabilities:
+        com.apple.ApplicationGroups.iOS:
+          enabled: 1
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: online.matestudios.nowlight.intents
+        GENERATE_INFOPLIST_FILE: NO
+        INFOPLIST_FILE: IntentsExt/Info.plist
+        CODE_SIGN_ENTITLEMENTS: IntentsExt/NowlightIntents.entitlements
 schemes:
   Nowlight:
     build:
       targets:
         Nowlight: all
         NowlightWidget: all
+        NowlightIntents: all
     run:
       config: Debug

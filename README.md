@@ -48,6 +48,8 @@ The ESP-NOW network key never travels in clear text: it is delivered during a 2-
 
 **Reliability:** absolute-value commands acknowledged by an application-level reply (not the radio ACK), retries, on-screen rollback on failure; the radio of all three devices is locked to one fixed channel, so nothing depends on a router (SpanPoint's own channel scanning is avoided, see [architecture](docs/architecture.md), Turkish).
 
+**Phone app (iOS):** home-screen widgets (up to 8 lights), rename lights and pick icons, guided pairing of new light nodes, door-sensor automation rules, wireless bridge updates, and **Siri commands that work while the phone is locked** ("led off": one tap adds them for every light, see [ios/README.md](ios/README.md)).
+
 ## Screens
 
 Portrait (vertical menu) and landscape (horizontal menu) on the 280x456 AMOLED, drawn from the real layout values in `app_ui.cpp`. The on-screen language is a build option: Turkish (default, ASCII) or English (`pio run -e waveshare-amoled164-en -t upload --upload-port <PORT>` in `firmware/controller`). Source of the previews: [`docs/images/ui-pages.html`](docs/images/ui-pages.html) (add `#en` to the address for English).

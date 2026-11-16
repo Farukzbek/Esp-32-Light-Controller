@@ -152,6 +152,8 @@ struct DeviceEditor: View {
     @State private var relayMsg: String?
     @State private var busy = false
     @State private var confirmDelete = false
+    @State private var siriSheet: SiriSheetKind?
+    @State private var siriMsg: String?
 
     init(light: LightID) {
         self.light = light
@@ -159,6 +161,12 @@ struct DeviceEditor: View {
         _symbol = State(initialValue: light.symbol)
         _relayPin = State(initialValue: light.relayConfig?.pin ?? 5)
         _relayInv = State(initialValue: light.relayConfig?.inv ?? true)
+    }
+
+    private enum SiriSheetKind: Identifiable { case on, off; var id: Int { self == .on ? 1 : 0 } }
+    private var spoken: String {
+        let n = name.trimmingCharacters(in: .whitespaces)
+        return (n.isEmpty ? light.shortTitle : n).lowercased(with: Locale(identifier: "tr_TR"))
     }
 
     var body: some View {
@@ -183,6 +191,14 @@ struct DeviceEditor: View {
                             }.buttonStyle(.plain)
                         }
                     }.padding(.vertical, 4)
+                }
+
+                Section {
+                    Button { siriSheet = .on } label: { Label("\"\(spoken) aç\" komutunu Siri'ye ekle", systemImage: "mic.badge.plus") }
+                    Button { siriSheet = .off } label: { Label("\"\(spoken) kapat\" komutunu Siri'ye ekle", systemImage: "mic.badge.plus") }
+                    if let siriMsg, !siriMsg.isEmpty { Text(siriMsg).font(.footnote).foregroundStyle(siriMsg.hasPrefix("✓") ? .green : .orange) }
+                } header: { Text("Siri komutu") } footer: {
+                    Text("Dokununca açılan sayfada komut hazır yazılı gelir, \"Siri'ye ekle\"ye basıp bir kez sesli söylersin. Sonra \"Hey Siri, \(spoken) kapat\" demen yeter, uygulama adını söylemene gerek kalmaz. Komut telefon kilitliyken de, uygulama açılmadan çalışır.")
                 }
 
                 if !light.isBuiltin {
@@ -226,6 +242,9 @@ struct DeviceEditor: View {
             }
         }
         .presentationDetents([.large])
+        .sheet(item: $siriSheet) { kind in
+            AddToSiriSheet(light: light, on: kind == .on, phrase: "\(spoken) \(kind == .on ? "aç" : "kapat")") { siriMsg = $0; siriSheet = nil }.ignoresSafeArea()
+        }
         .confirmationDialog("\(light.title) kalıcı silinsin mi?", isPresented: $confirmDelete, titleVisibility: .visible) {
             Button("Kalıcı sil", role: .destructive) {
                 Task {
