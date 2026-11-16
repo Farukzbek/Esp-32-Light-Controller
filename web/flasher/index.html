@@ -126,7 +126,7 @@
     </div>
   </div>
 
-  <p class="small">Yazılım açık kaynaktır: <a href="https://github.com/Farukzbek/Nowlight">GitHub</a>. Sürüm <span id="ver"></span>.</p>
+  <p class="small">Yazılım açık kaynaktır: <a href="https://github.com/Farukzbek/Nowlight">GitHub</a>. <span id="verLabel">Işık düğümü</span> sürümü <span id="ver"></span>.</p>
 </main>
 
 <script type="module" src="https://unpkg.com/esp-web-tools@10.0.1/dist/web/install-button.js?module"></script>
@@ -150,6 +150,7 @@
     node: ["Uygulamadan ekle", "Kartı bir USB adaptörüne tak (ya da bilgisayarda bırak). Telefonda <b>Nowlight → Cihaz Ekle → Cihaz ekle</b> ile eşleştir. Bilgi girmen gerekmez.", "Eşleşmeyi silmek için kartın BOOT tuşuna 5 sn basılı tut."],
     bridge: ["WiFi'ni gir, sonra uygulamaya bağla", "Yükleme bitince sayfa <b>WiFi ayarı</b> sorar: ağını seç ve şifreni gir (şifre yalnızca köprünün hafızasına gider). Sonra telefonda <b>Nowlight → Cihaz Ekle → Köprü ayarları → Köprüyü otomatik bul</b> de, adres ve anahtar kendiliğinden dolar.", "Kurulum penceresi 10 dakika açık kalır. Kapanırsa köprüdeki BOOT tuşuna 2 sn bas. Köprü, router'ın WiFi kanalını kendisi izler."]
   };
+  let verSeq = 0;
   function apply() {
     const o = select.selectedOptions[0];
     const fw = fwOf(o);
@@ -158,6 +159,10 @@
     installer.setAttribute("manifest", `${manifest}?t=${Date.now()}`);   // onbellegi atla: eski yazilim yuklenmesin
     document.getElementById("boardNote").textContent = mode === "bridge" ? "Köprüde röle pini yoktur; yalnızca WiFi ve ESP-NOW kullanır." : (notes[fw] ?? pins[fw] ?? "");
     document.getElementById("modeNote").textContent = mode === "bridge" ? "Evde yalnızca bir köprü gerekir. Işık düğümlerini sonra ayrıca yüklersin." : "Her ışık (röle) için ayrı bir kart yüklenir.";
+    // Altta secili kurulumun (dugum ya da kopru) surumu gosterilir
+    const seq = ++verSeq;
+    document.getElementById("verLabel").textContent = mode === "bridge" ? "Köprü" : "Işık düğümü";
+    fetch(`${manifest}?t=${Date.now()}`).then(r => r.json()).then(j => { if (seq === verSeq) document.getElementById("ver").textContent = j.version; }).catch(() => { if (seq === verSeq) document.getElementById("ver").textContent = ""; });
     const t = modeText[mode];
     document.getElementById("step4title").textContent = t[0];
     document.getElementById("step4text").innerHTML = t[1];
@@ -183,7 +188,6 @@
     }).catch(() => {});
   });
   if (!("serial" in navigator)) document.getElementById("unsupported").classList.add("show");
-  fetch("firmware/esp32s3-supermini.json").then(r => r.json()).then(j => { document.getElementById("ver").textContent = j.version; }).catch(() => {});
 </script>
 </body>
 </html>
