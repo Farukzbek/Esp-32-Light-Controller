@@ -52,18 +52,6 @@ enum LightID: String, CaseIterable, AppEnum {
     }
 }
 
-/// Widget ayarinda bir yuva icin secenek (bos = o yuva gosterilmez).
-enum SlotChoice: String, CaseIterable, AppEnum {
-    case masa, yatak, led, all, bos
-
-    static var typeDisplayRepresentation: TypeDisplayRepresentation { "Işık" }
-    static var caseDisplayRepresentations: [SlotChoice: DisplayRepresentation] {
-        [.masa: "Masa lambası", .yatak: "Yatak lambası", .led: "LED şerit", .all: "Tüm ışıklar", .bos: "Boş"]
-    }
-
-    var light: LightID? { LightID(rawValue: rawValue) }
-}
-
 /// Widget'ta "acik" ışığın rengi.
 enum AccentChoice: String, CaseIterable, AppEnum {
     case amber, green, blue, white

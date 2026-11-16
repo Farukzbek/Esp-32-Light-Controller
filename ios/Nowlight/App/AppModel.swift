@@ -1,6 +1,7 @@
 import Foundation
 import Observation
 import WidgetKit
+import AppIntents
 
 /// Uygulamanin durumu: koprudan gelen isik durumlari, baglanti hatasi ve dokunulunca komut gonderme.
 @MainActor
@@ -25,18 +26,21 @@ final class AppModel {
         if n.isEmpty { names.removeValue(forKey: light.rawValue) } else { names[light.rawValue] = n }
         BridgeConfig.names = names
         WidgetCenter.shared.reloadAllTimelines()
+        NowlightShortcuts.updateAppShortcutParameters()
     }
 
     func remove(_ light: LightID) {
         removed.insert(light.rawValue)
         BridgeConfig.removed = removed
         WidgetCenter.shared.reloadAllTimelines()
+        NowlightShortcuts.updateAppShortcutParameters()
     }
 
     func restore(_ light: LightID) {
         removed.remove(light.rawValue)
         BridgeConfig.removed = removed
         WidgetCenter.shared.reloadAllTimelines()
+        NowlightShortcuts.updateAppShortcutParameters()
     }
 
     func startPolling() {

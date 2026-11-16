@@ -107,7 +107,7 @@ struct AddDeviceScreen: View {
                 Button("Kaydet") { if let l = renaming { model.rename(l, to: newName) }; renaming = nil }
                 Button("Varsayılana dön", role: .destructive) { if let l = renaming { model.rename(l, to: "") }; renaming = nil }
                 Button("Vazgeç", role: .cancel) { renaming = nil }
-            } message: { Text("Uygulamada ve widget'larda bu ad görünür (en fazla 20 karakter). Siri ve widget ayar listesi varsayılan adları gösterir.") }
+            } message: { Text("Uygulamada, widget'larda ve Siri'de bu ad görünür (en fazla 20 karakter). Widget ayar listesi ve Siri bu adı kullanır.") }
             .confirmationDialog(
                 pendingRemove.map { "\($0.title) kaldırılsın mı?" } ?? "",
                 isPresented: Binding(get: { pendingRemove != nil }, set: { if !$0 { pendingRemove = nil } }),

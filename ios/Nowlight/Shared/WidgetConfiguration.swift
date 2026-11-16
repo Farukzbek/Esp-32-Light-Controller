@@ -6,15 +6,21 @@ struct LightsConfigurationIntent: WidgetConfigurationIntent {
     static var title: LocalizedStringResource = "Işıklar"
     static var description = IntentDescription("Widget'ta görünecek ışıkları ve açık rengini seç.")
 
-    @Parameter(title: "1. ışık", default: .masa) var slot1: SlotChoice
-    @Parameter(title: "2. ışık", default: .yatak) var slot2: SlotChoice
-    @Parameter(title: "3. ışık", default: .led) var slot3: SlotChoice
-    @Parameter(title: "4. ışık", default: .all) var slot4: SlotChoice
+    @Parameter(title: "1. ışık") var slot1: SlotEntity?
+    @Parameter(title: "2. ışık") var slot2: SlotEntity?
+    @Parameter(title: "3. ışık") var slot3: SlotEntity?
+    @Parameter(title: "4. ışık") var slot4: SlotEntity?
     @Parameter(title: "Açık rengi", default: .amber) var accent: AccentChoice
 
     init() {}
 
+    /// Secilmemis yuva konumuna gore varsayilan isigi gosterir (masa, yatak, led, tumu); "Bos" secilen yuva gosterilmez.
     var lights: [LightID] {
-        [slot1, slot2, slot3, slot4].compactMap(\.light).filter { $0 == .all ? LightID.devices.count >= 2 : LightID.devices.contains($0) }
+        let defaults: [LightID] = [.masa, .yatak, .led, .all]
+        let slots = [slot1, slot2, slot3, slot4]
+        return slots.enumerated().compactMap { i, s -> LightID? in
+            guard let l = s == nil ? defaults[i] : s?.light else { return nil }
+            return l == .all ? (LightID.devices.count >= 2 ? l : nil) : (LightID.devices.contains(l) ? l : nil)
+        }
     }
 }
