@@ -7,6 +7,7 @@
 #include "now_proto.h"
 #include "now_link.h"
 #include "pairing.h"
+#include "improv.h"
 
 // Telefon koprusu: iOS uygulamasi/widget'lari yerel agdan HTTP ile komut verir, kopru ESP-NOW ile dugumlere iletir.
 //
@@ -27,6 +28,9 @@ static Preferences prefs;
 static WebServer server(80);
 static String g_token;
 static int8_t g_st[3] = {-1, -1, -1};      // son bilinen durum (-1 = henuz bildirilmedi)
+#define FW_VERSION "0.3.0"
+#define SETUP_WINDOW_MS (10UL * 60UL * 1000UL)   // kurulum penceresi: token'i uygulamaya otomatik verir
+static uint32_t g_setupUntil = 0;
 static uint32_t g_wifiTry = 0;
 static bool g_wifiWasUp = false;
 static bool g_haveSsid = false;            // kayitli ag var mi (dongude NVS okumamak icin onbellek)
@@ -69,6 +73,31 @@ static void wifiConnect() {
   delay(150);
   WiFi.begin(ssid.c_str(), getStr("pass").c_str());
   g_wifiTry = millis();
+}
+
+static bool setupOpen() { return g_setupUntil && millis() < g_setupUntil; }
+static void openSetup(const char *why) {
+  g_setupUntil = millis() + SETUP_WINDOW_MS;
+  Serial.printf("[kurulum] pencere acildi (%s), 10 dk: uygulama token'i otomatik alabilir\n", why);
+}
+
+// Improv: tarayicidan gelen WiFi bilgisi. Baglanirsa kaydeder; baglanamazsa eski ayari geri yukler.
+static bool improvConnect(const String &ssid, const String &pass) {
+  const String oldS = getStr("ssid"), oldP = getStr("pass");
+  prefs.putString("ssid", ssid);
+  prefs.putString("pass", pass);
+  wifiConnect();
+  const uint32_t t0 = millis();
+  while (WiFi.status() != WL_CONNECTED && millis() - t0 < 20000) delay(200);
+  if (WiFi.status() == WL_CONNECTED) {
+    improv_set_provisioned(true, "http://" + WiFi.localIP().toString() + "/setup");
+    openSetup("WiFi tarayicidan girildi");
+    return true;
+  }
+  prefs.putString("ssid", oldS);
+  prefs.putString("pass", oldP);
+  if (oldS.length()) wifiConnect();
+  return false;
 }
 
 // ---------------------------------------------------------------- durum
@@ -189,10 +218,32 @@ static void handleNodeForget() {
   server.send(200, "application/json", "{\"ok\":true,\"restarting\":true}");
 }
 
+static void handleSetupApi() {
+  if (!setupOpen()) { server.send(403, "application/json", "{\"error\":\"setup\"}"); return; }
+  char b[160];
+  snprintf(b, sizeof(b), "{\"name\":\"nowlight-bridge\",\"ip\":\"%s\",\"token\":\"%s\"}", WiFi.localIP().toString().c_str(), g_token.c_str());
+  server.send(200, "application/json", b);
+}
+
+static void handleSetupPage() {
+  String h = "<!doctype html><meta charset=utf-8><meta name=viewport content='width=device-width,initial-scale=1'><title>Nowlight koprusu</title>"
+             "<style>body{font:17px system-ui;background:#0b0b0c;color:#f2f2f4;max-width:520px;margin:32px auto;padding:0 16px}code{background:#222;padding:3px 8px;border-radius:6px;word-break:break-all}.b{color:#ffc93c}</style>"
+             "<h2>Nowlight k&ouml;pr&uuml;s&uuml;</h2>";
+  if (setupOpen()) {
+    h += "<p>K&ouml;pr&uuml; a&#287;a ba&#287;land&#305;.</p><p>Adres: <code>" + WiFi.localIP().toString() + "</code></p><p>Token: <code>" + g_token + "</code></p>"
+         "<p class=b>Uygulamada <b>Cihaz Ekle &rarr; K&ouml;pr&uuml; ayarlar&#305; &rarr; K&ouml;pr&uuml;y&uuml; otomatik bul</b> d&uuml;&#287;mesine bas; adres ve token kendili&#287;inden dolar. Bu sayfa 10 dakika sonra kapan&#305;r.</p>";
+  } else {
+    h += "<p>Kurulum penceresi kapal&#305;. K&ouml;pr&uuml;n&uuml;n <b>BOOT</b> tu&#351;una 2 saniye bas&#305;l&#305; tut, sonra bu sayfay&#305; yenile.</p>";
+  }
+  server.send(200, "text/html", h);
+}
+
 static void startHttp() {
   const char *keys[] = {"X-Token"};
   server.collectHeaders(keys, 1);
   server.on("/api/ping", HTTP_GET, handlePing);
+  server.on("/api/setup", HTTP_GET, handleSetupApi);
+  server.on("/setup", HTTP_GET, handleSetupPage);
   server.on("/api/state", HTTP_GET, handleState);
   server.on("/api/set", HTTP_POST, handleSet);
   server.on("/api/pair/start", HTTP_POST, handlePairStart);
@@ -217,6 +268,7 @@ static void handleSerial() {   // (satir sonu: \n ya da \r)
   static String line;
   while (Serial.available()) {
     const char c = Serial.read();
+    if (line.length() == 0 && improv_feed((uint8_t)c)) continue;       // Improv paketi (tarayicidan WiFi kurulumu)
     if (c != '\n' && c != '\r') { line += c; continue; }
     if (!line.length()) continue;
     if (line.startsWith("wifi ")) {
@@ -257,6 +309,8 @@ static void handleSerial() {   // (satir sonu: \n ya da \r)
         Serial.printf("[ip] kaydedildi: %s, yeniden baglaniliyor\n", ip.c_str());
       }
       wifiConnect();
+    } else if (line == "setup") {
+      openSetup("seri komut");
     } else if (line == "token") {
       Serial.printf("[token] %s\n", g_token.c_str());
     } else if (line == "newtoken") {
@@ -268,7 +322,7 @@ static void handleSerial() {   // (satir sonu: \n ya da \r)
     } else if (line == "reboot") {
       ESP.restart();
     } else {
-      Serial.println("komutlar: wifi <ssid> <sifre> | ip <adres> [ag_gecidi] | ip auto | token | newtoken | status | reboot");
+      Serial.println("komutlar: wifi <ssid> <sifre> | ip <adres> [ag_gecidi] | ip auto | token | newtoken | setup | status | reboot");
     }
     line = "";
   }
@@ -283,6 +337,8 @@ void setup() {
   WiFi.setAutoReconnect(true);
   WiFi.setSleep(false);                // uyku modu ESP-NOW alimini kacirabilir
   startHttp();
+  pinMode(0, INPUT_PULLUP);                                  // BOOT: 2 sn basili = kurulum penceresi
+  improv_begin("Nowlight Bridge", FW_VERSION, "ESP32", "Nowlight koprusu", improvConnect);
   wifiConnect();
   Serial.println("\n=== Telefon koprusu ===");
   Serial.printf("[token] %s  (iOS uygulamasina gir; yenilemek icin: newtoken)\n", g_token.c_str());
@@ -303,7 +359,10 @@ void loop() {
                     (int)WiFi.channel(), NOW_CHANNEL, NOW_CHANNEL);
     if (MDNS.begin("nowlight")) { MDNS.addService("http", "tcp", 80); Serial.println("[mdns] nowlight.local"); }
   }
+  if (up && !g_wifiWasUp) improv_set_provisioned(true, "http://" + WiFi.localIP().toString() + "/setup");
   g_wifiWasUp = up;
+  { static uint32_t bootDown = 0;                              // BOOT 2 sn basili: kurulum penceresini ac
+    if (digitalRead(0) == LOW) { if (!bootDown) bootDown = millis(); else if (millis() - bootDown > 2000 && !setupOpen()) openSetup("BOOT tusu"); } else bootDown = 0; }
   if (!up && g_haveSsid && millis() - g_wifiTry > 20000) wifiConnect();   // takilirsa yeniden dene
   delay(2);
 }

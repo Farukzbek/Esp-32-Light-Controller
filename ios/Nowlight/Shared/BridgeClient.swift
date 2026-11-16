@@ -1,7 +1,7 @@
 import Foundation
 
 enum BridgeError: LocalizedError {
-    case notConfigured, unauthorized, unreachable, badResponse
+    case notConfigured, unauthorized, unreachable, badResponse, setupClosed
 
     var errorDescription: String? {
         switch self {
@@ -9,6 +9,7 @@ enum BridgeError: LocalizedError {
         case .unauthorized: "Token yanlış."
         case .unreachable: "Köprüye ulaşılamıyor. Evdeki WiFi'ye bağlı mısın?"
         case .badResponse: "Köprüden beklenmeyen cevap geldi."
+        case .setupClosed: "Kurulum penceresi kapalı. Köprüdeki BOOT tuşuna 2 saniye basılı tut, sonra tekrar dene."
         }
     }
 }
@@ -46,8 +47,19 @@ struct BridgeClient {
         catch { throw BridgeError.unreachable }
         guard let http = resp as? HTTPURLResponse else { throw BridgeError.badResponse }
         if http.statusCode == 401 { throw BridgeError.unauthorized }
+        if http.statusCode == 403 { throw BridgeError.setupClosed }
         guard (200..<300).contains(http.statusCode) else { throw BridgeError.badResponse }
         return data
+    }
+
+    struct SetupInfo: Decodable { let name: String; let ip: String; let token: String }
+
+    /// Kopru kurulum penceresi aciksa (WiFi tarayicidan girilince ya da BOOT tusuna 2 sn basilinca, 10 dk) adres ve token'i verir.
+    static func fetchSetup(host: String) async throws -> SetupInfo {
+        let c = BridgeClient(host: host, token: "", timeout: 4)
+        let d = try await c.send(c.request("/api/setup", auth: false))
+        guard let i = try? JSONDecoder().decode(SetupInfo.self, from: d), i.name == "nowlight-bridge" else { throw BridgeError.badResponse }
+        return i
     }
 
     /// Token gerekmez: kopru dogru cihaz mi?

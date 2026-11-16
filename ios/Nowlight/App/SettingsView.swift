@@ -8,6 +8,8 @@ struct SettingsView: View {
     @State private var token = BridgeConfig.token
     @State private var result: String?
     @State private var testing = false
+    @State private var finding = false
+    @State private var findResult: String?
 
     var body: some View {
         NavigationStack {
@@ -21,6 +23,18 @@ struct SettingsView: View {
                     Text("Köprü")
                 } footer: {
                     Text("Adres: köprünün ev ağındaki adı ya da IP'si (örneğin nowlight.local ya da 192.168.1.50). Token'ı köprünün seri portunda `token` yazarak görürsün.")
+                }
+
+                Section {
+                    Button {
+                        Task { await autoFind() }
+                    } label: {
+                        HStack { Label("Köprüyü otomatik bul", systemImage: "wand.and.stars"); if finding { Spacer(); ProgressView() } }
+                    }
+                    .disabled(finding)
+                    if let findResult { Text(findResult).font(.footnote).foregroundStyle(findResult.hasPrefix("✓") ? .green : .orange) }
+                } footer: {
+                    Text("Köprünün WiFi'sini tarayıcıdan kurduktan sonra 10 dakika boyunca, ya da köprüdeki BOOT tuşuna 2 saniye basınca adres ve token kendiliğinden dolar.")
                 }
 
                 Section {
@@ -51,6 +65,22 @@ struct SettingsView: View {
         BridgeConfig.token = token
         WidgetCenter.shared.reloadAllTimelines()
         Task { await model.refresh() }
+    }
+
+    /// nowlight.local (mDNS) ya da mevcut adres uzerinden kurulum penceresini dener.
+    private func autoFind() async {
+        finding = true; findResult = nil
+        defer { finding = false }
+        var lastError: Error?
+        for h in [host, BridgeConfig.defaultHost].filter({ !$0.isEmpty }) {
+            do {
+                let info = try await BridgeClient.fetchSetup(host: h)
+                host = info.ip; token = info.token
+                findResult = "✓ Köprü bulundu (\(info.ip)). Kaydet'e bas."
+                return
+            } catch { lastError = error }
+        }
+        findResult = (lastError as? LocalizedError)?.errorDescription ?? "Köprü bulunamadı. Telefon köprüyle aynı WiFi'de mi?"
     }
 
     private func test() async {
