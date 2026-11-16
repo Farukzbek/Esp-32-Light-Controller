@@ -27,7 +27,7 @@ ESP-NOW ile çalışan, **pilli ve dokunmatik AMOLED ışık kumandası**. Masa 
 2. Karta bir röle modülü bağla (sinyal GPIO5, klasik ESP32'de GPIO23; 5V ve GND).
 3. iOS uygulamasında: **Cihaz Ekle → Cihaz ekle**. Yeni kart `Nowlight-XXXX` adıyla çıkar; yeni ışık olarak ekle, ad ve simge seç, **Bağla**'ya bas.
 
-Ağ parolası düz metin gitmez: 2 dakikalık eşleşme penceresinde X25519 anahtar değişimi ve AES-GCM ile iletilir ([`firmware/node`](firmware/node), [`firmware/shared/pair_proto.h`](firmware/shared/pair_proto.h)). Toplam en fazla 7 ışık. Ayrıca: [video senaryosu](docs/video-senaryosu.md), [CI](docs/ci.md).
+ESP-NOW ağ anahtarı düz metin gitmez: 2 dakikalık eşleşme penceresinde X25519 anahtar değişimi ve AES-GCM ile iletilir ([`firmware/node`](firmware/node), [`firmware/shared/pair_proto.h`](firmware/shared/pair_proto.h)). Toplam en fazla 7 ışık. Ayrıca: [video senaryosu](docs/video-senaryosu.md), [CI](docs/ci.md).
 
 ## Özellikler
 

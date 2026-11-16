@@ -27,7 +27,7 @@
 2. Connect a relay module to the board (signal GPIO5, or GPIO23 on classic ESP32; 5 V and GND).
 3. In the iOS app: **Add Device → Add device**. The new board shows up as `Nowlight-XXXX`; add it as a new light, choose a name and icon, tap **Connect**.
 
-The WiFi password never travels in clear text: it is delivered during a 2-minute pairing window with X25519 key exchange and AES-GCM ([`firmware/node`](firmware/node), [`firmware/shared/pair_proto.h`](firmware/shared/pair_proto.h)). Up to 7 lights in total. See also: [video script](docs/video-senaryosu.md) (Turkish), [CI](docs/ci.md).
+The ESP-NOW network key never travels in clear text: it is delivered during a 2-minute pairing window with X25519 key exchange and AES-GCM ([`firmware/node`](firmware/node), [`firmware/shared/pair_proto.h`](firmware/shared/pair_proto.h)). Up to 7 lights in total. See also: [video script](docs/video-senaryosu.md) (Turkish), [CI](docs/ci.md).
 
 ## Features
 
