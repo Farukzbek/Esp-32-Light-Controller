@@ -21,6 +21,14 @@ ESP-NOW ile çalışan, **pilli ve dokunmatik AMOLED ışık kumandası**. Masa 
         Üç cihaz sabit bir ESP-NOW kanalında buluşur (NOW_CHANNEL)
 ```
 
+## Yeni ışık ekleme (web yükleyici + uygulama)
+
+1. Chrome ya da Edge ile **https://flash.matestudios.online** sayfasını aç, kartını seç (ESP32-S3 / C3 / C6 / S2 / klasik ESP32), USB ile tak ve **Yükle**'ye bas. Program ya da sürücü gerekmez.
+2. Karta bir röle modülü bağla (sinyal GPIO5, klasik ESP32'de GPIO23; 5V ve GND).
+3. iOS uygulamasında: **Cihaz Ekle → Cihaz ekle**. Yeni kart `Nowlight-XXXX` adıyla çıkar; yeni ışık olarak ekle, ad ve simge seç, **Bağla**'ya bas.
+
+Ağ parolası düz metin gitmez: 2 dakikalık eşleşme penceresinde X25519 anahtar değişimi ve AES-GCM ile iletilir ([`firmware/node`](firmware/node), [`firmware/shared/pair_proto.h`](firmware/shared/pair_proto.h)). Toplam en fazla 7 ışık. Ayrıca: [video senaryosu](docs/video-senaryosu.md), [CI](docs/ci.md).
+
 ## Özellikler
 
 **Kumanda (Waveshare ESP32-S3-Touch-AMOLED-1.64)**

@@ -30,8 +30,8 @@ Tahmini süre: 1–2 saat (ilk derleme araç zincirini indirdiği için birkaç 
    ✅ `pio --version` bir sürüm yazmalı.
 2. **Projeyi indir:**
    ```bash
-   git clone https://github.com/Farukzbek/Esp-32-Light-Controller.git
-   cd Esp-32-Light-Controller
+   git clone https://github.com/Farukzbek/Nowlight.git
+   cd Nowlight
    ```
 3. **Kartın seri portunu bul** (bir kartı tak):
    | İşletim sistemi | Nasıl | Örnek |

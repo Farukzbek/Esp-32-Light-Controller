@@ -2,7 +2,7 @@
 
 *ESP32 Light Controller: open-source room lighting over ESP-NOW.*
 
-**Parts of the system:** the battery-powered AMOLED remote ([`firmware/controller`](firmware/controller)), a CYD door/wall panel ([`firmware/controller-cyd`](firmware/controller-cyd)), the lamp nodes ([`firmware/hub`](firmware/hub), [`firmware/bed-node`](firmware/bed-node)), a WiFi phone bridge ([`firmware/bridge`](firmware/bridge)) and the iOS app with widgets ([`ios`](ios)).
+**Parts of the system:** the battery-powered AMOLED remote ([`firmware/controller`](firmware/controller)), a CYD door/wall panel ([`firmware/controller-cyd`](firmware/controller-cyd)), the lamp nodes ([`firmware/hub`](firmware/hub), [`firmware/bed-node`](firmware/bed-node)), a WiFi phone bridge ([`firmware/bridge`](firmware/bridge)), generic pairable light nodes ([`firmware/node`](firmware/node)), a door PIR node ([`firmware/door`](firmware/door)) and the iOS app with widgets ([`ios`](ios)).
 
 
 **🇬🇧** A **battery-powered touch AMOLED remote** that switches lamps (and later an LED strip) over **ESP-NOW**: no internet, no router, no WiFi needed (the devices never appear in WiFi network lists).
@@ -20,6 +20,14 @@
                             +---------------------+
      All three meet on one fixed ESP-NOW channel (NOW_CHANNEL)
 ```
+
+## Add a new light (web installer + app)
+
+1. Open **https://flash.matestudios.online** in Chrome or Edge, pick your board (ESP32-S3 / C3 / C6 / S2 / classic ESP32), plug it in by USB and press **Install**. No tools or drivers needed.
+2. Connect a relay module to the board (signal GPIO5, or GPIO23 on classic ESP32; 5 V and GND).
+3. In the iOS app: **Add Device → Add device**. The new board shows up as `Nowlight-XXXX`; add it as a new light, choose a name and icon, tap **Connect**.
+
+The WiFi password never travels in clear text: it is delivered during a 2-minute pairing window with X25519 key exchange and AES-GCM ([`firmware/node`](firmware/node), [`firmware/shared/pair_proto.h`](firmware/shared/pair_proto.h)). Up to 7 lights in total. See also: [video script](docs/video-senaryosu.md) (Turkish), [CI](docs/ci.md).
 
 ## Features
 

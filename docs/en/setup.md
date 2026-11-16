@@ -28,8 +28,8 @@ Estimated time: 1–2 hours (the first build downloads toolchains and takes a fe
    Check: `pio --version` prints a version.
 2. **Download the project:**
    ```bash
-   git clone https://github.com/Farukzbek/Esp-32-Light-Controller.git
-   cd Esp-32-Light-Controller
+   git clone https://github.com/Farukzbek/Nowlight.git
+   cd Nowlight
    ```
 3. **Find the serial port of a board** (plug in **one** board, then):
    | OS | Command / where | Looks like |
