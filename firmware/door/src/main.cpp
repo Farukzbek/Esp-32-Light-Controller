@@ -7,8 +7,9 @@
 #include "esp_random.h"
 
 // Kapi dugumu: PIR sensoru odaya giris/hareket algilayinca KOPRUYE (firmware/bridge) komut atar.
-//  Modlar: 0 = cevir (secili isiklarin durumunu tersine cevirir), 1 = yalnizca ac, 2 = yalnizca kapat.
-//  Kosullar: etkin mi, bekleme suresi (0 = her harekette), saat araligi (NTP ile; saat alinamazsa aralik acikken tetiklemez).
+//  KURALLAR (en fazla 8, uygulamadan gelir): her kural = etkin mi, eylem (0 cevir, 1 ac, 2 kapat), isiklar (bit maskesi),
+//  saat araligi (baslangic dahil, bitis haric; gece yarisini asabilir), bekleme (dk, 0 = her harekette).
+//  Harekette saati uyan ILK kural calisir (bekleme suresindeyse hicbir sey yapilmaz). Saat alinamazsa kural calismaz.
 // Ayarlar uygulamadan HTTP ile degisir (X-Token). Seri komutlar: wifi <ag> <sifre> | ip <adres> | token | newtoken |
 //   bridge <adres> <kopru_token> | status | test | reboot.   Sifreler/anahtarlar yalnizca cihazin NVS'inde saklanir.
 
@@ -26,6 +27,13 @@ struct Cfg {
   bool winOn = false;
   uint16_t winStart = 18 * 60, winEnd = 7 * 60;   // dakika (gece yarisini asabilir)
 } g;
+
+struct Rule { bool en = true; uint8_t action = 1, lamps = 1; uint16_t start = 0, end = 0, cool = 0; };
+#define MAX_RULES 8
+static Rule g_rules[MAX_RULES];
+static uint8_t g_nRules = 0;
+static uint32_t g_ruleTrig[MAX_RULES];
+static int g_active = -1;        // son harekette saati uyan kuralin sirasi (-1: yok)
 
 static String g_token, g_bridgeHost, g_bridgeToken;
 static bool g_haveSsid = false, g_wasUp = false;
@@ -46,6 +54,41 @@ static String randomToken() {
   return String(b);
 }
 
+static String rulesToString() {
+  String o;
+  for (int i = 0; i < g_nRules; i++) {
+    const Rule &r = g_rules[i];
+    if (i) o += ';';
+    o += String(r.en ? 1 : 0) + ":" + r.action + ":" + r.lamps + ":" + r.start + ":" + r.end + ":" + r.cool;
+  }
+  return o;
+}
+
+// "en:eylem:isiklar:bas:bit:bekleme;..." -> kurallar. Gecersizse hicbir sey degismez.
+static bool parseRules(const String &str) {
+  Rule tmp[MAX_RULES]; int n = 0;
+  int pos = 0;
+  while (pos < (int)str.length() && n < MAX_RULES) {
+    int e = str.indexOf(';', pos); if (e < 0) e = str.length();
+    const String item = str.substring(pos, e);
+    pos = e + 1;
+    if (!item.length()) continue;
+    long v[6]; int k = 0, q = 0;
+    while (k < 6) {
+      int c = item.indexOf(':', q); const String f = item.substring(q, c < 0 ? item.length() : c);
+      if (!f.length()) return false;
+      v[k++] = f.toInt();
+      if (c < 0) break; q = c + 1;
+    }
+    if (k != 6 || v[1] < 0 || v[1] > 2 || v[2] < 1 || v[2] > 7 || v[3] < 0 || v[3] > 1439 || v[4] < 0 || v[4] > 1439 || v[5] < 0 || v[5] > 60) return false;
+    tmp[n++] = {v[0] != 0, (uint8_t)v[1], (uint8_t)v[2], (uint16_t)v[3], (uint16_t)v[4], (uint16_t)v[5]};
+  }
+  for (int i = 0; i < n; i++) g_rules[i] = tmp[i];
+  g_nRules = n;
+  memset(g_ruleTrig, 0, sizeof(g_ruleTrig));
+  return true;
+}
+
 static void loadCfg() {
   g.enabled = prefs.getBool("en", g.enabled);
   g.mode = prefs.getUChar("mode", g.mode); if (g.mode > 2) g.mode = 1;
@@ -56,6 +99,11 @@ static void loadCfg() {
   g.winEnd = min<uint16_t>(prefs.getUShort("winE", g.winEnd), 1439);
   g_bridgeHost = getStr("bhost");
   g_bridgeToken = getStr("btoken");
+  if (prefs.isKey("rules")) parseRules(getStr("rules"));
+  else {                                          // eski tek-kural ayarlarindan tasi
+    g_rules[0] = {true, g.mode, g.lamps, g.winOn ? g.winStart : (uint16_t)0, g.winOn ? g.winEnd : (uint16_t)0, (uint16_t)(g.cooldownSec / 60)};
+    g_nRules = 1; prefs.putString("rules", rulesToString());
+  }
   g_token = getStr("dtoken");
   if (g_token.length() < 16) { g_token = randomToken(); prefs.putString("dtoken", g_token); }
 }
@@ -71,13 +119,12 @@ static bool nowLocal(struct tm &t) {
   return t.tm_year > 120;                         // 2020 sonrasi = saat alindi
 }
 
-static bool inWindow() {
-  if (!g.winOn) return true;
+static bool inWindowR(const Rule &r) {
+  if (r.start == r.end) return true;              // bas = bit: gun boyu
   struct tm t;
-  if (!nowLocal(t)) return false;                 // saat bilinmiyorsa aralik acikken tetikleme
+  if (!nowLocal(t)) return false;                 // saat bilinmiyorsa kural calismaz
   const uint16_t m = t.tm_hour * 60 + t.tm_min;
-  if (g.winStart == g.winEnd) return true;
-  return g.winStart < g.winEnd ? (m >= g.winStart && m < g.winEnd) : (m >= g.winStart || m < g.winEnd);
+  return r.start < r.end ? (m >= r.start && m < r.end) : (m >= r.start || m < r.end);
 }
 
 // ---------------------------------------------------------------- kopru
@@ -104,17 +151,17 @@ static bool bridgeReq(const String &path, bool post, String *out) {
   return true;
 }
 
-static void act(bool force) {
+static void act(const Rule &r, bool force) {
   String state;
   int cur[3] = {-1, -1, -1};
-  if (g.mode == 0) {                              // cevir: mevcut durum lazim
+  if (r.action == 0) {                            // cevir: mevcut durum lazim
     if (!bridgeReq("/api/state", false, &state)) return;
     for (int i = 0; i < 3; i++) cur[i] = jget(state, LAMP_NAMES[i]);
   }
   String done;
   for (int i = 0; i < 3; i++) {
-    if (!(g.lamps & (1 << i))) continue;
-    int target = g.mode == 1 ? 1 : g.mode == 2 ? 0 : (cur[i] == 1 ? 0 : 1);
+    if (!(r.lamps & (1 << i))) continue;
+    int target = r.action == 1 ? 1 : r.action == 2 ? 0 : (cur[i] == 1 ? 0 : 1);
     if (!bridgeReq(String("/api/set?dev=") + LAMP_NAMES[i] + "&val=" + target, true, nullptr)) return;
     done += String(LAMP_NAMES[i]) + "=" + target + " ";
   }
@@ -126,10 +173,22 @@ static void onMotion() {
   g_motions++;
   g_lastMotionMs = millis();
   if (!g.enabled) { g_lastResult = "hareket gorundu, otomasyon kapali"; return; }
-  if (g.cooldownSec && g_lastTrigMs && millis() - g_lastTrigMs < (uint32_t)g.cooldownSec * 1000UL) { g_lastResult = "hareket gorundu, bekleme suresinde"; return; }
-  if (!inWindow()) { g_lastResult = "hareket gorundu, saat araligi disinda"; return; }
-  g_lastTrigMs = millis();
-  act(false);
+  if (!g_nRules) { g_lastResult = "hareket gorundu, kural yok"; return; }
+  for (int i = 0; i < g_nRules; i++) {
+    const Rule &r = g_rules[i];
+    if (!r.en || !inWindowR(r)) continue;
+    g_active = i;
+    if (r.cool && g_ruleTrig[i] && millis() - g_ruleTrig[i] < (uint32_t)r.cool * 60000UL) {
+      g_lastResult = "kural " + String(i + 1) + ": bekleme suresinde"; return;
+    }
+    g_ruleTrig[i] = millis(); if (!g_ruleTrig[i]) g_ruleTrig[i] = 1;
+    g_lastTrigMs = millis();
+    act(r, false);
+    g_lastResult = "kural " + String(i + 1) + " " + g_lastResult;
+    return;
+  }
+  g_active = -1;
+  g_lastResult = "hareket gorundu, saati uyan kural yok";
 }
 
 // ---------------------------------------------------------------- HTTP
@@ -148,28 +207,22 @@ static String statusJson() {
   struct tm t; const bool ok = nowLocal(t);
   char hhmm[8] = "--:--";
   if (ok) snprintf(hhmm, sizeof(hhmm), "%02d:%02d", t.tm_hour, t.tm_min);
+  int active = -1;
+  for (int i = 0; i < g_nRules; i++) if (g_rules[i].en && inWindowR(g_rules[i])) { active = i; break; }
   String lr = g_lastResult; lr.replace("\"", "'");
-  char b[520];
+  char b[420];
   snprintf(b, sizeof(b),
-           "{\"enabled\":%d,\"mode\":%d,\"lamps\":%d,\"cooldown\":%u,\"winOn\":%d,\"winStart\":%u,\"winEnd\":%u,"
-           "\"pir\":%u,\"motions\":%u,\"motionAge\":%ld,\"trigAge\":%ld,\"timeSynced\":%d,\"time\":\"%s\",\"inWindow\":%d,"
-           "\"bridgeSet\":%d,\"lastResult\":\"%s\"}",
-           g.enabled, g.mode, g.lamps, g.cooldownSec, g.winOn, g.winStart, g.winEnd,
-           (unsigned)g_pir, (unsigned)g_motions, g_motions ? (long)((millis() - g_lastMotionMs) / 1000) : -1L,
-           g_lastTrigMs ? (long)((millis() - g_lastTrigMs) / 1000) : -1L, ok, hhmm, inWindow(),
-           (g_bridgeHost.length() && g_bridgeToken.length()) ? 1 : 0, lr.c_str());
+           "{\"enabled\":%d,\"pir\":%u,\"motions\":%u,\"motionAge\":%ld,\"trigAge\":%ld,\"timeSynced\":%d,\"time\":\"%s\","
+           "\"bridgeSet\":%d,\"rules\":%u,\"activeRule\":%d,\"lastResult\":\"%s\"}",
+           g.enabled, (unsigned)g_pir, (unsigned)g_motions, g_motions ? (long)((millis() - g_lastMotionMs) / 1000) : -1L,
+           g_lastTrigMs ? (long)((millis() - g_lastTrigMs) / 1000) : -1L, ok, hhmm,
+           (g_bridgeHost.length() && g_bridgeToken.length()) ? 1 : 0, (unsigned)g_nRules, active, lr.c_str());
   return String(b);
 }
 
 static void handleConfig() {
   if (!authorized()) return;
   if (server.hasArg("enabled")) g.enabled = server.arg("enabled") == "1";
-  if (server.hasArg("mode")) { const int v = server.arg("mode").toInt(); if (v >= 0 && v <= 2) g.mode = v; }
-  if (server.hasArg("lamps")) { const int v = server.arg("lamps").toInt() & 7; if (v) g.lamps = v; }
-  if (server.hasArg("cooldown")) g.cooldownSec = constrain(server.arg("cooldown").toInt(), 0, 3600);
-  if (server.hasArg("winOn")) g.winOn = server.arg("winOn") == "1";
-  if (server.hasArg("winStart")) g.winStart = constrain(server.arg("winStart").toInt(), 0, 1439);
-  if (server.hasArg("winEnd")) g.winEnd = constrain(server.arg("winEnd").toInt(), 0, 1439);
   saveCfg();
   if (server.hasArg("bridgeHost")) { g_bridgeHost = server.arg("bridgeHost"); g_bridgeHost.trim(); prefs.putString("bhost", g_bridgeHost); }
   if (server.hasArg("bridgeToken") && server.arg("bridgeToken").length() >= 8) { g_bridgeToken = server.arg("bridgeToken"); g_bridgeToken.trim(); prefs.putString("btoken", g_bridgeToken); }
@@ -185,7 +238,23 @@ static void startHttp() {
   });
   server.on("/api/status", HTTP_GET, []() { if (authorized()) server.send(200, "application/json", statusJson()); });
   server.on("/api/config", HTTP_POST, handleConfig);
-  server.on("/api/test", HTTP_POST, []() { if (!authorized()) return; act(true); server.send(200, "application/json", statusJson()); });
+  server.on("/api/rules", HTTP_GET, []() {
+    if (!authorized()) return;
+    server.send(200, "application/json", "{\"rules\":\"" + rulesToString() + "\"}");
+  });
+  server.on("/api/rules", HTTP_POST, []() {
+    if (!authorized()) return;
+    if (!server.hasArg("rules") || !parseRules(server.arg("rules"))) { server.send(400, "application/json", "{\"error\":\"kurallar gecersiz\"}"); return; }
+    prefs.putString("rules", rulesToString());
+    server.send(200, "application/json", statusJson());
+  });
+  server.on("/api/test", HTTP_POST, []() {
+    if (!authorized()) return;
+    const int i = server.hasArg("rule") ? server.arg("rule").toInt() : 0;
+    if (i >= 0 && i < g_nRules) act(g_rules[i], true);
+    else g_lastResult = "hata: boyle bir kural yok";
+    server.send(200, "application/json", statusJson());
+  });
   server.onNotFound([]() { server.send(404, "application/json", "{\"error\":\"yok\"}"); });
   server.begin();
 }
@@ -256,7 +325,7 @@ static void handleSerial() {
     } else if (line == "newtoken") {
       g_token = randomToken(); prefs.putString("dtoken", g_token); Serial.printf("[token] yeni: %s\n", g_token.c_str());
     } else if (line == "test") {
-      act(true);
+      if (g_nRules) act(g_rules[0], true);
     } else if (line == "status") {
       Serial.printf("[durum] wifi=%s ip=%s pir=%u hareket=%u sonuc=%s\n", WiFi.status() == WL_CONNECTED ? "bagli" : "yok",
                     WiFi.localIP().toString().c_str(), (unsigned)g_pir, (unsigned)g_motions, g_lastResult.c_str());
@@ -279,7 +348,7 @@ void setup() {
   wifiConnect();
   configTzTime(TZ_TURKEY, "pool.ntp.org", "time.google.com");
   Serial.println("\n=== Nowlight kapi dugumu ===");
-  Serial.printf("[ayar] etkin=%d mod=%d lambalar=%d bekleme=%us saat=%d (%u-%u dk)\n", g.enabled, g.mode, g.lamps, g.cooldownSec, g.winOn, g.winStart, g.winEnd);
+  Serial.printf("[ayar] etkin=%d kural=%u: %s\n", g.enabled, (unsigned)g_nRules, rulesToString().c_str());
 }
 
 void loop() {

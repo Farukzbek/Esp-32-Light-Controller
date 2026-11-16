@@ -1,15 +1,14 @@
 import SwiftUI
 
-/// Kapi otomasyonu: kapinin ustundeki PIR dugumu odaya girisi algilar, secilen isiklari kendisi acar/kapatir/cevirir.
+/// Kapi otomasyonu: kapinin ustundeki PIR dugumu hareketi algilayinca, saati uyan ilk kural calisir.
 struct AutomationScreen: View {
+    @State private var store = AutomationStore()
     @State private var host = DoorConfig.host
     @State private var token = DoorConfig.token
-    @State private var status: DoorStatus?
     @State private var message: String?
     @State private var busy = false
-    @State private var poll: Task<Void, Never>?
-
-    private let lampBits: [(String, String, Int)] = [("Masa", "lamp.desk.fill", 1), ("Yatak", "bed.double.fill", 2), ("LED", "light.strip.fill", 4)]
+    @State private var editing: AutomationRule?
+    @State private var isNew = false
 
     var body: some View {
         Form {
@@ -23,11 +22,12 @@ struct AutomationScreen: View {
                 }.disabled(busy || host.isEmpty || token.isEmpty)
                 if let message { Text(message).font(.footnote).foregroundStyle(message.hasPrefix("✓") ? .green : .orange) }
             } header: { Text("Kapı düğümü") } footer: {
-                Text("Adres ve token'ı kapı ESP32'sinin seri portunda `status` ve `token` yazarak görürsün. Bağlanınca köprünün adresi ve token'ı düğüme gönderilir; bir kere yapman yeterli.")
+                Text("Adres ve token'ı kapı ESP32'sinin seri portunda `status` ve `token` yazarak görürsün. Bir kere bağlamak yeterli.")
             }
 
-            if let s = status {
+            if let s = store.status {
                 Section {
+                    Toggle("Otomasyon açık", isOn: Binding(get: { s.enabled }, set: { v in Task { await store.setMaster(v) } })).tint(Color.lampOn)
                     HStack {
                         Label("Hareket", systemImage: "figure.walk.motion")
                         Spacer()
@@ -40,96 +40,42 @@ struct AutomationScreen: View {
                         Text(s.timeSynced ? s.time : "alınamadı").foregroundStyle(.secondary)
                     }
                     Text(s.lastResult).font(.footnote).foregroundStyle(.secondary)
-                } header: { Text("Canlı durum") }
+                } header: { Text("Durum") }
+            }
 
+            if DoorConfig.isConfigured || !store.rules.isEmpty {
                 Section {
-                    Toggle("Otomasyon açık", isOn: bind(\.enabled, "enabled") { $0 ? "1" : "0" }).tint(Color.lampOn)
-                    Picker("Hareket olunca", selection: bind(\.mode, "mode") { String($0) }) {
-                        Text("Işığı çevir (açıksa kapat, kapalıysa aç)").tag(0)
-                        Text("Yalnızca aç").tag(1)
-                        Text("Yalnızca kapat").tag(2)
-                    }.pickerStyle(.inline).labelsHidden()
-                } header: { Text("Davranış") }
-
-                Section {
-                    ForEach(lampBits, id: \.2) { name, icon, bit in
-                        Toggle(isOn: lampBinding(bit)) { Label(name, systemImage: icon) }.tint(Color.lampOn)
+                    if store.rules.isEmpty {
+                        Text("Henüz kural yok. Bir kural: \"şu saatler arasında hareket olursa şu ışıkları aç / kapat / çevir\".").font(.subheadline).foregroundStyle(.secondary)
+                        Button { store.addDayNightTemplate() } label: { Label("Hazır: akşam aç, gündüz kapat", systemImage: "wand.and.stars") }
                     }
-                } header: { Text("Hangi ışıklar") } footer: { Text("En az bir ışık seçili kalmalı.") }
-
-                Section {
-                    Stepper(value: cooldownBinding(), in: 0...60) {
-                        HStack { Text("Bekleme süresi"); Spacer(); Text(s.cooldown == 0 ? "yok" : "\(s.cooldown / 60) dk").foregroundStyle(.secondary) }
+                    ForEach(Array(store.rules.enumerated()), id: \.element.id) { i, r in
+                        Button { isNew = false; editing = r } label: { RuleRow(rule: r, index: i, active: store.status?.activeRule == i) }
+                            .buttonStyle(.plain)
                     }
-                } header: { Text("Bekleme") } footer: {
-                    Text("Bir tetiklemeden sonra bu süre boyunca hareketler yok sayılır. 0 = her harekette çalışır (odaya ikinci biri girince önceki durum bozulmasın istiyorsan süreyi uzat).")
+                    .onDelete { store.delete(at: $0) }
+                    .onMove { store.move(from: $0, to: $1) }
+                    Button { isNew = true; editing = AutomationRule() } label: { Label("Kural ekle", systemImage: "plus.circle.fill") }
+                        .disabled(store.rules.count >= 8)
+                } header: {
+                    HStack { Text("Kurallar"); Spacer(); SyncBadge(sync: store.sync) }
+                } footer: {
+                    Text("Harekette saati uyan ilk kural çalışır; kuralların sırası önemli (sürükleyerek değiştir). En fazla 8 kural. Düğüme her değişiklikte gönderilir.")
                 }
-
-                Section {
-                    Toggle("Yalnızca saat aralığında", isOn: bind(\.winOn, "winOn") { $0 ? "1" : "0" }).tint(Color.lampOn)
-                    if s.winOn {
-                        DatePicker("Başlangıç", selection: timeBinding(\.winStart, "winStart"), displayedComponents: .hourAndMinute)
-                        DatePicker("Bitiş", selection: timeBinding(\.winEnd, "winEnd"), displayedComponents: .hourAndMinute)
-                    }
-                } header: { Text("Saat aralığı") } footer: {
-                    Text(s.winOn ? "Gece yarısını geçen aralıklar olur (örn. 18:00 – 07:00). Şu an aralığın \(s.inWindow ? "içinde" : "dışında")sin." : "Kapalıyken gün boyu çalışır.")
-                }
-
-                Section {
-                    Button { Task { await runTest() } } label: { Label("Şimdi dene (ışıkları hemen uygula)", systemImage: "play.fill") }.disabled(busy)
-                } footer: { Text("Seçili mod ve ışıklarla köprüye bir komut gönderir; bekleme süresi ve saat aralığına bakmaz.") }
             }
         }
         .navigationTitle("Otomasyon")
         .navigationBarTitleDisplayMode(.inline)
-        .onAppear { startPolling() }
-        .onDisappear { poll?.cancel() }
-    }
-
-    // MARK: ayar baglamalari: degisince hemen cihaza yazar, cihazin cevabini gosterir
-    private func bind<T>(_ kp: KeyPath<DoorStatus, T>, _ key: String, _ enc: @escaping (T) -> String) -> Binding<T> {
-        Binding(get: { status![keyPath: kp] }, set: { v in Task { await push([key: enc(v)]) } })
-    }
-    private func lampBinding(_ bit: Int) -> Binding<Bool> {
-        Binding(get: { (status?.lamps ?? 0) & bit != 0 }, set: { on in
-            var l = status?.lamps ?? 1
-            l = on ? (l | bit) : (l & ~bit)
-            if l == 0 { return }
-            Task { await push(["lamps": String(l)]) }
-        })
-    }
-    private func cooldownBinding() -> Binding<Int> {
-        Binding(get: { (status?.cooldown ?? 0) / 60 }, set: { m in Task { await push(["cooldown": String(m * 60)]) } })
-    }
-    private func timeBinding(_ kp: KeyPath<DoorStatus, Int>, _ key: String) -> Binding<Date> {
-        Binding(get: {
-            let m = status?[keyPath: kp] ?? 0
-            return Calendar.current.date(bySettingHour: m / 60, minute: m % 60, second: 0, of: Date()) ?? Date()
-        }, set: { d in
-            let c = Calendar.current.dateComponents([.hour, .minute], from: d)
-            Task { await push([key: String((c.hour ?? 0) * 60 + (c.minute ?? 0))]) }
-        })
-    }
-
-    // MARK: agi
-    private func client() -> DoorClient { DoorClient(host: DoorConfig.host, token: DoorConfig.token) }
-
-    private func push(_ f: [String: String]) async {
-        do { status = try await client().configure(f); message = nil }
-        catch { message = (error as? LocalizedError)?.errorDescription ?? "Kaydedilemedi."; await reload() }
-    }
-
-    private func reload() async {
-        guard DoorConfig.isConfigured else { return }
-        if let s = try? await client().status() { status = s }
-    }
-
-    private func startPolling() {
-        poll?.cancel()
-        poll = Task {
-            while !Task.isCancelled {
-                await reload()
-                try? await Task.sleep(for: .seconds(2))
+        .toolbar { EditButton() }
+        .onAppear { store.start() }
+        .onDisappear { store.stop() }
+        .sheet(item: $editing) { r in
+            RuleEditor(rule: r, isNew: isNew, testEnabled: store.sync == .synced) { saved in store.upsert(saved) } onTest: { saved in
+                Task {
+                    if let i = store.rules.firstIndex(where: { $0.id == saved.id }) {
+                        do { store.status = try await store.client.test(rule: i) } catch { message = (error as? LocalizedError)?.errorDescription }
+                    }
+                }
             }
         }
     }
@@ -137,19 +83,124 @@ struct AutomationScreen: View {
     private func connect() async {
         busy = true; defer { busy = false }
         DoorConfig.host = host; DoorConfig.token = token
-        let c = client()
+        let c = store.client
         do {
             guard try await c.ping() else { message = "Bu adreste kapı düğümü yok."; return }
             guard BridgeConfig.isConfigured else { message = "Önce köprü ayarlarını (adres ve token) gir."; return }
-            status = try await c.configure(["bridgeHost": BridgeConfig.host, "bridgeToken": BridgeConfig.token])
+            store.status = try await c.configure(["bridgeHost": BridgeConfig.host, "bridgeToken": BridgeConfig.token])
             message = "✓ Bağlandı, köprü bilgisi düğüme gönderildi."
-            startPolling()
+            store.start()
         } catch { message = (error as? LocalizedError)?.errorDescription ?? "Bağlantı kurulamadı." }
     }
+}
 
-    private func runTest() async {
-        busy = true; defer { busy = false }
-        do { status = try await client().test(); message = nil }
-        catch { message = (error as? LocalizedError)?.errorDescription ?? "Deneme başarısız." }
+private struct SyncBadge: View {
+    let sync: AutomationStore.Sync
+    var body: some View {
+        let (text, color): (String, Color) = switch sync {
+        case .synced: ("düğümde", .green)
+        case .pending: ("gönderiliyor…", .orange)
+        case .oldFirmware: ("düğüm yazılımı güncel değil", .orange)
+        case .offline: ("düğüme ulaşılamıyor", .orange)
+        case .unknown: ("", .secondary)
+        }
+        Text(text).font(.caption).textCase(nil).foregroundStyle(color)
+    }
+}
+
+private struct RuleRow: View {
+    let rule: AutomationRule
+    let index: Int
+    let active: Bool
+    var body: some View {
+        HStack(spacing: 12) {
+            Image(systemName: rule.action == .on ? "lightbulb.fill" : (rule.action == .off ? "lightbulb.slash.fill" : "arrow.triangle.2.circlepath"))
+                .foregroundStyle(.black).frame(width: 36, height: 36)
+                .background(rule.enabled ? Color.lampOn : Color.gray.opacity(0.5), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+            VStack(alignment: .leading, spacing: 2) {
+                HStack(spacing: 6) {
+                    Text(rule.name).font(.body.weight(.semibold))
+                    if active { Text("şu an geçerli").font(.caption2.weight(.semibold)).padding(.horizontal, 6).padding(.vertical, 1).background(Color.green.opacity(0.25), in: Capsule()) }
+                }
+                Text("\(rule.action.title) · \(rule.lampText)").font(.subheadline).foregroundStyle(.secondary)
+                Text("\(rule.windowText)\(rule.cooldownMin > 0 ? " · bekleme \(rule.cooldownMin) dk" : "")").font(.caption).foregroundStyle(.secondary)
+            }
+            Spacer()
+            Image(systemName: "chevron.right").font(.footnote.weight(.semibold)).foregroundStyle(.tertiary)
+        }
+        .opacity(rule.enabled ? 1 : 0.55)
+        .contentShape(Rectangle())
+    }
+}
+
+private struct RuleEditor: View {
+    @Environment(\.dismiss) private var dismiss
+    @State var rule: AutomationRule
+    let isNew: Bool
+    let testEnabled: Bool
+    let onSave: (AutomationRule) -> Void
+    let onTest: (AutomationRule) -> Void
+
+    private let lampBits: [(String, String, Int)] = [("Masa", "lamp.desk.fill", 1), ("Yatak", "bed.double.fill", 2), ("LED", "light.strip.fill", 4)]
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section {
+                    TextField("Kural adı", text: $rule.name)
+                    Toggle("Kural açık", isOn: $rule.enabled).tint(Color.lampOn)
+                }
+                Section {
+                    Picker("Hareket olunca", selection: $rule.action) {
+                        ForEach(AutomationRule.Action.allCases, id: \.self) { Text($0.title).tag($0) }
+                    }.pickerStyle(.segmented)
+                } footer: { Text("Çevir: açıksa kapatır, kapalıysa açar. Aç ve Kapat: durumdan bağımsız.") }
+                Section("Hangi ışıklar") {
+                    ForEach(lampBits, id: \.2) { name, icon, bit in
+                        Toggle(isOn: Binding(get: { rule.lamps & bit != 0 }, set: { on in
+                            let l = on ? rule.lamps | bit : rule.lamps & ~bit
+                            if l != 0 { rule.lamps = l }
+                        })) { Label(name, systemImage: icon) }.tint(Color.lampOn)
+                    }
+                }
+                Section {
+                    Toggle("Gün boyu", isOn: Binding(get: { rule.start == rule.end }, set: { on in
+                        if on { rule.start = 0; rule.end = 0 } else { rule.start = 18 * 60; rule.end = 6 * 60 }
+                    })).tint(Color.lampOn)
+                    if rule.start != rule.end {
+                        DatePicker("Başlangıç", selection: time(\.start), displayedComponents: .hourAndMinute)
+                        DatePicker("Bitiş", selection: time(\.end), displayedComponents: .hourAndMinute)
+                    }
+                } header: { Text("Saat aralığı") } footer: {
+                    Text("Bitiş saati dahil değil: 06:00 – 18:00 aralığı 17:59'da biter. Gece yarısını geçen aralık olur (18:00 – 06:00).")
+                }
+                Section {
+                    Stepper(value: $rule.cooldownMin, in: 0...60) {
+                        HStack { Text("Bekleme süresi"); Spacer(); Text(rule.cooldownMin == 0 ? "yok" : "\(rule.cooldownMin) dk").foregroundStyle(.secondary) }
+                    }
+                } header: { Text("Bekleme") } footer: { Text("Bu kural çalıştıktan sonra bu süre boyunca hareketler yok sayılır. 0: her harekette çalışır.") }
+                if testEnabled && !isNew {
+                    Section {
+                        Button { onSave(rule); onTest(rule) } label: { Label("Şimdi dene (saatine bakmaz)", systemImage: "play.fill") }
+                    } footer: { Text("Kuralı kaydeder ve ışıklara hemen uygular.") }
+                }
+            }
+            .navigationTitle(isNew ? "Yeni kural" : "Kural")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) { Button("Vazgeç") { dismiss() } }
+                ToolbarItem(placement: .confirmationAction) { Button("Kaydet") { onSave(rule); dismiss() } }
+            }
+        }
+    }
+
+    private func time(_ kp: WritableKeyPath<AutomationRule, Int>) -> Binding<Date> {
+        Binding(get: {
+            let m = rule[keyPath: kp]
+            return Calendar.current.date(bySettingHour: m / 60, minute: m % 60, second: 0, of: Date()) ?? Date()
+        }, set: { d in
+            let c = Calendar.current.dateComponents([.hour, .minute], from: d)
+            rule[keyPath: kp] = (c.hour ?? 0) * 60 + (c.minute ?? 0)
+        })
     }
 }
