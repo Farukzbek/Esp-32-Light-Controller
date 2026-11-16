@@ -12,6 +12,8 @@ BOARDS=(
   "esp32s3-supermini|ESP32-S3 Super Mini|ESP32-S3"
   "esp32dev|ESP32 DevKit (klasik)|ESP32"
   "esp32c6|ESP32-C6 DevKit|ESP32-C6"
+  "esp32c3|ESP32-C3 (Super Mini, DevKitM, XIAO)|ESP32-C3"
+  "esp32s2|ESP32-S2 (Wemos S2 Mini, Saola)|ESP32-S2"
 )
 for entry in "${BOARDS[@]}"; do
   IFS='|' read -r env title chip <<< "$entry"

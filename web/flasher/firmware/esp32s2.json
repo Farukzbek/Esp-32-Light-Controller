@@ -1,0 +1,6 @@
+{
+  "name": "Nowlight dugumu (ESP32-S2 (Wemos S2 Mini, Saola))",
+  "version": "0.1.0",
+  "new_install_prompt_erase": true,
+  "builds": [ { "chipFamily": "ESP32-S2", "parts": [ { "path": "esp32s2.bin", "offset": 0 } ] } ]
+}
