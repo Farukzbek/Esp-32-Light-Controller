@@ -6,6 +6,7 @@ struct AddDeviceScreen: View {
     @Binding var showSettings: Bool
     @State private var pendingRemove: LightID?
     @State private var renaming: LightID?
+    @State private var showPairing = false
 
     private var active: [LightID] { _ = model.removed; return LightID.devices }
     private var removedList: [LightID] { LightID.allDevices.filter { model.removed.contains($0.rawValue) } }
@@ -22,14 +23,12 @@ struct AddDeviceScreen: View {
                                 .frame(width: 52, height: 52).background(Color.lampOn, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
                             VStack(alignment: .leading, spacing: 2) {
                                 Text("Yeni cihaz ekle").font(.headline)
-                                Text("Yakında").font(.caption.weight(.semibold)).foregroundStyle(.black)
-                                    .padding(.horizontal, 8).padding(.vertical, 2).background(Color.lampOn, in: Capsule())
                             }
                         }
-                        Text("Kodu yüklenmiş, henüz hiçbir köprüye bağlanmamış bir ESP32'yi ev ağında kendisi bulacak ve kurulumu otomatik yapacak. Kod ya da adres girmen gerekmeyecek.")
+                        Text("Nowlight yazılımı yüklü bir ESP32'yi fişe tak, uygulama onu bulsun. Rolünü seç, birkaç adımda ışığın hazır.")
                             .font(.subheadline).foregroundStyle(.secondary)
-                        Button {} label: { Label("Cihaz ara", systemImage: "magnifyingglass").frame(maxWidth: .infinity) }
-                            .buttonStyle(.borderedProminent).tint(Color.lampOn).foregroundStyle(.black).disabled(true)
+                        Button { showPairing = true } label: { Label("Cihaz ekle", systemImage: "magnifyingglass").frame(maxWidth: .infinity) }
+                            .buttonStyle(.borderedProminent).tint(Color.lampOn).foregroundStyle(.black)
                     }
                     .padding(.vertical, 6)
                 }
@@ -38,7 +37,7 @@ struct AddDeviceScreen: View {
                     NavigationLink { GuideView() } label: {
                         Label("Cihaz nasıl eklenir?", systemImage: "book.fill")
                     }
-                } footer: { Text("Otomatik kurulum gelene kadar adım adım rehber.") }
+                } footer: { Text("Yazılım yükleme ve kurulum için adım adım rehber.") }
 
                 Section {
                     if active.isEmpty { Text("Gösterilen cihaz yok.").foregroundStyle(.secondary) }
@@ -100,6 +99,7 @@ struct AddDeviceScreen: View {
             .background(Color.black.ignoresSafeArea())
             .navigationTitle("Cihaz Ekle")
             .sheet(item: $renaming) { light in DeviceEditor(light: light) }
+            .sheet(isPresented: $showPairing) { PairingFlow() }
             .confirmationDialog(
                 pendingRemove.map { "\($0.title) kaldırılsın mı?" } ?? "",
                 isPresented: Binding(get: { pendingRemove != nil }, set: { if !$0 { pendingRemove = nil } }),

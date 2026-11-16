@@ -80,4 +80,33 @@ struct BridgeClient {
             URLQueryItem(name: "val", value: on ? "1" : "0"),
         ]))
     }
+
+    // MARK: Cihaz eslestirme (kopru yazilimi destekliyorsa)
+
+    struct PairCandidate: Decodable, Identifiable, Equatable {
+        let mac: String
+        let name: String
+        let rssi: Int
+        var id: String { mac }
+    }
+    struct PairStatus: Decodable {
+        let open: Bool
+        let secondsLeft: Int
+        let found: [PairCandidate]
+    }
+
+    private func pairDecode(_ d: Data) throws -> PairStatus {
+        guard let s = try? JSONDecoder().decode(PairStatus.self, from: d) else { throw BridgeError.badResponse }
+        return s
+    }
+    /// Eslesme penceresini acar (kopru yeni cihazlari dinler). Eski kopru yazilimi 404 verir -> badResponse.
+    func pairStart() async throws -> PairStatus { try pairDecode(await send(request("/api/pair/start", method: "POST"))) }
+    func pairStatus() async throws -> PairStatus { try pairDecode(await send(request("/api/pair"))) }
+    func pairStop() async { _ = try? await send(request("/api/pair/stop", method: "POST")) }
+    func pairAccept(mac: String, role: LightID) async throws {
+        _ = try await send(request("/api/pair/accept", method: "POST", query: [
+            URLQueryItem(name: "mac", value: mac),
+            URLQueryItem(name: "role", value: role.rawValue),
+        ]))
+    }
 }

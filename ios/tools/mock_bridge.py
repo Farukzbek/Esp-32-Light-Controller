@@ -10,6 +10,11 @@ from urllib.parse import urlparse, parse_qs
 PORT = int(sys.argv[1]) if len(sys.argv) > 1 else 8080
 TOKEN = sys.argv[2] if len(sys.argv) > 2 else "test"
 state = {"masa": 1, "yatak": 0, "led": 0}
+pair = {"until": 0.0, "started": 0.0}   # eslesme penceresi (gelistirme: 4 sn sonra sahte bir cihaz bulunur)
+def pair_status():
+    now = time.time(); is_open = now < pair["until"]
+    found = [{"mac": "AA:BB:CC:11:22:33", "name": "Nowlight-1122", "rssi": -52}] if pair["started"] and now - pair["started"] > 4 else []
+    return {"open": is_open, "secondsLeft": max(0, int(pair["until"] - now)), "found": found}
 lock = threading.Lock()
 
 class H(BaseHTTPRequestHandler):
@@ -25,7 +30,8 @@ class H(BaseHTTPRequestHandler):
         if p == "/api/state" and self._auth():
             with lock: s = dict(state)
             return self._send(200, {**s, "links": {"masa": True, "yatak": True}, "channel": 1, "wifiChannel": 1})
-        if p != "/api/state": self._send(404, {"error": "yok"})
+        if p == "/api/pair" and self._auth(): return self._send(200, pair_status())
+        if p not in ("/api/state", "/api/pair"): self._send(404, {"error": "yok"})
     def do_POST(self):
         u = urlparse(self.path)
         if u.path == "/api/set" and self._auth():
@@ -37,7 +43,16 @@ class H(BaseHTTPRequestHandler):
                     if d in state: state[d] = int(val)
             print("set", dev, val, flush=True)
             return self._send(200, {"ok": True})
-        if u.path != "/api/set": self._send(404, {"error": "yok"})
+        if u.path == "/api/pair/start" and self._auth():
+            pair["started"] = time.time(); pair["until"] = time.time() + 120
+            return self._send(200, pair_status())
+        if u.path == "/api/pair/stop" and self._auth():
+            pair["until"] = 0; pair["started"] = 0
+            return self._send(200, {"ok": True})
+        if u.path == "/api/pair/accept" and self._auth():
+            q = parse_qs(u.query); print("accept", q.get("mac"), q.get("role"), flush=True)
+            return self._send(200, {"ok": True})
+        if u.path not in ("/api/set", "/api/pair/start", "/api/pair/stop", "/api/pair/accept"): self._send(404, {"error": "yok"})
     def log_message(self, *a): pass
 
 HTTPServer(("127.0.0.1", PORT), H).serve_forever()
