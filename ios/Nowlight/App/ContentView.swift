@@ -152,6 +152,7 @@ struct LightTile: View {
     }
 
     var body: some View {
+        let _ = model.names
         Button {
             taps += 1
             Task { await model.toggle(light) }

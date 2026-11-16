@@ -10,7 +10,15 @@ enum LightID: String, CaseIterable, AppEnum {
         [.masa: "Masa lambası", .yatak: "Yatak lambası", .led: "LED şerit", .all: "Tüm ışıklar"]
     }
 
-    var title: String {
+    /// Kullanicinin verdigi ad (yoksa nil). "Tum isiklar" yeniden adlandirilamaz.
+    var customName: String? {
+        guard self != .all, let n = BridgeConfig.names[rawValue]?.trimmingCharacters(in: .whitespaces), !n.isEmpty else { return nil }
+        return n
+    }
+
+    var title: String { customName ?? defaultTitle }
+
+    var defaultTitle: String {
         switch self {
         case .masa: "Masa lambası"
         case .yatak: "Yatak lambası"
@@ -20,11 +28,12 @@ enum LightID: String, CaseIterable, AppEnum {
     }
 
     var shortTitle: String {
+        if let n = customName { return n }
         switch self {
-        case .masa: "Masa"
-        case .yatak: "Yatak"
-        case .led: "LED"
-        case .all: "Tümü"
+        case .masa: return "Masa"
+        case .yatak: return "Yatak"
+        case .led: return "LED"
+        case .all: return "Tümü"
         }
     }
 

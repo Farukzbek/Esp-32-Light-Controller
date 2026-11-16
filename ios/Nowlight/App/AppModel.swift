@@ -17,6 +17,16 @@ final class AppModel {
     /// Kaldirilan cihazlar (BridgeConfig ile esit tutulur; gorunumler bunu izler)
     var removed: Set<String> = BridgeConfig.removed
 
+    /// Kullanici adlari (gorunumler bunu izler)
+    var names: [String: String] = BridgeConfig.names
+
+    func rename(_ light: LightID, to name: String) {
+        let n = String(name.trimmingCharacters(in: .whitespacesAndNewlines).prefix(20))
+        if n.isEmpty { names.removeValue(forKey: light.rawValue) } else { names[light.rawValue] = n }
+        BridgeConfig.names = names
+        WidgetCenter.shared.reloadAllTimelines()
+    }
+
     func remove(_ light: LightID) {
         removed.insert(light.rawValue)
         BridgeConfig.removed = removed

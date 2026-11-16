@@ -5,11 +5,14 @@ struct AddDeviceScreen: View {
     @Environment(AppModel.self) private var model
     @Binding var showSettings: Bool
     @State private var pendingRemove: LightID?
+    @State private var renaming: LightID?
+    @State private var newName = ""
 
     private var active: [LightID] { _ = model.removed; return LightID.devices }
     private var removedList: [LightID] { LightID.allDevices.filter { model.removed.contains($0.rawValue) } }
 
     var body: some View {
+        let _ = model.names
         NavigationStack {
             List {
                 Section {
@@ -42,12 +45,17 @@ struct AddDeviceScreen: View {
                     if active.isEmpty { Text("Gösterilen cihaz yok.").foregroundStyle(.secondary) }
                     ForEach(active, id: \.self) { light in
                         DeviceRow(light: light)
+                            .contentShape(Rectangle())
+                            .onTapGesture { newName = light.customName ?? ""; renaming = light }
+                            .swipeActions(edge: .leading, allowsFullSwipe: false) {
+                                Button { newName = light.customName ?? ""; renaming = light } label: { Label("Ad", systemImage: "pencil") }.tint(Color.lampOn)
+                            }
                             .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                                 Button(role: .destructive) { pendingRemove = light } label: { Label("Kaldır", systemImage: "trash") }
                             }
                     }
                 } header: { Text("Cihazlarım") } footer: {
-                    if !active.isEmpty { Text("Bir cihazı kaldırmak için sola kaydır.") }
+                    if !active.isEmpty { Text("Adını değiştirmek için cihaza dokun, kaldırmak için sola kaydır.") }
                 }
 
                 if !removedList.isEmpty {
@@ -94,6 +102,12 @@ struct AddDeviceScreen: View {
             .scrollContentBackground(.hidden)
             .background(Color.black.ignoresSafeArea())
             .navigationTitle("Cihaz Ekle")
+            .alert("Cihaz adı", isPresented: Binding(get: { renaming != nil }, set: { if !$0 { renaming = nil } })) {
+                TextField(renaming?.defaultTitle ?? "Ad", text: $newName)
+                Button("Kaydet") { if let l = renaming { model.rename(l, to: newName) }; renaming = nil }
+                Button("Varsayılana dön", role: .destructive) { if let l = renaming { model.rename(l, to: "") }; renaming = nil }
+                Button("Vazgeç", role: .cancel) { renaming = nil }
+            } message: { Text("Uygulamada ve widget'larda bu ad görünür (en fazla 20 karakter). Siri ve widget ayar listesi varsayılan adları gösterir.") }
             .confirmationDialog(
                 pendingRemove.map { "\($0.title) kaldırılsın mı?" } ?? "",
                 isPresented: Binding(get: { pendingRemove != nil }, set: { if !$0 { pendingRemove = nil } }),
@@ -122,6 +136,7 @@ struct DeviceRow: View {
     }
 
     var body: some View {
+        let _ = model.names
         HStack(spacing: 14) {
             Image(systemName: light.symbol).font(.system(size: 18, weight: .semibold)).foregroundStyle(.black)
                 .frame(width: 40, height: 40).background(Color.lampOn, in: RoundedRectangle(cornerRadius: 11, style: .continuous))

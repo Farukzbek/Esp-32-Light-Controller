@@ -25,4 +25,10 @@ enum BridgeConfig {
         get { Set(shared.stringArray(forKey: "removedDevices") ?? []) }
         set { shared.set(Array(newValue).sorted(), forKey: "removedDevices") }
     }
+
+    /// Kullanicinin verdigi cihaz adlari (LightID.rawValue -> ad). Bos/yok ise varsayilan ad kullanilir.
+    static var names: [String: String] {
+        get { (shared.dictionary(forKey: "deviceNames") as? [String: String]) ?? [:] }
+        set { shared.set(newValue, forKey: "deviceNames") }
+    }
 }
