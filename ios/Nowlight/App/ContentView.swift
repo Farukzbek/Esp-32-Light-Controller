@@ -42,10 +42,12 @@ struct LightsScreen: View {
 
     private let columns = [GridItem(.flexible(), spacing: 14), GridItem(.flexible(), spacing: 14)]
 
+    private var showAll: Bool { _ = model.removed; return LightID.devices.count >= 2 }
+
     private var tiles: [LightID] {
         let d = LightID.devices
         _ = model.removed                                  // kaldirma/geri ekleme gorunumu tazeler
-        return d.count >= 2 ? d + [.all] : d
+        return d
     }
 
     private var warning: String? {
@@ -67,6 +69,7 @@ struct LightsScreen: View {
                                                description: Text("Cihaz Ekle sekmesinden kaldırdığın cihazları geri ekleyebilirsin."))
                             .padding(.top, 60)
                     } else {
+                        if showAll { LightTile(light: .all, wide: true) }      // "Tum isiklar": en ustte tam genislikte
                         LazyVGrid(columns: columns, spacing: 14) {
                             ForEach(tiles, id: \.self) { LightTile(light: $0) }
                         }
@@ -132,6 +135,7 @@ struct PressStyle: ButtonStyle {
 struct LightTile: View {
     @Environment(AppModel.self) private var model
     let light: LightID
+    var wide = false
     @State private var taps = 0
 
     private var value: Int { model.state?.value(light) ?? -1 }
@@ -147,35 +151,58 @@ struct LightTile: View {
         return value == -1 ? "—" : (on ? "Açık" : "Kapalı")
     }
 
+    /// Anahtar: kapali solda, hepsi acik sagda, kismi (bir kismi acik) ortada ve sari izle
+    private var switchView: some View {
+        ZStack {
+            Capsule().fill(on ? Color.black.opacity(0.22) : (partial ? Color.lampOn.opacity(0.9) : Color.white.opacity(0.14)))
+                .frame(width: 46, height: 28)
+            Circle().fill(on || partial ? Color.white : Color.gray.opacity(0.8)).frame(width: 22, height: 22)
+                .offset(x: on ? 9 : (partial ? 0 : -9))
+        }
+    }
+
     var body: some View {
         let _ = (model.names, model.icons)
         Button {
             taps += 1
             Task { await model.toggle(light) }
         } label: {
-            VStack(alignment: .leading, spacing: 0) {
-                HStack {
-                    Image(systemName: light.symbol)
-                        .font(.system(size: 26, weight: .semibold))
-                        .symbolEffect(.bounce, value: on)
-                    Spacer()
-                    // Anahtar: kapali solda, hepsi acik sagda, kismi (bir kismi acik) ortada ve sari izle
-                    ZStack {
-                        Capsule().fill(on ? Color.black.opacity(0.22) : (partial ? Color.lampOn.opacity(0.9) : Color.white.opacity(0.14)))
-                            .frame(width: 46, height: 28)
-                        Circle().fill(on || partial ? Color.white : Color.gray.opacity(0.8)).frame(width: 22, height: 22)
-                            .offset(x: on ? 9 : (partial ? 0 : -9))
+            Group {
+                if wide {
+                    HStack(spacing: 14) {
+                        Image(systemName: light.symbol)
+                            .font(.system(size: 28, weight: .semibold))
+                            .symbolEffect(.bounce, value: on)
+                            .frame(width: 36)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(light.title).font(.system(size: 19, weight: .semibold)).lineLimit(1)
+                            Text(status).font(.system(size: 14, weight: partial ? .semibold : .medium))
+                                .foregroundStyle(partial ? Color.lampOn : (on ? Color(hex: 0x14120C) : .white))
+                                .opacity(partial ? 1 : (on ? 0.7 : 0.55))
+                        }
+                        Spacer()
+                        switchView
+                    }
+                } else {
+                    VStack(alignment: .leading, spacing: 0) {
+                        HStack {
+                            Image(systemName: light.symbol)
+                                .font(.system(size: 26, weight: .semibold))
+                                .symbolEffect(.bounce, value: on)
+                            Spacer()
+                            switchView
+                        }
+                        Spacer(minLength: 18)
+                        Text(light.title).font(.system(size: 17, weight: .semibold)).lineLimit(1).minimumScaleFactor(0.8)
+                        Text(status).font(.system(size: 14, weight: partial ? .semibold : .medium))
+                            .foregroundStyle(partial ? Color.lampOn : (on ? Color(hex: 0x14120C) : .white))
+                            .opacity(partial ? 1 : (on ? 0.7 : 0.55))
                     }
                 }
-                Spacer(minLength: 18)
-                Text(light.title).font(.system(size: 17, weight: .semibold)).lineLimit(1).minimumScaleFactor(0.8)
-                Text(status).font(.system(size: 14, weight: partial ? .semibold : .medium))
-                    .foregroundStyle(partial ? Color.lampOn : (on ? Color(hex: 0x14120C) : .white))
-                    .opacity(partial ? 1 : (on ? 0.7 : 0.55))
             }
             .foregroundStyle(on ? Color(hex: 0x14120C) : .white)
             .padding(16)
-            .frame(maxWidth: .infinity, minHeight: 150, alignment: .topLeading)
+            .frame(maxWidth: .infinity, minHeight: wide ? 84 : 150, alignment: wide ? .leading : .topLeading)
             .background(
                 RoundedRectangle(cornerRadius: 26, style: .continuous)
                     .fill(on ? LinearGradient(colors: [Color(hex: 0xFFD35A), Color(hex: 0xF5B92E)], startPoint: .top, endPoint: .bottom)
