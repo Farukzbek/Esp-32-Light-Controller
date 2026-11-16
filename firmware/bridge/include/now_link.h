@@ -29,3 +29,5 @@ bool now_dyn_add(uint8_t slot, const uint8_t mac[6]);   // yuvaya dugum bagla (S
 bool now_dyn_present(uint8_t slot);
 int8_t now_dyn_state(uint8_t slot);                     // 1 acik, 0 kapali, -1 bilinmiyor
 bool now_dyn_linked(uint8_t slot);                      // dugum son zamanlarda konustu mu
+void now_send_cfg(uint8_t slot, uint8_t pin, bool inv); // role pini / ters mantik (NOW_CFG)
+void now_forget(uint8_t slot);                          // dugume eslesmeyi sildir (NOW_FORGET) ve kaydi sil

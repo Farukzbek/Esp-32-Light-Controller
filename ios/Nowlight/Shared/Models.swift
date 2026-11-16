@@ -47,6 +47,12 @@ struct LightID: Hashable, Identifiable {
         return (3..<maxDevices).first { !used.contains($0) }.map { LightID(raw: "d\($0)") }
     }
 
+    /// Eklenen isigin kayitli role ayari (pin, ters mantik); yoksa nil.
+    var relayConfig: (pin: Int, inv: Bool)? {
+        guard let v = BridgeConfig.relay[rawValue]?.split(separator: ":"), v.count == 2, let p = Int(v[0]) else { return nil }
+        return (p, v[1] == "1")
+    }
+
     /// Kullanicinin verdigi ad (yoksa nil). "Tum isiklar" yeniden adlandirilamaz.
     var customName: String? {
         guard self != .all, let n = BridgeConfig.names[rawValue]?.trimmingCharacters(in: .whitespaces), !n.isEmpty else { return nil }

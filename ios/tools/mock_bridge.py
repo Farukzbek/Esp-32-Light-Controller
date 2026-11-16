@@ -13,7 +13,7 @@ state = {"masa": 1, "yatak": 0, "led": 0}
 pair = {"until": 0.0, "started": 0.0}   # eslesme penceresi (gelistirme: 4 sn sonra sahte bir cihaz bulunur)
 def pair_status():
     now = time.time(); is_open = now < pair["until"]
-    found = [{"mac": "AA:BB:CC:11:22:33", "name": "Nowlight-1122", "rssi": -52}] if pair["started"] and now - pair["started"] > 4 else []
+    found = [{"mac": "AA:BB:CC:11:22:33", "name": "Nowlight-1122", "rssi": -52, "chip": 3, "pin": 5, "inv": 1}] if pair["started"] and now - pair["started"] > 4 else []
     return {"open": is_open, "secondsLeft": max(0, int(pair["until"] - now)), "found": found}
 lock = threading.Lock()
 
@@ -52,10 +52,17 @@ class H(BaseHTTPRequestHandler):
             pair["until"] = 0; pair["started"] = 0
             return self._send(200, {"ok": True})
         if u.path == "/api/pair/accept" and self._auth():
-            q = parse_qs(u.query); print("accept", q.get("mac"), q.get("id"), flush=True)
+            q = parse_qs(u.query); print("accept", q.get("mac"), q.get("id"), "pin", q.get("pin"), "inv", q.get("inv"), flush=True)
             with lock: state.setdefault(q.get("id", [""])[0], 0)
             return self._send(200, {"ok": True})
-        if u.path not in ("/api/set", "/api/pair/start", "/api/pair/stop", "/api/pair/accept"): self._send(404, {"error": "yok"})
+        if u.path == "/api/node/config" and self._auth():
+            q = parse_qs(u.query); print("config", q.get("id"), "pin", q.get("pin"), "inv", q.get("inv"), flush=True)
+            return self._send(200, {"ok": True})
+        if u.path == "/api/node/forget" and self._auth():
+            q = parse_qs(u.query); print("forget", q.get("id"), flush=True)
+            with lock: state.pop(q.get("id", [""])[0], None)
+            return self._send(200, {"ok": True, "restarting": True})
+        if u.path not in ("/api/set", "/api/pair/start", "/api/pair/stop", "/api/pair/accept", "/api/node/config", "/api/node/forget"): self._send(404, {"error": "yok"})
     def log_message(self, *a): pass
 
 HTTPServer(("127.0.0.1", PORT), H).serve_forever()

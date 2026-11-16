@@ -13,7 +13,8 @@
 //   GET  /api/ping                     kimlik (token gerekmez): {"name":"nowlight-bridge"}
 //   GET  /api/state                    {"masa":0|1|-1,"yatak":..,"led":..,"links":{"masa":true,"yatak":false},"channel":1,"wifiChannel":1}
 //   POST /api/set   dev=masa|yatak|led|d3..d6|all  val=0|1
-//   Eslesme: POST /api/pair/start | GET /api/pair | POST /api/pair/accept?mac=..&id=d3 | POST /api/pair/stop
+//   Eslesme: POST /api/pair/start | GET /api/pair | POST /api/pair/accept?mac=..&id=d3[&pin=5&inv=1] | POST /api/pair/stop
+//   Dugum: POST /api/node/config?id=d3&pin=5&inv=1 | POST /api/node/forget?id=d3 (eslesmeyi siler, kopru yeniden baslar)
 //   (durumda eslesen dugumler: "devices":{"d3":1}, links:{"d3":true})
 // Token: istek basligi "X-Token". Ilk acilista rastgele uretilir, seri porttan "token" ile gosterilir.
 //
@@ -157,8 +158,35 @@ static void handlePairAccept() {
   const String id = server.arg("id");
   if (id.length() != 2 || id[0] != 'd' || !isDigit(id[1])) { server.send(400, "application/json", "{\"error\":\"id: yalnizca d3..d6 (yerlesik isiklarin yerine gecme henuz yok)\"}"); return; }
   String err;
-  if (!pair_accept(server.arg("mac"), id[1] - '0', err)) { server.send(400, "application/json", "{\"error\":\"" + err + "\"}"); return; }
+  const int pin = server.hasArg("pin") ? server.arg("pin").toInt() : -1;
+  const int inv = server.hasArg("inv") ? (server.arg("inv") == "1" ? 1 : 0) : -1;
+  if (!pair_accept(server.arg("mac"), id[1] - '0', pin, inv, err)) { server.send(400, "application/json", "{\"error\":\"" + err + "\"}"); return; }
   server.send(200, "application/json", "{\"ok\":true}");
+}
+
+// ---- eslesen dugumun yonetimi
+static uint32_t g_restartAt = 0;
+
+static int customSlot(const String &id) {     // "d3".."d6" -> yuva, yoksa -1
+  if (id.length() != 2 || id[0] != 'd' || !isDigit(id[1])) return -1;
+  const int s = id[1] - '0';
+  return now_dyn_present(s) ? s : -1;
+}
+static void handleNodeConfig() {
+  if (!authorized()) return;
+  const int slot = customSlot(server.arg("id")), pin = server.arg("pin").toInt();
+  if (slot < 0) { server.send(400, "application/json", "{\"error\":\"id\"}"); return; }
+  if (!server.hasArg("pin") || pin < 0 || pin > 60) { server.send(400, "application/json", "{\"error\":\"pin\"}"); return; }
+  now_send_cfg(slot, pin, server.arg("inv") == "1");
+  server.send(200, "application/json", "{\"ok\":true}");
+}
+static void handleNodeForget() {
+  if (!authorized()) return;
+  const int slot = customSlot(server.arg("id"));
+  if (slot < 0) { server.send(400, "application/json", "{\"error\":\"id\"}"); return; }
+  now_forget(slot);
+  g_restartAt = millis() + 1500;               // eski baglanti nesneleri temizlensin: kopru kisaca yeniden baslar
+  server.send(200, "application/json", "{\"ok\":true,\"restarting\":true}");
 }
 
 static void startHttp() {
@@ -171,6 +199,8 @@ static void startHttp() {
   server.on("/api/pair", HTTP_GET, handlePairStatus);
   server.on("/api/pair/accept", HTTP_POST, handlePairAccept);
   server.on("/api/pair/stop", HTTP_POST, handlePairStop);
+  server.on("/api/node/config", HTTP_POST, handleNodeConfig);
+  server.on("/api/node/forget", HTTP_POST, handleNodeForget);
   server.onNotFound([]() { server.send(404, "application/json", "{\"error\":\"yok\"}"); });
   server.begin();
 }
@@ -263,6 +293,7 @@ void loop() {
   server.handleClient();
   pollState();
   pair_loop();
+  if (g_restartAt && millis() > g_restartAt) ESP.restart();
 
   const bool up = WiFi.status() == WL_CONNECTED;
   if (up && !g_wifiWasUp) {

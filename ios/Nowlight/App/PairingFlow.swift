@@ -13,6 +13,8 @@ struct PairingFlow: View {
     @State private var addingNew = false
     @State private var newName = ""
     @State private var newSymbol = "lightbulb.fill"
+    @State private var relayPin = 5
+    @State private var relayInv = true
     @State private var error: String?
     @State private var busy = false
     @State private var poll: Task<Void, Never>?
@@ -58,10 +60,10 @@ struct PairingFlow: View {
     private var intro: some View {
         VStack(alignment: .leading, spacing: 16) {
             header("antenna.radiowaves.left.and.right", "Yeni cihazı hazırla")
-            numbered(1, "ESP32'de Nowlight yazılımı olmalı", "Boş bir ESP32'ye önce yazılımı yüklemek gerekir. Bilgisayardaki ya da Android'deki Chrome ile GitHub sayfasındaki rehberi izleyebilirsin.")
+            numbered(1, "ESP32'de Nowlight yazılımı olmalı", "Boş bir ESP32'ye önce yazılımı yüklemek gerekir. Bilgisayardaki ya da Android'deki Chrome ile flash.matestudios.online sayfasını aç, kartını seç ve Yükle'ye bas.")
             numbered(2, "Cihaza güç ver", "USB adaptörüne ya da powerbank'e tak. Cihaz hiçbir köprüye bağlı değilse kendiliğinden eşleşme modunda bekler.")
             numbered(3, "Telefonu ev WiFi'sine bağla", "Köprü ile aynı ağda olman gerekiyor.")
-            Link(destination: AppInfo.docsURL) { Label("Yazılım yükleme rehberi", systemImage: "book.fill") }
+            Link(destination: AppInfo.flashURL) { Label("Yazılım yükleyici (flash.matestudios.online)", systemImage: "arrow.up.right.square") }
             Button { Task { await start() } } label: {
                 HStack { if busy { ProgressView().tint(.black) }; Text("Cihaz ara") }.frame(maxWidth: .infinity)
             }
@@ -93,12 +95,12 @@ struct PairingFlow: View {
     }
 
     private func candidateRow(_ c: BridgeClient.PairCandidate) -> some View {
-        Button { selected = c; error = nil; poll?.cancel(); step = .role } label: {
+        Button { selected = c; relayPin = c.pin ?? 5; relayInv = (c.inv ?? 1) != 0; error = nil; poll?.cancel(); step = .role } label: {
             HStack(spacing: 12) {
                 Image(systemName: "cpu.fill").foregroundStyle(.black).frame(width: 40, height: 40).background(Color.lampOn, in: RoundedRectangle(cornerRadius: 11, style: .continuous))
                 VStack(alignment: .leading, spacing: 2) {
                     Text(c.name).font(.body.weight(.semibold))
-                    Text("\(c.mac) · sinyal \(c.rssi) dBm").font(.caption).foregroundStyle(.secondary)
+                    Text("\(c.chipName) · \(c.mac) · sinyal \(c.rssi) dBm").font(.caption).foregroundStyle(.secondary)
                 }
                 Spacer()
                 Image(systemName: "chevron.right").font(.footnote.weight(.semibold)).foregroundStyle(.tertiary)
@@ -144,6 +146,15 @@ struct PairingFlow: View {
                             }
                         }
                     }
+                }
+                .padding(12).background(Color.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+
+                DisclosureGroup("Röle ayarı (gerekirse)") {
+                    VStack(alignment: .leading, spacing: 10) {
+                        Stepper(value: $relayPin, in: 0...48) { HStack { Text("Röle pini"); Spacer(); Text("GPIO\(relayPin)").foregroundStyle(.secondary) } }
+                        Toggle("Ters mantık (LOW = açık)", isOn: $relayInv).tint(Color.lampOn)
+                        Text("Çoğu 5V röle modülü ters mantıkla çalışır. Işık tam tersi davranırsa kapat. Pini kartına göre değiştir.").font(.footnote).foregroundStyle(.secondary)
+                    }.padding(.top, 6)
                 }
                 .padding(12).background(Color.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
             }
@@ -266,8 +277,8 @@ struct PairingFlow: View {
             target = id
         } else if let r = role { target = r } else { return }
         do {
-            try await BridgeClient.fromConfig().pairAccept(mac: sel.mac, id: target.rawValue)
-            if addingNew { model.addDevice(target, name: newName, symbol: newSymbol) }
+            try await BridgeClient.fromConfig().pairAccept(mac: sel.mac, id: target.rawValue, pin: addingNew ? relayPin : nil, inv: addingNew ? relayInv : nil)
+            if addingNew { model.addDevice(target, name: newName, symbol: newSymbol, pin: relayPin, inv: relayInv) }
             else if model.removed.contains(target.rawValue) { model.restore(target) }
             role = target
             await model.refresh()

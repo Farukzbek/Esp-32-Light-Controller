@@ -13,7 +13,8 @@
 #endif
 #endif
 
-enum : uint8_t { NOW_SET = 1, NOW_QUERY = 2, NOW_STATE = 3 };
+enum : uint8_t { NOW_SET = 1, NOW_QUERY = 2, NOW_STATE = 3, NOW_CFG = 4, NOW_FORGET = 5 };
+// NOW_CFG (kopru -> eslesen dugum): dev = yuva, val = role GPIO pini, st[0] bit0 = ters mantik (LOW = acik). NOW_FORGET: dev = yuva, eslesmeyi sil ve yeniden basla.
 enum : uint8_t { DEV_MASA = 0, DEV_YATAK = 1, DEV_LED = 2, DEV_COUNT = 3 };
 
 // STATE mesajinda st[i] == NOW_UNKNOWN ise gonderen o cihazin sahibi degildir, degeri degistirme.

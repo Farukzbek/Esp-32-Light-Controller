@@ -13,7 +13,7 @@
 #define PAIR_WINDOW_MS 120000
 #define MAX_CAND 6
 
-struct Cand { bool used; uint8_t mac[6]; char name[17]; uint8_t pub[32]; int8_t rssi; uint32_t lastMs; uint8_t kind; };
+struct Cand { bool used; uint8_t mac[6]; char name[17]; uint8_t pub[32]; int8_t rssi; uint32_t lastMs; uint8_t kind; uint8_t chip, defPin, defInv; };
 
 static Cand s_cand[MAX_CAND];
 static portMUX_TYPE s_mux = portMUX_INITIALIZER_UNLOCKED;
@@ -57,6 +57,7 @@ void pair_sniff(const wifi_promiscuous_pkt_t *p) {
     memcpy(slot->name, h->name, 16); slot->name[16] = 0;
     memcpy(slot->pub, h->pub, 32);
     slot->kind = h->kind;
+    slot->chip = h->chip; slot->defPin = h->defPin; slot->defInv = h->defInv;
     slot->rssi = p->rx_ctrl.rssi;
     slot->lastMs = millis();
   }
@@ -118,14 +119,15 @@ String pair_json() {
     nm.replace("\"", ""); nm.replace("\\", "");
     if (!first) o += ',';
     first = false;
-    o += "{\"mac\":\"" + macToStr(c.mac) + "\",\"name\":\"" + nm + "\",\"rssi\":" + String((int)c.rssi) + "}";
+    o += "{\"mac\":\"" + macToStr(c.mac) + "\",\"name\":\"" + nm + "\",\"rssi\":" + String((int)c.rssi) +
+         ",\"chip\":" + String(c.chip) + ",\"pin\":" + String(c.defPin) + ",\"inv\":" + String(c.defInv) + "}";
   }
   portEXIT_CRITICAL(&s_mux);
   o += "]}";
   return o;
 }
 
-bool pair_accept(const String &macStr, uint8_t slot, String &err) {
+bool pair_accept(const String &macStr, uint8_t slot, int pin, int inv, String &err) {
   uint8_t mac[6];
   if (!strToMac(macStr, mac)) { err = "mac"; return false; }
   if (slot < NOW_DYN_FIRST || slot >= NOW_DYN_FIRST + NOW_DYN_MAX) { err = "yuva"; return false; }
@@ -154,6 +156,8 @@ bool pair_accept(const String &macStr, uint8_t slot, String &err) {
   strncpy(ps.pass, NOW_PASSWORD, sizeof(ps.pass) - 1);
   ps.channel = ch;
   ps.slot = slot;
+  ps.pin = (pin >= 0 && pin <= 60) ? (uint8_t)pin : cand.defPin;          // verilmediyse dugumun varsayilani
+  ps.flags = ((inv >= 0 ? inv : cand.defInv) ? 1 : 0);
 
   PairAccept pa = {};
   pa.magic[0] = PAIR_MAGIC0; pa.magic[1] = PAIR_MAGIC1; pa.type = PAIR_ACCEPT; pa.ver = PAIR_VERSION;

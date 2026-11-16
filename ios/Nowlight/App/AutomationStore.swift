@@ -27,6 +27,13 @@ final class AutomationStore {
         Task { _ = try? await DoorClient(host: DoorConfig.host, token: DoorConfig.token).pushRules(r) }
     }
 
+    /// Silinen bir isigin yuvasi (bit) kayitli kurallardan temizlenir; yuva sonradan baska isige verilirse eski kural ona uygulanmasin.
+    static func clearBit(_ bit: Int) {
+        guard let d = defaults.data(forKey: key), var r = try? JSONDecoder().decode([AutomationRule].self, from: d) else { return }
+        for i in r.indices { r[i].lamps &= ~bit }
+        if let nd = try? JSONEncoder().encode(r) { defaults.set(nd, forKey: key) }
+    }
+
     private func save() {
         if let d = try? JSONEncoder().encode(rules) { Self.defaults.set(d, forKey: Self.key) }
     }

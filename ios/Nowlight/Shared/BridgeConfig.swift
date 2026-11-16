@@ -43,4 +43,10 @@ enum BridgeConfig {
         get { shared.stringArray(forKey: "customDevices") ?? [] }
         set { shared.set(newValue, forKey: "customDevices") }
     }
+
+    /// Eklenen isiklarin role ayari (LightID.rawValue -> "pin:ters", ters 1/0). Dugumde saklanan degerin telefondaki kopyasi.
+    static var relay: [String: String] {
+        get { (shared.dictionary(forKey: "relayConfig") as? [String: String]) ?? [:] }
+        set { shared.set(newValue, forKey: "relayConfig") }
+    }
 }

@@ -223,6 +223,22 @@ void now_init(void) {
   xTaskCreate(nowTask, "now", 8192, nullptr, 1, nullptr);
 }
 
+void now_send_cfg(uint8_t slot, uint8_t pin, bool inv) {
+  NowMsg m = {};
+  m.type = NOW_CFG; m.dev = slot; m.val = pin; m.st[0] = inv ? 1 : 0; m.st[1] = m.st[2] = m.st[3] = NOW_UNKNOWN; m.seq = ++s_seq;
+  enqueue(m, linkOfDev(slot));
+  enqueue(m, linkOfDev(slot));        // paket kaybina karsi iki kez
+}
+
+void now_forget(uint8_t slot) {
+  NowMsg m = {};
+  m.type = NOW_FORGET; m.dev = slot; m.st[0] = m.st[1] = m.st[2] = m.st[3] = NOW_UNKNOWN; m.seq = ++s_seq;
+  for (int i = 0; i < 3; i++) enqueue(m, linkOfDev(slot));
+  Preferences p;
+  if (p.begin("nodes", false)) { char key[4]; snprintf(key, sizeof(key), "m%u", slot); p.remove(key); p.end(); }
+  Serial.printf("[now] dugum unutuldu: yuva %u\n", slot);
+}
+
 void now_send_set(uint8_t dev, bool on) {
   NowMsg m = {};
   m.type = NOW_SET; m.dev = dev; m.val = on ? 1 : 0; m.seq = ++s_seq;

@@ -3,6 +3,7 @@
 #include <esp_now.h>
 #include <esp_wifi.h>
 #include <esp_random.h>
+#include <driver/gpio.h>
 #include <Preferences.h>
 #include "HomeSpan.h"
 #include "now_proto.h"
@@ -20,13 +21,24 @@
 #ifndef NL_BOOT_PIN
 #define NL_BOOT_PIN 0
 #endif
-#define RELAY_ON  LOW
-#define RELAY_OFF HIGH
+#if CONFIG_IDF_TARGET_ESP32S3
+#define NL_CHIP CHIP_S3
+#elif CONFIG_IDF_TARGET_ESP32C3
+#define NL_CHIP CHIP_C3
+#elif CONFIG_IDF_TARGET_ESP32C6
+#define NL_CHIP CHIP_C6
+#elif CONFIG_IDF_TARGET_ESP32S2
+#define NL_CHIP CHIP_S2
+#else
+#define NL_CHIP CHIP_ESP32
+#endif
 
 static Preferences prefs;
 static bool g_on = false;
+static uint8_t g_pin = NL_RELAY_PIN;    // role pini (eslesirken uygulamadan gelir, sonradan da degistirilebilir)
+static bool g_inv = true;               // ters mantik: LOW = acik
 
-static void relaySet(bool on) { g_on = on; digitalWrite(NL_RELAY_PIN, on ? RELAY_ON : RELAY_OFF); }
+static void relaySet(bool on) { g_on = on; digitalWrite(g_pin, (on != g_inv) ? HIGH : LOW); }
 
 static String macStr(const uint8_t *m) {
   char b[18];
@@ -90,6 +102,8 @@ static bool handleAccept() {
   prefs.putString("pass", ps.pass);
   prefs.putUChar("ch", ps.channel);
   prefs.putUChar("slot", ps.slot);
+  if (ps.pin != 255 && GPIO_IS_VALID_OUTPUT_GPIO(ps.pin)) { prefs.putUChar("pin", ps.pin); }
+  prefs.putUChar("inv", ps.flags & 1);
   prefs.end();
   Serial.printf("[eslesme] tamam: kopru %s kanal %u yuva %u. Yeniden baslatiliyor\n", macStr(g_bridgeMac).c_str(), ps.channel, ps.slot);
   delay(300);
@@ -118,6 +132,7 @@ static void pairingLoop() {
       lastHello = millis();
       PairHello h = {};
       h.magic[0] = PAIR_MAGIC0; h.magic[1] = PAIR_MAGIC1; h.type = PAIR_HELLO; h.ver = PAIR_VERSION; h.kind = KIND_RELAY;
+      h.chip = NL_CHIP; h.defPin = NL_RELAY_PIN; h.defInv = 1;
       uint8_t me[6]; WiFi.macAddress(me);
       snprintf(h.name, sizeof(h.name), "Nowlight-%02X%02X", me[4], me[5]);
       memcpy(h.pub, g_pub, 32);
@@ -157,6 +172,20 @@ static void runLoop() {
       sendState(m.seq);
     } else if (m.type == NOW_QUERY) {
       sendState(m.seq);
+    } else if (m.type == NOW_CFG && m.dev == g_slot) {
+      const uint8_t pin = m.val;
+      const bool inv = m.st[0] & 1;
+      if (GPIO_IS_VALID_OUTPUT_GPIO(pin)) {
+        const bool wasOn = g_on;
+        if (pin != g_pin) { relaySet(false); pinMode(g_pin, INPUT); g_pin = pin; digitalWrite(g_pin, g_inv ? HIGH : LOW); pinMode(g_pin, OUTPUT); }
+        g_inv = inv;
+        relaySet(wasOn && pin == g_pin ? wasOn : false);
+        prefs.begin("nlnode", false); prefs.putUChar("pin", g_pin); prefs.putUChar("inv", g_inv ? 1 : 0); prefs.end();
+        Serial.printf("[now] CFG role pini=%u ters=%d\n", g_pin, g_inv);
+      } else Serial.printf("[now] CFG reddedildi: gecersiz pin %u\n", pin);
+      sendState(m.seq);
+    } else if (m.type == NOW_FORGET && m.dev == g_slot) {
+      forgetPairing();
     }
   }
 }
@@ -181,9 +210,13 @@ void setup() {
   Serial.begin(115200);
   delay(500);
 
-  // Role acilista gitmesin: cikisi acmadan once seviyeyi HIGH (kapali) yap
-  digitalWrite(NL_RELAY_PIN, RELAY_OFF);
-  pinMode(NL_RELAY_PIN, OUTPUT);
+  // Kayitli role pini/mantigi (yoksa derleme varsayilani). Role acilista gitmesin: cikisi acmadan once KAPALI seviyeyi yaz.
+  prefs.begin("nlnode", true);
+  if (prefs.isKey("pin")) g_pin = prefs.getUChar("pin", NL_RELAY_PIN);
+  if (prefs.isKey("inv")) g_inv = prefs.getUChar("inv", 1) != 0;
+  prefs.end();
+  digitalWrite(g_pin, g_inv ? HIGH : LOW);
+  pinMode(g_pin, OUTPUT);
   relaySet(false);
 
   // Acilista BOOT 3 sn basili = eslesmeyi sil

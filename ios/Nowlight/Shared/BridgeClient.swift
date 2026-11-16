@@ -87,7 +87,14 @@ struct BridgeClient {
         let mac: String
         let name: String
         let rssi: Int
+        let chip: Int?
+        let pin: Int?
+        let inv: Int?
         var id: String { mac }
+        /// Cip adi (kopru bildirir): kullaniciya "ESP32-S3" gibi gosterilir.
+        var chipName: String {
+            switch chip { case 1: "ESP32"; case 2: "ESP32-S2"; case 3: "ESP32-S3"; case 4: "ESP32-C3"; case 5: "ESP32-C6"; default: "ESP32" }
+        }
     }
     struct PairStatus: Decodable {
         let open: Bool
@@ -104,10 +111,22 @@ struct BridgeClient {
     func pairStatus() async throws -> PairStatus { try pairDecode(await send(request("/api/pair"))) }
     func pairStop() async { _ = try? await send(request("/api/pair/stop", method: "POST")) }
     /// Cihazi bir isik kimligine baglar: mevcut bir kimlik (yerine gecer) ya da yeni bir kimlik ("d3"...). Ad ve simge uygulamada tutulur.
-    func pairAccept(mac: String, id: String) async throws {
-        _ = try await send(request("/api/pair/accept", method: "POST", query: [
-            URLQueryItem(name: "mac", value: mac),
-            URLQueryItem(name: "id", value: id),
+    func pairAccept(mac: String, id: String, pin: Int? = nil, inv: Bool? = nil) async throws {
+        var q = [URLQueryItem(name: "mac", value: mac), URLQueryItem(name: "id", value: id)]
+        if let pin { q.append(URLQueryItem(name: "pin", value: String(pin))) }
+        if let inv { q.append(URLQueryItem(name: "inv", value: inv ? "1" : "0")) }
+        _ = try await send(request("/api/pair/accept", method: "POST", query: q))
+    }
+
+    /// Eslesen dugumun role pini ve mantigi (ters: LOW = acik).
+    func nodeConfig(id: String, pin: Int, inv: Bool) async throws {
+        _ = try await send(request("/api/node/config", method: "POST", query: [
+            URLQueryItem(name: "id", value: id), URLQueryItem(name: "pin", value: String(pin)), URLQueryItem(name: "inv", value: inv ? "1" : "0"),
         ]))
+    }
+
+    /// Dugumun eslesmesini siler; kopru kisaca yeniden baslar.
+    func nodeForget(id: String) async throws {
+        _ = try await send(request("/api/node/forget", method: "POST", query: [URLQueryItem(name: "id", value: id)]))
     }
 }

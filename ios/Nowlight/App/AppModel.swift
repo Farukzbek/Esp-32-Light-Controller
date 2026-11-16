@@ -40,13 +40,35 @@ final class AppModel {
     }
 
     /// Yeni bir isik ekler (kopruyle eslestikten sonra). Ad ve simge uygulamada saklanir.
-    func addDevice(_ light: LightID, name: String, symbol: String) {
+    func addDevice(_ light: LightID, name: String, symbol: String, pin: Int? = nil, inv: Bool? = nil) {
+        if let pin, let inv { var r = BridgeConfig.relay; r[light.rawValue] = "\(pin):\(inv ? 1 : 0)"; BridgeConfig.relay = r }
         var list = BridgeConfig.customDevices
         if !list.contains(light.rawValue) { list.append(light.rawValue) }
         BridgeConfig.customDevices = list
         removed.remove(light.rawValue); BridgeConfig.removed = removed
         rename(light, to: name)
         setIcon(light, symbol)
+        AutomationStore.resyncStored()
+    }
+
+    /// Eklenen isigin role ayarini (pin, ters mantik) dugume gonderir ve telefonda saklar.
+    func setRelay(_ light: LightID, pin: Int, inv: Bool) async throws {
+        try await BridgeClient.fromConfig().nodeConfig(id: light.rawValue, pin: pin, inv: inv)
+        var r = BridgeConfig.relay; r[light.rawValue] = "\(pin):\(inv ? 1 : 0)"; BridgeConfig.relay = r
+    }
+
+    /// Eklenen isigi KALICI siler: dugumun eslesmesi silinir (kopru kisaca yeniden baslar), uygulamadan ve otomasyonlardan kalkar.
+    func deleteDevice(_ light: LightID) async throws {
+        guard !light.isBuiltin else { return }
+        try await BridgeClient.fromConfig().nodeForget(id: light.rawValue)
+        BridgeConfig.customDevices = BridgeConfig.customDevices.filter { $0 != light.rawValue }
+        removed.remove(light.rawValue); BridgeConfig.removed = removed
+        names.removeValue(forKey: light.rawValue); BridgeConfig.names = names
+        icons.removeValue(forKey: light.rawValue); BridgeConfig.icons = icons
+        var r = BridgeConfig.relay; r.removeValue(forKey: light.rawValue); BridgeConfig.relay = r
+        AutomationStore.clearBit(light.bit)
+        WidgetCenter.shared.reloadAllTimelines()
+        NowlightShortcuts.updateAppShortcutParameters()
         AutomationStore.resyncStored()
     }
 

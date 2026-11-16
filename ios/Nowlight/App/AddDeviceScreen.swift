@@ -147,11 +147,18 @@ struct DeviceEditor: View {
     let light: LightID
     @State private var name: String
     @State private var symbol: String
+    @State private var relayPin: Int
+    @State private var relayInv: Bool
+    @State private var relayMsg: String?
+    @State private var busy = false
+    @State private var confirmDelete = false
 
     init(light: LightID) {
         self.light = light
         _name = State(initialValue: light.customName ?? "")
         _symbol = State(initialValue: light.symbol)
+        _relayPin = State(initialValue: light.relayConfig?.pin ?? 5)
+        _relayInv = State(initialValue: light.relayConfig?.inv ?? true)
     }
 
     var body: some View {
@@ -178,6 +185,25 @@ struct DeviceEditor: View {
                     }.padding(.vertical, 4)
                 }
 
+                if !light.isBuiltin {
+                    Section {
+                        Stepper(value: $relayPin, in: 0...48) { HStack { Text("Röle pini"); Spacer(); Text("GPIO\(relayPin)").foregroundStyle(.secondary) } }
+                        Toggle("Ters mantık (LOW = açık)", isOn: $relayInv).tint(Color.lampOn)
+                        Button {
+                            Task {
+                                busy = true; defer { busy = false }
+                                do { try await model.setRelay(light, pin: relayPin, inv: relayInv); relayMsg = "✓ Cihaza gönderildi." }
+                                catch { relayMsg = (error as? LocalizedError)?.errorDescription ?? "Gönderilemedi." }
+                            }
+                        } label: { HStack { Text("Cihaza uygula"); if busy { Spacer(); ProgressView() } } }.disabled(busy)
+                        if let relayMsg { Text(relayMsg).font(.footnote).foregroundStyle(relayMsg.hasPrefix("✓") ? .green : .orange) }
+                    } header: { Text("Röle") } footer: { Text("Işık ters çalışıyorsa mantığı değiştir. Pin değişince cihaz yeni pini kullanır; röleyi yeni pine taşıman gerekir.") }
+
+                    Section {
+                        Button("Cihazı kalıcı sil", role: .destructive) { confirmDelete = true }
+                    } footer: { Text("Eşleşmeyi köprüden ve cihazdan siler. Cihaz yeniden eşleşmeye hazır olur. Köprü birkaç saniye yeniden başlar.") }
+                }
+
                 Section {
                     Button("Varsayılana dön", role: .destructive) {
                         model.rename(light, to: ""); model.setIcon(light, nil); dismiss()
@@ -194,6 +220,15 @@ struct DeviceEditor: View {
             }
         }
         .presentationDetents([.large])
+        .confirmationDialog("\(light.title) kalıcı silinsin mi?", isPresented: $confirmDelete, titleVisibility: .visible) {
+            Button("Kalıcı sil", role: .destructive) {
+                Task {
+                    do { try await model.deleteDevice(light); dismiss() }
+                    catch { relayMsg = (error as? LocalizedError)?.errorDescription ?? "Silinemedi. Köprüye ulaşılıyor mu?" }
+                }
+            }
+            Button("Vazgeç", role: .cancel) {}
+        } message: { Text("Cihaz köprüyle bağlantısını kaybeder ve yeniden eşleşmesi gerekir. Otomasyonlardan da kalkar.") }
     }
 }
 

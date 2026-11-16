@@ -106,22 +106,27 @@ struct WidgetLightButton: View {
     }
 }
 
-/// Karolari 2 sutunlu dizer; tek kalan son karo iki sutunu kaplar.
+/// Karolari `columns` sutunlu dizer; 2 sutunda tek kalan son karo iki sutunu kaplar.
 private struct TileGrid: View {
     let entry: LightsEntry
     let size: TileSize
     let spacing: CGFloat
+    var columns = 2
+    var limit = 8
 
     var body: some View {
-        let l = entry.lights
+        let l = Array(entry.lights.prefix(limit))
+        let rows = (l.count + columns - 1) / columns
         Grid(horizontalSpacing: spacing, verticalSpacing: spacing) {
-            ForEach(0..<((l.count + 1) / 2), id: \.self) { row in
+            ForEach(0..<rows, id: \.self) { row in
                 GridRow {
-                    if row * 2 + 1 < l.count {
-                        WidgetLightButton(light: l[row * 2], entry: entry, size: size)
-                        WidgetLightButton(light: l[row * 2 + 1], entry: entry, size: size)
-                    } else {
-                        WidgetLightButton(light: l[row * 2], entry: entry, size: size).gridCellColumns(2)
+                    let start = row * columns
+                    ForEach(start..<min(start + columns, l.count), id: \.self) { i in
+                        if columns == 2 && l.count - start == 1 {
+                            WidgetLightButton(light: l[i], entry: entry, size: size).gridCellColumns(2)
+                        } else {
+                            WidgetLightButton(light: l[i], entry: entry, size: size)
+                        }
                     }
                 }
             }
@@ -156,7 +161,7 @@ struct LightsWidgetContent: View {
             } else {
                 switch family {
                 case .systemSmall:
-                    TileGrid(entry: entry, size: .compact, spacing: 6)
+                    TileGrid(entry: entry, size: .compact, spacing: 6, limit: 4)
                 case .systemLarge:
                     VStack(spacing: 10) {
                         HStack {
@@ -165,7 +170,8 @@ struct LightsWidgetContent: View {
                             Circle().fill(statusLine.color == .secondary ? Color.barOn : Color.orange).frame(width: 7, height: 7)
                             Text(statusLine.text).font(.system(size: 12)).foregroundStyle(statusLine.color).lineLimit(1)
                         }
-                        TileGrid(entry: entry, size: .large, spacing: 8)
+                        // 4'e kadar buyuk karo; 5-6 ortaboy, 7-8 kucuk karo (4 satir sigsin)
+                        TileGrid(entry: entry, size: entry.lights.count <= 4 ? .large : (entry.lights.count <= 6 ? .regular : .compact), spacing: 8)
                         HStack(spacing: 8) {
                             Button(intent: SetAllLightsIntent(on: true)) { Label("Hepsini aç", systemImage: "sun.max.fill").frame(maxWidth: .infinity) }
                             Button(intent: SetAllLightsIntent(on: false)) { Label("Hepsini kapat", systemImage: "moon.fill").frame(maxWidth: .infinity) }
@@ -179,8 +185,12 @@ struct LightsWidgetContent: View {
                     }
                 default:
                     VStack(spacing: 6) {
-                        HStack(spacing: 8) {
-                            ForEach(entry.lights, id: \.self) { WidgetLightButton(light: $0, entry: entry, size: .regular) }
+                        if entry.lights.count <= 4 {
+                            HStack(spacing: 8) {
+                                ForEach(entry.lights, id: \.self) { WidgetLightButton(light: $0, entry: entry, size: .regular) }
+                            }
+                        } else {
+                            TileGrid(entry: entry, size: .compact, spacing: 6, columns: 4, limit: 8)   // 5-8 isik: iki satir, 4 sutun
                         }
                         Text(statusLine.text).font(.system(size: 10)).foregroundStyle(statusLine.color).lineLimit(1)
                     }
