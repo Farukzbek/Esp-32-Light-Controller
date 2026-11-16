@@ -1,7 +1,7 @@
-# Video: Sıfırdan bir ışık düğümü kurmak ve eşleştirmek
+# Video: Nowlight'ı sıfırdan kurmak (köprü + ışık düğümü)
 
-**Amaç:** ESP'den hiç anlamayan biri, boş bir ESP32'yi alıp 5 dakikada uygulamaya ışık olarak eklesin.
-**Süre:** 3:30 – 4:30 dk. **Dil:** Türkçe, sakin ve kısa cümleler. **Format:** 16:9, 1080p; telefon ekranı dikey kutuda ya da yan yana.
+**Amaç:** ESP'den hiç anlamayan biri, boş ESP32'lerle evini kurup 10 dakikada uygulamadan ışık yakabilsin.
+**Süre:** İki bölüm: **Bölüm 1 köprü kurulumu** (~2:30 dk) ve **Bölüm 2 ışık ekleme** (~3:30–4:30 dk). İki ayrı video olarak da yayınlanabilir. **Dil:** Türkçe, sakin ve kısa cümleler. **Format:** 16:9, 1080p; telefon ekranı dikey kutuda ya da yan yana.
 **Yayın yeri:** YouTube (liste dışı da olur), `flash.matestudios.online` sayfasına ve README'ye bağlantı.
 
 > Not: Bu bir **taslak senaryo**. Gerçek çekim, köprü ile düğüm eşleşmesi donanımda doğrulandıktan sonra yapılacak. Ekranlar uygulamanın güncel sürümüne göre kaydedilmeli.
@@ -9,11 +9,25 @@
 ## Gerekenler (video başında ekranda listelenir)
 - Bir ESP32 kartı (S3 / C3 / C6 / S2 / klasik) ve veri kablosu
 - Röle modülü (tercihen ters mantık, 5V) ve bir lamba
-- Nowlight köprüsü kurulu ve evin WiFi'sinde
+- Bölüm 1'deki gibi kurulmuş Nowlight köprüsü (video 2'de zaten kurulu varsayılır)
 - Chrome ya da Edge'li bir bilgisayar (veya Android telefon)
 - Nowlight uygulaması yüklü iPhone
 
-## Sahneler
+## Bölüm 1: Köprüyü kur (evde bir kez, ~2:30)
+
+| # | Süre | Ekran / çekim | Seslendirme (taslak) |
+|---|---|---|---|
+| K1 | 0:00–0:15 | Evin haritası ya da router yakın plan, sonra küçük bir ESP32 kartı. Başlık: "Önce köprü" | "Nowlight'ın bir kez kurulan bir köprüsü var. Telefonun ışıklarla bu köprü üzerinden konuşur. Önce onu kuralım." |
+| K2 | 0:15–0:45 | **Gerçek ekran kaydı:** flash.matestudios.online. "Ne kuruyorsun?" listesinde **Köprü** seçilir, kart seçilir. | "flash.matestudios.online sayfasını Chrome ya da Edge ile aç. Ne kuruyorsun kısmından Köprü'yü seç, sonra kendi kartını." |
+| K3 | 0:45–1:15 | **Gerçek ekran kaydı:** USB'ye takma, Yükle, port seçme, ilerleme çubuğu. | "Kartı veri kablosuyla tak, Yükle'ye bas ve portu seç. Bir dakika sürüyor." |
+| K4 | 1:15–1:50 | **Gerçek ekran kaydı:** WiFi ayarı penceresi, ağ seçilir, şifre girilir (şifre alanı bulanık), "Bağlandı". | "Yükleme bitince sayfa WiFi bilgisini sorar. Ağını seç, şifreni yaz. Şifre sadece köprünün hafızasına gider, başka hiçbir yere yollanmaz." |
+| K5 | 1:50–2:20 | **Gerçek ekran kaydı (iPhone):** Cihaz Ekle → Köprü ayarları → Köprüyü otomatik bul, "✓ Köprü bulundu", Kaydet. Adres ve token alanları bulanık. | "Telefonda Köprü ayarları'na gir ve Köprüyü otomatik bul'a bas. Adres ve anahtar kendiliğinden dolar. Kaydet de, köprü hazır." |
+| K6 | 2:20–2:30 | Köprü USB adaptöre takılır, kenara konur. | "Köprüyü bir adaptöre tak, evde bir köşede dursun. Şimdi ışıkları ekleyelim." |
+
+> Köprü kurulum penceresi 10 dakika açık kalır. Kapanırsa köprünün BOOT tuşuna 2 saniye basılır (bunu sorun giderme bölümünde söyle).
+
+## Bölüm 2: Işık düğümü ekle (her yeni ışık için)
+
 
 | # | Süre | Ekran / çekim | Seslendirme (taslak) |
 |---|---|---|---|
@@ -59,6 +73,9 @@ Video, kamerayla çekilmeyecek; görüntüler yapay zekâ ile üretilecek. Kural
 
 | Sahne | Kaynak | Not |
 |---|---|---|
+| K1 Köprü açılışı | YZ video | Router/kart yakın plan |
+| K2, K3, K4, K5 Köprü kurulumu | **Gerçek ekran kaydı** | Web sayfası, WiFi ayarı, uygulama |
+| K6 Köprü adaptörde | YZ video | Kısa kesit |
 | 1 Açılış | YZ video | Kart + yanan lamba |
 | 2 Malzemeler | Tasarım (Canva/Keynote) | Düz kart grafikleri; YZ ile üretme, çünkü yazı içerir |
 | 3 Web sayfası, kart seçimi | **Gerçek ekran kaydı** | `flash.matestudios.online` |
@@ -72,6 +89,8 @@ Video, kamerayla çekilmeyecek; görüntüler yapay zekâ ile üretilecek. Kural
 ## YZ video istemleri (İngilizce yaz, modeller daha iyi anlıyor)
 Ortak stil, her isteme ekle: `cinematic product video, warm cozy indoor lighting, shallow depth of field, soft film grain, 16:9, no text, no logos, no captions`
 
+0. **Köprü açılışı (K1)** – `Close-up of a Wi-Fi router with softly blinking lights on a shelf in a cozy living room, then a slow push-in toward a small microcontroller board standing next to it. 6 seconds.`
+0b. **Köprü adaptörde (K6)** – `A small green microcontroller board plugged into a white USB wall charger on a bookshelf, subtle LED glow, calm atmosphere. 5 seconds.`
 1. **Açılış (sahne 1)** – `Close-up of a small green ESP32 microcontroller development board on a wooden desk, slow dolly in, then cut to a warm living room where a table lamp turns on softly. 6 seconds.`
 2. **Bağlantı atmosferi (sahne 5)** – `Overhead shot of hands connecting jumper wires between a small microcontroller board and a relay module on a clean workbench, calm and precise movements, soft daylight. 6 seconds.`
 3. **Lamba yanması (sahne 8)** – `A bedside lamp on a nightstand turns on with a gentle warm glow, a hand holding a smartphone enters frame from the side but the phone screen is not visible. 5 seconds.`
