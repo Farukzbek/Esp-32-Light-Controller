@@ -1,7 +1,7 @@
 #!/bin/bash
 # Herkese acik web yukleyiciyi (yalnizca genel kartlar) Cloudflare Pages'e yayinlar: flash.matestudios.online
 set -e
-cd "$(dirname "$0")/../.."
+cd "$(dirname "$0")/.."
 rm -rf dist/flasher-public && mkdir -p dist/flasher-public/firmware
 cp web/flasher/index.html dist/flasher-public/
 cp web/flasher/firmware/esp32s3-supermini.* web/flasher/firmware/esp32c6.* web/flasher/firmware/esp32dev.* dist/flasher-public/firmware/
