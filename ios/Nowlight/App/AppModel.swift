@@ -21,6 +21,16 @@ final class AppModel {
     /// Kullanici adlari (gorunumler bunu izler)
     var names: [String: String] = BridgeConfig.names
 
+    /// Kullanici simgeleri
+    var icons: [String: String] = BridgeConfig.icons
+
+    func setIcon(_ light: LightID, _ symbol: String?) {
+        if let symbol, symbol != light.defaultSymbol { icons[light.rawValue] = symbol } else { icons.removeValue(forKey: light.rawValue) }
+        BridgeConfig.icons = icons
+        WidgetCenter.shared.reloadAllTimelines()
+        NowlightShortcuts.updateAppShortcutParameters()
+    }
+
     func rename(_ light: LightID, to name: String) {
         let n = String(name.trimmingCharacters(in: .whitespacesAndNewlines).prefix(20))
         if n.isEmpty { names.removeValue(forKey: light.rawValue) } else { names[light.rawValue] = n }

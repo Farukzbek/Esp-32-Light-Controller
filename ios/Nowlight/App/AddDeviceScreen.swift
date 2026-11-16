@@ -6,13 +6,12 @@ struct AddDeviceScreen: View {
     @Binding var showSettings: Bool
     @State private var pendingRemove: LightID?
     @State private var renaming: LightID?
-    @State private var newName = ""
 
     private var active: [LightID] { _ = model.removed; return LightID.devices }
     private var removedList: [LightID] { LightID.allDevices.filter { model.removed.contains($0.rawValue) } }
 
     var body: some View {
-        let _ = model.names
+        let _ = (model.names, model.icons)
         NavigationStack {
             List {
                 Section {
@@ -46,16 +45,16 @@ struct AddDeviceScreen: View {
                     ForEach(active, id: \.self) { light in
                         DeviceRow(light: light)
                             .contentShape(Rectangle())
-                            .onTapGesture { newName = light.customName ?? ""; renaming = light }
+                            .onTapGesture { renaming = light }
                             .swipeActions(edge: .leading, allowsFullSwipe: false) {
-                                Button { newName = light.customName ?? ""; renaming = light } label: { Label("Ad", systemImage: "pencil") }.tint(Color.lampOn)
+                                Button { renaming = light } label: { Label("Düzenle", systemImage: "pencil") }.tint(Color.lampOn)
                             }
                             .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                                 Button(role: .destructive) { pendingRemove = light } label: { Label("Kaldır", systemImage: "trash") }
                             }
                     }
                 } header: { Text("Cihazlarım") } footer: {
-                    if !active.isEmpty { Text("Adını değiştirmek için cihaza dokun, kaldırmak için sola kaydır.") }
+                    if !active.isEmpty { Text("Adını ve simgesini değiştirmek için cihaza dokun, kaldırmak için sola kaydır.") }
                 }
 
                 if !removedList.isEmpty {
@@ -102,12 +101,7 @@ struct AddDeviceScreen: View {
             .scrollContentBackground(.hidden)
             .background(Color.black.ignoresSafeArea())
             .navigationTitle("Cihaz Ekle")
-            .alert("Cihaz adı", isPresented: Binding(get: { renaming != nil }, set: { if !$0 { renaming = nil } })) {
-                TextField(renaming?.defaultTitle ?? "Ad", text: $newName)
-                Button("Kaydet") { if let l = renaming { model.rename(l, to: newName) }; renaming = nil }
-                Button("Varsayılana dön", role: .destructive) { if let l = renaming { model.rename(l, to: "") }; renaming = nil }
-                Button("Vazgeç", role: .cancel) { renaming = nil }
-            } message: { Text("Uygulamada, widget'larda ve Siri'de bu ad görünür (en fazla 20 karakter). Widget ayar listesi ve Siri bu adı kullanır.") }
+            .sheet(item: $renaming) { light in DeviceEditor(light: light) }
             .confirmationDialog(
                 pendingRemove.map { "\($0.title) kaldırılsın mı?" } ?? "",
                 isPresented: Binding(get: { pendingRemove != nil }, set: { if !$0 { pendingRemove = nil } }),
@@ -136,7 +130,7 @@ struct DeviceRow: View {
     }
 
     var body: some View {
-        let _ = model.names
+        let _ = (model.names, model.icons)
         HStack(spacing: 14) {
             Image(systemName: light.symbol).font(.system(size: 18, weight: .semibold)).foregroundStyle(.black)
                 .frame(width: 40, height: 40).background(Color.lampOn, in: RoundedRectangle(cornerRadius: 11, style: .continuous))
@@ -149,5 +143,62 @@ struct DeviceRow: View {
             }
         }
         .padding(.vertical, 2)
+    }
+}
+
+/// Cihazin adini ve simgesini degistirme penceresi.
+struct DeviceEditor: View {
+    @Environment(\.dismiss) private var dismiss
+    @Environment(AppModel.self) private var model
+    let light: LightID
+    @State private var name: String
+    @State private var symbol: String
+
+    init(light: LightID) {
+        self.light = light
+        _name = State(initialValue: light.customName ?? "")
+        _symbol = State(initialValue: light.symbol)
+    }
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section {
+                    HStack(spacing: 14) {
+                        Image(systemName: symbol).font(.system(size: 26, weight: .semibold)).foregroundStyle(.black)
+                            .frame(width: 56, height: 56).background(Color.lampOn, in: RoundedRectangle(cornerRadius: 15, style: .continuous))
+                        TextField(light.defaultTitle, text: $name).font(.title3.weight(.semibold))
+                    }
+                } header: { Text("Ad") } footer: { Text("En fazla 20 karakter. Uygulamada, widget'larda ve Siri'de görünür.") }
+
+                Section("Simge") {
+                    LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 10), count: 6), spacing: 10) {
+                        ForEach(IconChoices.all, id: \.self) { s in
+                            Button { symbol = s } label: {
+                                Image(systemName: s).font(.system(size: 20, weight: .semibold))
+                                    .foregroundStyle(symbol == s ? .black : .white)
+                                    .frame(maxWidth: .infinity).frame(height: 44)
+                                    .background(symbol == s ? Color.lampOn : Color.white.opacity(0.1), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                            }.buttonStyle(.plain)
+                        }
+                    }.padding(.vertical, 4)
+                }
+
+                Section {
+                    Button("Varsayılana dön", role: .destructive) {
+                        model.rename(light, to: ""); model.setIcon(light, nil); dismiss()
+                    }
+                }
+            }
+            .navigationTitle(light.defaultTitle)
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) { Button("Vazgeç") { dismiss() } }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Kaydet") { model.rename(light, to: name); model.setIcon(light, symbol); dismiss() }
+                }
+            }
+        }
+        .presentationDetents([.large])
     }
 }

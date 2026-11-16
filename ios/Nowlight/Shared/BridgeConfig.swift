@@ -31,4 +31,10 @@ enum BridgeConfig {
         get { (shared.dictionary(forKey: "deviceNames") as? [String: String]) ?? [:] }
         set { shared.set(newValue, forKey: "deviceNames") }
     }
+
+    /// Kullanicinin sectigi SF Symbols simgeleri (LightID.rawValue -> simge adi).
+    static var icons: [String: String] {
+        get { (shared.dictionary(forKey: "deviceIcons") as? [String: String]) ?? [:] }
+        set { shared.set(newValue, forKey: "deviceIcons") }
+    }
 }

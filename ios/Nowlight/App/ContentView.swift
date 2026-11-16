@@ -152,7 +152,7 @@ struct LightTile: View {
     }
 
     var body: some View {
-        let _ = model.names
+        let _ = (model.names, model.icons)
         Button {
             taps += 1
             Task { await model.toggle(light) }

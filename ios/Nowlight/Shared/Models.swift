@@ -42,7 +42,11 @@ enum LightID: String, CaseIterable, AppEnum {
     /// Uygulamada gorunen (kaldirilmamis) cihazlar
     static var devices: [LightID] { allDevices.filter { !BridgeConfig.removed.contains($0.rawValue) } }
 
-    var symbol: String {
+    /// Secilen simge (varsa); "Tum isiklar" degistirilemez.
+    var customSymbol: String? { self == .all ? nil : BridgeConfig.icons[rawValue] }
+    var symbol: String { customSymbol ?? defaultSymbol }
+
+    var defaultSymbol: String {
         switch self {
         case .masa: "lamp.desk.fill"
         case .yatak: "bed.double.fill"
@@ -50,6 +54,20 @@ enum LightID: String, CaseIterable, AppEnum {
         case .all: "lightswitch.on.fill"
         }
     }
+}
+
+extension LightID: Identifiable { var id: String { rawValue } }
+
+/// Cihaz icin secilebilen hazir SF Symbols simgeleri (emoji degil, Apple simgeleri).
+enum IconChoices {
+    static let all: [String] = [
+        "lightbulb.fill", "lightbulb.led.fill", "lightbulb.2.fill", "lamp.desk.fill", "lamp.table.fill", "lamp.floor.fill",
+        "lamp.ceiling.fill", "chandelier.fill", "light.cylindrical.ceiling.fill", "light.recessed.fill", "light.panel.fill", "light.ribbon.fill",
+        "bed.double.fill", "sofa.fill", "tv.fill", "desktopcomputer", "book.fill", "gamecontroller.fill",
+        "fork.knife", "bathtub.fill", "door.left.hand.open", "window.shade.open", "fan.fill", "flame.fill",
+        "moon.stars.fill", "sun.max.fill", "sparkles", "star.fill", "bolt.fill", "house.fill",
+        "leaf.fill", "music.note", "party.popper.fill", "powerplug.fill",
+    ]
 }
 
 /// Widget'ta "acik" ışığın rengi.
