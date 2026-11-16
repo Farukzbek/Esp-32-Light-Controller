@@ -141,7 +141,9 @@ private struct RuleEditor: View {
     let onSave: (AutomationRule) -> Void
     let onTest: (AutomationRule) -> Void
 
-    private var lampBits: [(String, String, Int)] { [(LightID.masa.title, LightID.masa.symbol, 1), (LightID.yatak.title, LightID.yatak.symbol, 2), (LightID.led.title, LightID.led.symbol, 4)] }
+    private var lampBits: [(String, String, Int)] {
+        [(LightID.masa, 1), (LightID.yatak, 2), (LightID.led, 4)].filter { LightID.devices.contains($0.0) }.map { ($0.0.title, $0.0.symbol, $0.1) }
+    }
 
     var body: some View {
         NavigationStack {
@@ -159,7 +161,7 @@ private struct RuleEditor: View {
                     ForEach(lampBits, id: \.2) { name, icon, bit in
                         Toggle(isOn: Binding(get: { rule.lamps & bit != 0 }, set: { on in
                             let l = on ? rule.lamps | bit : rule.lamps & ~bit
-                            if l != 0 { rule.lamps = l }
+                            if l & AutomationRule.visibleMask != 0 { rule.lamps = l }
                         })) { Label(name, systemImage: icon) }.tint(Color.lampOn)
                     }
                 }

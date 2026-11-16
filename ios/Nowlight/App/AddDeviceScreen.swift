@@ -57,18 +57,6 @@ struct AddDeviceScreen: View {
                     if !active.isEmpty { Text("Adını ve simgesini değiştirmek için cihaza dokun, kaldırmak için sola kaydır.") }
                 }
 
-                if !removedList.isEmpty {
-                    Section {
-                        ForEach(removedList, id: \.self) { light in
-                            HStack {
-                                Label(light.title, systemImage: light.symbol).foregroundStyle(.secondary)
-                                Spacer()
-                                Button("Geri ekle") { model.restore(light) }.buttonStyle(.bordered).tint(Color.lampOn)
-                            }
-                        }
-                    } header: { Text("Kaldırılanlar") }
-                }
-
                 Section {
                     NavigationLink { AutomationScreen() } label: {
                         Label("Kapı otomasyonu", systemImage: "figure.walk.motion")
@@ -96,6 +84,16 @@ struct AddDeviceScreen: View {
                     }
                 } header: { Text("Hakkında") } footer: {
                     Text("Nowlight açık kaynaklı bir projedir: ESP32 yazılımı, köprü ve bu uygulamanın kodu GitHub'da.")
+                }
+
+                Section {
+                    NavigationLink { RemovedDevicesScreen() } label: {
+                        HStack {
+                            Label("Kaldırılanlar", systemImage: "arrow.uturn.backward.circle")
+                            Spacer()
+                            if !removedList.isEmpty { Text("\(removedList.count)").foregroundStyle(.secondary) }
+                        }
+                    }
                 }
             }
             .scrollContentBackground(.hidden)
@@ -200,5 +198,34 @@ struct DeviceEditor: View {
             }
         }
         .presentationDetents([.large])
+    }
+}
+
+/// Kaldirilan cihazlar: buradan geri eklenir.
+struct RemovedDevicesScreen: View {
+    @Environment(AppModel.self) private var model
+    private var removedList: [LightID] { LightID.allDevices.filter { model.removed.contains($0.rawValue) } }
+
+    var body: some View {
+        let _ = (model.names, model.icons)
+        List {
+            if removedList.isEmpty {
+                Text("Kaldırılan cihaz yok.").foregroundStyle(.secondary)
+            } else {
+                Section {
+                    ForEach(removedList, id: \.self) { light in
+                        HStack {
+                            Label(light.title, systemImage: light.symbol)
+                            Spacer()
+                            Button("Geri ekle") { model.restore(light) }.buttonStyle(.bordered).tint(Color.lampOn)
+                        }
+                    }
+                } footer: { Text("Cihazlar yalnızca uygulamadan ve widget'lardan kaldırılmıştı, ESP32 çalışmaya devam ediyor. Geri eklediğinde her şey eskisi gibi olur.") }
+            }
+        }
+        .scrollContentBackground(.hidden)
+        .background(Color.black.ignoresSafeArea())
+        .navigationTitle("Kaldırılanlar")
+        .navigationBarTitleDisplayMode(.inline)
     }
 }

@@ -21,6 +21,12 @@ final class AutomationStore {
 
     var client: DoorClient { DoorClient(host: DoorConfig.host, token: DoorConfig.token) }
 
+    /// Kaldirilan/geri eklenen isiklar kurallari etkiler: telefondaki kurallari arka planda dugume yeniden gonderir.
+    static func resyncStored() {
+        guard DoorConfig.isConfigured, let d = defaults.data(forKey: key), let r = try? JSONDecoder().decode([AutomationRule].self, from: d), !r.isEmpty else { return }
+        Task { _ = try? await DoorClient(host: DoorConfig.host, token: DoorConfig.token).pushRules(r) }
+    }
+
     private func save() {
         if let d = try? JSONEncoder().encode(rules) { Self.defaults.set(d, forKey: Self.key) }
     }

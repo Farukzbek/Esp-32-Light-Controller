@@ -44,6 +44,7 @@ final class AppModel {
         BridgeConfig.removed = removed
         WidgetCenter.shared.reloadAllTimelines()
         NowlightShortcuts.updateAppShortcutParameters()
+        AutomationStore.resyncStored()
     }
 
     func restore(_ light: LightID) {
@@ -51,6 +52,7 @@ final class AppModel {
         BridgeConfig.removed = removed
         WidgetCenter.shared.reloadAllTimelines()
         NowlightShortcuts.updateAppShortcutParameters()
+        AutomationStore.resyncStored()
     }
 
     func startPolling() {
