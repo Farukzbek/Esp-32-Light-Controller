@@ -108,6 +108,7 @@ final class AppModel {
             if let cur = state {
                 for l in LightID.devices where (pendingUntil[l] ?? .distantPast) > Date() { s = s.setting(l, on: cur.isOn(l)) }
             }
+            adoptBridgeDevices(s)
             state = s
             StateCache.save(s)
             error = nil
@@ -117,6 +118,18 @@ final class AppModel {
         } catch {
             self.error = (error as? LocalizedError)?.errorDescription ?? "Bağlantı hatası"
         }
+    }
+
+    /// Kopru "d3".."d6" ışığını biliyor ama uygulamada yoksa (eşleşme cevabı yarıda kaldıysa, başka telefondan eklendiyse) listeye ekler.
+    private func adoptBridgeDevices(_ s: LightsState) {
+        let known = Set(BridgeConfig.customDevices)
+        let found = s.values.keys.filter { $0.count == 2 && $0.hasPrefix("d") && ($0.last?.isNumber ?? false) && !known.contains($0) }
+        guard !found.isEmpty else { return }
+        BridgeConfig.customDevices = BridgeConfig.customDevices + found.sorted()
+        removed = BridgeConfig.removed          // gorunumler tazelensin
+        names = BridgeConfig.names
+        WidgetCenter.shared.reloadAllTimelines()
+        NowlightShortcuts.updateAppShortcutParameters()
     }
 
     func toggle(_ light: LightID) async {

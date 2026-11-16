@@ -106,14 +106,19 @@ void pair_loop() {
 }
 
 String pair_json() {
+  // Adaylari kilit altinda yalnizca KOPYALA; String islemleri (bellek ayirma) kilidin disinda yapilir.
+  Cand snap[MAX_CAND];
+  portENTER_CRITICAL(&s_mux);
+  memcpy(snap, s_cand, sizeof(snap));
+  portEXIT_CRITICAL(&s_mux);
+
   String o = "{\"open\":";
   o += s_open ? "true" : "false";
   const long left = s_open ? (long)((PAIR_WINDOW_MS - (millis() - s_openedMs)) / 1000) : 0;
   o += ",\"secondsLeft\":" + String(left < 0 ? 0 : left) + ",\"found\":[";
   bool first = true;
-  portENTER_CRITICAL(&s_mux);
   for (int i = 0; i < MAX_CAND; i++) {
-    const Cand &c = s_cand[i];
+    const Cand &c = snap[i];
     if (!c.used || millis() - c.lastMs > 6000) continue;    // 6 sn'dir HELLO yok: dugum gitti
     String nm = String(c.name);
     nm.replace("\"", ""); nm.replace("\\", "");
@@ -122,7 +127,6 @@ String pair_json() {
     o += "{\"mac\":\"" + macToStr(c.mac) + "\",\"name\":\"" + nm + "\",\"rssi\":" + String((int)c.rssi) +
          ",\"chip\":" + String(c.chip) + ",\"pin\":" + String(c.defPin) + ",\"inv\":" + String(c.defInv) + "}";
   }
-  portEXIT_CRITICAL(&s_mux);
   o += "]}";
   return o;
 }

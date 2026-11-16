@@ -57,6 +57,7 @@ static void forgetPairing() {
 static uint8_t g_sec[32], g_pub[32];
 static uint8_t g_bridgeMac[6];
 static volatile uint32_t g_beaconMs = 0;
+static volatile int8_t g_rssiCh[14];          // kanal basina duyulan en guclu beacon sinyali (-127: duyulmadi)
 static volatile bool g_haveAccept = false;
 static PairAccept g_accept;
 static uint8_t g_acceptSrc[6];
@@ -66,6 +67,9 @@ static void onRecv(const esp_now_recv_info_t *info, const uint8_t *data, int len
   if (data[2] == PAIR_BEACON && len == (int)sizeof(PairBeacon) && data[3] == PAIR_VERSION) {
     memcpy(g_bridgeMac, info->src_addr, 6);
     g_beaconMs = millis();
+    const int ch = info->rx_ctrl ? info->rx_ctrl->channel : 0;
+    const int8_t rssi = info->rx_ctrl ? info->rx_ctrl->rssi : -100;
+    if (ch >= 1 && ch <= 13 && rssi > g_rssiCh[ch]) g_rssiCh[ch] = rssi;
   } else if (data[2] == PAIR_ACCEPT && len == (int)sizeof(PairAccept) && data[3] == PAIR_VERSION && !g_haveAccept) {
     memcpy(&g_accept, data, sizeof(PairAccept));
     memcpy(g_acceptSrc, info->src_addr, 6);
@@ -82,6 +86,7 @@ static void pairingSetup() {
   memset(pi.peer_addr, 0xFF, 6);
   pi.channel = 0; pi.ifidx = WIFI_IF_STA; pi.encrypt = false;
   esp_now_add_peer(&pi);
+  for (int i = 0; i < 14; i++) g_rssiCh[i] = -127;
   esp_fill_random(g_sec, 32);
   x25519_public(g_pub, g_sec);
 }
@@ -118,27 +123,44 @@ static void pairingLoop() {
 
   if (g_haveAccept) { handleAccept(); g_haveAccept = false; }
 
-  const bool beaconFresh = g_beaconMs && millis() - g_beaconMs < 5000;
-  if (!beaconFresh) {                                  // koprunun kanalini ara
-    locked = false;
-    if (millis() - dwell >= 400 || ch == 0) {
-      ch = ch >= 13 ? 1 : ch + 1;
-      esp_wifi_set_channel(ch, WIFI_SECOND_CHAN_NONE);
-      dwell = millis();
+  if (locked) {
+    if (!(g_beaconMs && millis() - g_beaconMs < 6000)) {        // kopru sustu (pencere kapandi): yeniden tara
+      locked = false; ch = 0;
+      for (int i = 0; i < 14; i++) g_rssiCh[i] = -127;
+      Serial.println("[eslesme] kopru sesi kesildi, yeniden taraniyor");
+    } else {
+      if (millis() - lastHello >= 700) {
+        lastHello = millis();
+        PairHello h = {};
+        h.magic[0] = PAIR_MAGIC0; h.magic[1] = PAIR_MAGIC1; h.type = PAIR_HELLO; h.ver = PAIR_VERSION; h.kind = KIND_RELAY;
+        h.chip = NL_CHIP; h.defPin = NL_RELAY_PIN; h.defInv = 1;
+        uint8_t me[6]; WiFi.macAddress(me);
+        snprintf(h.name, sizeof(h.name), "Nowlight-%02X%02X", me[4], me[5]);
+        memcpy(h.pub, g_pub, 32);
+        const uint8_t bc[6] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
+        esp_now_send(bc, (const uint8_t *)&h, sizeof(h));
+      }
+      return;
     }
-  } else {
-    if (!locked) { locked = true; Serial.printf("[eslesme] kopru bulundu (kanal %u), uygulamadan secilmeyi bekliyor\n", ch); }
-    if (millis() - lastHello >= 700) {
-      lastHello = millis();
-      PairHello h = {};
-      h.magic[0] = PAIR_MAGIC0; h.magic[1] = PAIR_MAGIC1; h.type = PAIR_HELLO; h.ver = PAIR_VERSION; h.kind = KIND_RELAY;
-      h.chip = NL_CHIP; h.defPin = NL_RELAY_PIN; h.defInv = 1;
-      uint8_t me[6]; WiFi.macAddress(me);
-      snprintf(h.name, sizeof(h.name), "Nowlight-%02X%02X", me[4], me[5]);
-      memcpy(h.pub, g_pub, 32);
-      const uint8_t bc[6] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
-      esp_now_send(bc, (const uint8_t *)&h, sizeof(h));
+  }
+
+  // Tarama: 1..13 her kanalda 350 ms dinle, beacon sinyallerini kaydet. Komsu kanallar (orn. 5 ve 7) da koprunun 6'daki sinyalini
+  // zayifca duyar; tam tarama bitince EN GUCLU kanala kilitlen (ilk duyulana degil).
+  if (ch == 0 || millis() - dwell >= 350) {
+    if (ch == 13) {
+      uint8_t best = 0; int8_t bestR = -127;
+      for (uint8_t c = 1; c <= 13; c++) if (g_rssiCh[c] > bestR) { bestR = g_rssiCh[c]; best = c; }
+      if (best) {
+        esp_wifi_set_channel(best, WIFI_SECOND_CHAN_NONE);
+        locked = true; ch = best; lastHello = 0; g_beaconMs = millis();
+        Serial.printf("[eslesme] kopru bulundu: kanal %u (sinyal %d dBm), uygulamadan secilmeyi bekliyor\n", best, bestR);
+        return;
+      }
+      ch = 0;                                         // duyulmadi: taramaya bastan basla
     }
+    ch = ch >= 13 ? 1 : ch + 1;
+    esp_wifi_set_channel(ch, WIFI_SECOND_CHAN_NONE);
+    dwell = millis();
   }
 }
 
@@ -215,7 +237,7 @@ void setup() {
   if (prefs.isKey("pin")) g_pin = prefs.getUChar("pin", NL_RELAY_PIN);
   if (prefs.isKey("inv")) g_inv = prefs.getUChar("inv", 1) != 0;
   prefs.end();
-  digitalWrite(g_pin, g_inv ? HIGH : LOW);
+  gpio_set_level((gpio_num_t)g_pin, g_inv ? 1 : 0);   // once seviyeyi yaz, sonra cikis yap: role acilista tikirdamasin
   pinMode(g_pin, OUTPUT);
   relaySet(false);
 
