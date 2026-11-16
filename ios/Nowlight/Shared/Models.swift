@@ -1,13 +1,49 @@
 import AppIntents
 import SwiftUI
 
-/// Kontrol edilen isiklar. `all` = hepsi.
-enum LightID: String, CaseIterable, AppEnum {
-    case masa, yatak, led, all
+/// Kontrol edilen isiklar. `all` = hepsi. Uc yerlesik isik (masa, yatak, led) ve kullanicinin ekledigi isiklar ("d3"..."d7", en fazla 8 isik).
+struct LightID: Hashable, Identifiable {
+    let rawValue: String
+    var id: String { rawValue }
 
-    static var typeDisplayRepresentation: TypeDisplayRepresentation { "Işık" }
-    static var caseDisplayRepresentations: [LightID: DisplayRepresentation] {
-        [.masa: "Masa lambası", .yatak: "Yatak lambası", .led: "LED şerit", .all: "Tüm ışıklar"]
+    private init(raw: String) { rawValue = raw }
+    static let masa = LightID(raw: "masa")
+    static let yatak = LightID(raw: "yatak")
+    static let led = LightID(raw: "led")
+    static let all = LightID(raw: "all")
+
+    /// Yalnizca bilinen bir isik kimligiyle olusur.
+    init?(rawValue: String) {
+        guard rawValue == "all" || Self.allDevices.contains(where: { $0.rawValue == rawValue }) else { return nil }
+        self.rawValue = rawValue
+    }
+
+    static let maxDevices = 8
+    /// Kopruyle ortak "yuva" numarasi: masa 0, yatak 1, led 2, eklenenler 3...7. Otomasyon bit maskesi de buna gore (1 << yuva).
+    var slot: Int? {
+        switch rawValue {
+        case "masa": 0
+        case "yatak": 1
+        case "led": 2
+        case "all": nil
+        default: rawValue.hasPrefix("d") ? Int(rawValue.dropFirst()) : nil
+        }
+    }
+    var bit: Int { slot.map { 1 << $0 } ?? 0 }
+    var isBuiltin: Bool { rawValue == "masa" || rawValue == "yatak" || rawValue == "led" }
+
+    /// Tum fiziksel cihazlar (kaldirilanlar dahil), yuva sirasiyla
+    static var allDevices: [LightID] {
+        let custom = BridgeConfig.customDevices.map { LightID(raw: $0) }.sorted { ($0.slot ?? 99) < ($1.slot ?? 99) }
+        return [.masa, .yatak, .led] + custom
+    }
+    /// Uygulamada gorunen (kaldirilmamis) cihazlar
+    static var devices: [LightID] { allDevices.filter { !BridgeConfig.removed.contains($0.rawValue) } }
+
+    /// Yeni eklenecek isik icin bos yuvanin kimligi (yoksa nil: 8 isik dolu)
+    static func nextCustom() -> LightID? {
+        let used = Set(allDevices.compactMap(\.slot))
+        return (3..<maxDevices).first { !used.contains($0) }.map { LightID(raw: "d\($0)") }
     }
 
     /// Kullanicinin verdigi ad (yoksa nil). "Tum isiklar" yeniden adlandirilamaz.
@@ -19,44 +55,40 @@ enum LightID: String, CaseIterable, AppEnum {
     var title: String { customName ?? defaultTitle }
 
     var defaultTitle: String {
-        switch self {
-        case .masa: "Masa lambası"
-        case .yatak: "Yatak lambası"
-        case .led: "LED şerit"
-        case .all: "Tüm ışıklar"
+        switch rawValue {
+        case "masa": "Masa lambası"
+        case "yatak": "Yatak lambası"
+        case "led": "LED şerit"
+        case "all": "Tüm ışıklar"
+        default: "Yeni ışık"
         }
     }
 
     var shortTitle: String {
         if let n = customName { return n }
-        switch self {
-        case .masa: return "Masa"
-        case .yatak: return "Yatak"
-        case .led: return "LED"
-        case .all: return "Tümü"
+        switch rawValue {
+        case "masa": return "Masa"
+        case "yatak": return "Yatak"
+        case "led": return "LED"
+        case "all": return "Tümü"
+        default: return "Işık"
         }
     }
-
-    /// Tum fiziksel cihazlar (kaldirilanlar dahil)
-    static var allDevices: [LightID] { [.masa, .yatak, .led] }
-    /// Uygulamada gorunen (kaldirilmamis) cihazlar
-    static var devices: [LightID] { allDevices.filter { !BridgeConfig.removed.contains($0.rawValue) } }
 
     /// Secilen simge (varsa); "Tum isiklar" degistirilemez.
     var customSymbol: String? { self == .all ? nil : BridgeConfig.icons[rawValue] }
     var symbol: String { customSymbol ?? defaultSymbol }
 
     var defaultSymbol: String {
-        switch self {
-        case .masa: "lamp.desk.fill"
-        case .yatak: "bed.double.fill"
-        case .led: "light.ribbon.fill"
-        case .all: "lightswitch.on.fill"
+        switch rawValue {
+        case "masa": "lamp.desk.fill"
+        case "yatak": "bed.double.fill"
+        case "led": "light.ribbon.fill"
+        case "all": "lightswitch.on.fill"
+        default: "lightbulb.fill"
         }
     }
 }
-
-extension LightID: Identifiable { var id: String { rawValue } }
 
 /// Cihaz icin secilebilen hazir SF Symbols simgeleri (emoji degil, Apple simgeleri).
 enum IconChoices {
@@ -92,26 +124,51 @@ enum AccentChoice: String, CaseIterable, AppEnum {
     var ink: Color { self == .blue ? .white : Color(hex: 0x14120C) }
 }
 
-/// Koprunun bildirdigi durum. Deger: 1 acik, 0 kapali, -1 henuz bilinmiyor.
+/// Koprunun bildirdigi durum. Deger: 1 acik, 0 kapali, -1 henuz bilinmiyor. Anahtar: isik kimligi.
+/// Kopru eski uc alani (masa, yatak, led) ve `devices` sozlugunu (eklenen isiklar) yollar; `links` baglanti durumudur.
 struct LightsState: Codable, Equatable {
-    struct Links: Codable, Equatable { var masa: Bool; var yatak: Bool }
-    var masa: Int
-    var yatak: Int
-    var led: Int
-    var links: Links
+    var values: [String: Int]
+    var links: [String: Bool]
     var channel: Int
     var wifiChannel: Int
 
+    init(values: [String: Int], links: [String: Bool], channel: Int, wifiChannel: Int) {
+        self.values = values; self.links = links; self.channel = channel; self.wifiChannel = wifiChannel
+    }
+
+    enum CodingKeys: String, CodingKey { case masa, yatak, led, devices, links, channel, wifiChannel }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        var v = (try c.decodeIfPresent([String: Int].self, forKey: .devices)) ?? [:]
+        v["masa"] = try c.decode(Int.self, forKey: .masa)
+        v["yatak"] = try c.decode(Int.self, forKey: .yatak)
+        v["led"] = try c.decode(Int.self, forKey: .led)
+        values = v
+        links = (try? c.decode([String: Bool].self, forKey: .links)) ?? [:]
+        channel = try c.decode(Int.self, forKey: .channel)
+        wifiChannel = try c.decode(Int.self, forKey: .wifiChannel)
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(values["masa"] ?? -1, forKey: .masa)
+        try c.encode(values["yatak"] ?? -1, forKey: .yatak)
+        try c.encode(values["led"] ?? -1, forKey: .led)
+        try c.encode(values.filter { !["masa", "yatak", "led"].contains($0.key) }, forKey: .devices)
+        try c.encode(links, forKey: .links)
+        try c.encode(channel, forKey: .channel)
+        try c.encode(wifiChannel, forKey: .wifiChannel)
+    }
+
     func value(_ light: LightID) -> Int {
-        switch light {
-        case .masa: masa
-        case .yatak: yatak
-        case .led: led
-        case .all: LightID.devices.contains { value($0) == 1 } ? 1 : 0
-        }
+        light == .all ? (LightID.devices.contains { value($0) == 1 } ? 1 : 0) : (values[light.rawValue] ?? -1)
     }
 
     func isOn(_ light: LightID) -> Bool { value(light) == 1 }
+
+    /// Dugum baglanti durumu. LED, masa dugumune bagli. Kopru bilmiyorsa (anahtar yok) sorun yok sayilir.
+    func linked(_ light: LightID) -> Bool { links[light == .led ? "masa" : light.rawValue] ?? true }
 
     /// "Tum isiklar" icin acik sayisi
     var onCount: Int { LightID.devices.filter { isOn($0) }.count }
@@ -121,13 +178,8 @@ struct LightsState: Codable, Equatable {
 
     func setting(_ light: LightID, on: Bool) -> LightsState {
         var s = self
-        let v = on ? 1 : 0
-        switch light {
-        case .masa: s.masa = v
-        case .yatak: s.yatak = v
-        case .led: s.led = v
-        case .all: for d in LightID.devices { s = s.setting(d, on: on) }
-        }
+        if light == .all { for d in LightID.devices { s.values[d.rawValue] = on ? 1 : 0 } }
+        else { s.values[light.rawValue] = on ? 1 : 0 }
         return s
     }
 }

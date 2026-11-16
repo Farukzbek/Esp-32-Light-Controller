@@ -10,6 +10,9 @@ struct PairingFlow: View {
     @State private var status: BridgeClient.PairStatus?
     @State private var selected: BridgeClient.PairCandidate?
     @State private var role: LightID?
+    @State private var addingNew = false
+    @State private var newName = ""
+    @State private var newSymbol = "lightbulb.fill"
     @State private var error: String?
     @State private var busy = false
     @State private var poll: Task<Void, Never>?
@@ -107,16 +110,54 @@ struct PairingFlow: View {
     private var roles: some View {
         VStack(alignment: .leading, spacing: 14) {
             header("slider.horizontal.3", "Bu cihaz ne olacak?")
-            Text("Rolü seç. Cihaz uygulamada, widget'larda ve otomasyonlarda bu ışığın yerini alır.").foregroundStyle(.secondary)
+            Text("Yeni bir ışık olarak ekle ya da mevcut bir ışığın yerine geçir.").foregroundStyle(.secondary)
+
+            // Yeni isik
+            Button { addingNew = true; role = nil } label: {
+                HStack(spacing: 12) {
+                    Image(systemName: "plus").font(.system(size: 18, weight: .bold)).foregroundStyle(.black).frame(width: 40, height: 40).background(Color.lampOn, in: RoundedRectangle(cornerRadius: 11, style: .continuous))
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Yeni ışık olarak ekle").font(.body.weight(.semibold))
+                        Text(LightID.nextCustom() == nil ? "En fazla \(LightID.maxDevices) ışık eklenebilir" : "Örneğin salon lambası, mutfak, koridor").font(.caption).foregroundStyle(.secondary)
+                    }
+                    Spacer()
+                    Image(systemName: addingNew ? "checkmark.circle.fill" : "circle").foregroundStyle(addingNew ? Color.lampOn : .secondary).font(.title3)
+                }
+                .padding(12).background(Color.white.opacity(addingNew ? 0.14 : 0.08), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+            }.buttonStyle(.plain).disabled(LightID.nextCustom() == nil)
+
+            if addingNew {
+                VStack(alignment: .leading, spacing: 12) {
+                    HStack(spacing: 12) {
+                        Image(systemName: newSymbol).font(.system(size: 22, weight: .semibold)).foregroundStyle(.black)
+                            .frame(width: 48, height: 48).background(Color.lampOn, in: RoundedRectangle(cornerRadius: 13, style: .continuous))
+                        TextField("Işığın adı (örn. Salon)", text: $newName).font(.title3.weight(.semibold)).textFieldStyle(.roundedBorder)
+                    }
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 8) {
+                            ForEach(IconChoices.all, id: \.self) { sym in
+                                Button { newSymbol = sym } label: {
+                                    Image(systemName: sym).font(.system(size: 18, weight: .semibold))
+                                        .foregroundStyle(newSymbol == sym ? .black : .white).frame(width: 44, height: 44)
+                                        .background(newSymbol == sym ? Color.lampOn : Color.white.opacity(0.1), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                                }.buttonStyle(.plain)
+                            }
+                        }
+                    }
+                }
+                .padding(12).background(Color.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+            }
+
+            Text("Mevcut ışığın yerine geçir").font(.footnote.weight(.semibold)).foregroundStyle(.secondary).padding(.top, 4)
             ForEach(LightID.allDevices, id: \.self) { light in
                 let removed = model.removed.contains(light.rawValue)
-                let occupied = !removed && linked(light)
-                Button { role = light } label: {
+                let occupied = !removed && (model.state?.linked(light) ?? false)
+                Button { role = light; addingNew = false } label: {
                     HStack(spacing: 12) {
                         Image(systemName: light.symbol).foregroundStyle(.black).frame(width: 40, height: 40).background(Color.lampOn, in: RoundedRectangle(cornerRadius: 11, style: .continuous))
                         VStack(alignment: .leading, spacing: 2) {
                             Text(light.title).font(.body.weight(.semibold))
-                            Text(removed ? "Kaldırılmış, geri eklenecek" : (occupied ? "Şu an bağlı bir cihaz var, yenisi onun yerine geçer" : "Boş"))
+                            Text(removed ? "Kaldırılmış, geri eklenecek" : (occupied ? "Şu an bağlı bir cihaz var, yenisi onun yerine geçer" : "Cihaz yok"))
                                 .font(.caption).foregroundStyle(occupied ? Color.orange : .secondary)
                         }
                         Spacer()
@@ -125,10 +166,12 @@ struct PairingFlow: View {
                     .padding(12).background(Color.white.opacity(role == light ? 0.14 : 0.08), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
                 }.buttonStyle(.plain)
             }
+
             Button { Task { await accept() } } label: {
                 HStack { if busy { ProgressView().tint(.black) }; Text("Bağla") }.frame(maxWidth: .infinity)
             }
-            .buttonStyle(.borderedProminent).tint(Color.lampOn).foregroundStyle(.black).controlSize(.large).disabled(role == nil || busy)
+            .buttonStyle(.borderedProminent).tint(Color.lampOn).foregroundStyle(.black).controlSize(.large)
+            .disabled((role == nil && !(addingNew && !newName.trimmingCharacters(in: .whitespaces).isEmpty)) || busy)
         }
     }
 
@@ -181,11 +224,6 @@ struct PairingFlow: View {
         }
     }
 
-    private func linked(_ light: LightID) -> Bool {
-        guard let s = model.state else { return false }
-        switch light { case .masa, .led: return s.links.masa; case .yatak: return s.links.yatak; case .all: return false }
-    }
-
     // MARK: ag
 
     private func start() async {
@@ -217,11 +255,19 @@ struct PairingFlow: View {
     }
 
     private func accept() async {
-        guard let sel = selected, let role else { return }
+        guard let sel = selected else { return }
         error = nil; busy = true; defer { busy = false }
+        // Yeni isik: bos yuvanin kimligi; mevcut: o kimlik
+        let target: LightID
+        if addingNew {
+            guard let id = LightID.nextCustom() else { self.error = "En fazla \(LightID.maxDevices) ışık eklenebilir."; return }
+            target = id
+        } else if let r = role { target = r } else { return }
         do {
-            try await BridgeClient.fromConfig().pairAccept(mac: sel.mac, role: role)
-            if model.removed.contains(role.rawValue) { model.restore(role) }
+            try await BridgeClient.fromConfig().pairAccept(mac: sel.mac, id: target.rawValue)
+            if addingNew { model.addDevice(target, name: newName, symbol: newSymbol) }
+            else if model.removed.contains(target.rawValue) { model.restore(target) }
+            role = target
             await model.refresh()
             step = .test
         } catch { self.error = (error as? LocalizedError)?.errorDescription ?? "Cihaz bağlanamadı. Tekrar dene." }

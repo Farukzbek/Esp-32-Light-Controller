@@ -50,15 +50,13 @@ struct AutomationRule: Codable, Identifiable, Equatable {
     var name = "Yeni kural"
     var enabled = true
     var action: Action = .on
-    var lamps = 7                 // bit0 masa, bit1 yatak, bit2 led
+    var lamps = AutomationRule.visibleMask   // bit = 1 << isik yuvasi (masa 0, yatak 1, led 2, eklenenler 3...7)
     var start = 18 * 60           // dakika
     var end = 6 * 60              // bitis haric; gece yarisini asabilir; bas == bit: gun boyu
     var cooldownMin = 0           // 0...60
 
     /// Uygulamada gorunen (kaldirilmamis) isiklarin bit maskesi: masa 1, yatak 2, led 4.
-    static var visibleMask: Int {
-        LightID.devices.reduce(0) { $0 | ($1 == .masa ? 1 : $1 == .yatak ? 2 : $1 == .led ? 4 : 0) }
-    }
+    static var visibleMask: Int { LightID.devices.reduce(0) { $0 | $1.bit } }
     /// Kural yalnizca gorunen isiklara uygulanir; hic gorunen isik kalmadiysa dugumde kapali gonderilir.
     var effectiveLamps: Int { lamps & Self.visibleMask }
 
@@ -75,10 +73,9 @@ struct AutomationRule: Codable, Identifiable, Equatable {
     static func hhmm(_ m: Int) -> String { String(format: "%02d:%02d", m / 60, m % 60) }
     var windowText: String { start == end ? "Gün boyu" : "\(Self.hhmm(start)) – \(Self.hhmm(end))" }
     var lampText: String {
-        let all: [(Int, LightID)] = [(1, .masa), (2, .yatak), (4, .led)]
-        let shown = all.filter { effectiveLamps & $0.0 != 0 }
+        let shown = LightID.allDevices.filter { effectiveLamps & $0.bit != 0 }
         if shown.isEmpty { return "Işık yok (kaldırılmış)" }
-        return shown.count == LightID.devices.count && shown.count > 1 ? "Tüm ışıklar" : shown.map { $0.1.title }.joined(separator: ", ")
+        return shown.count == LightID.devices.count && shown.count > 1 ? "Tüm ışıklar" : shown.map(\.title).joined(separator: ", ")
     }
 }
 

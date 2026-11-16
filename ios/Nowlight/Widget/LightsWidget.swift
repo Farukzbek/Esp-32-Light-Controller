@@ -29,7 +29,7 @@ struct LightsProvider: AppIntentTimelineProvider {
             let msg = (error as? LocalizedError)?.errorDescription ?? "Bağlantı yok"
             if let cached = StateCache.load() {
                 // Guncel durum bilinmiyor: eski "acik" bilgisini gostermek yaniltir, o yuzden hepsi kapali gorunur (soluk).
-                var off = cached.state; off.masa = 0; off.yatak = 0; off.led = 0
+                var off = cached.state; off.values = off.values.mapValues { _ in 0 }
                 return LightsEntry(date: .now, state: off, stale: true, fetchedAt: cached.at, error: msg, lights: c.lights, accent: c.accent)
             }
             return LightsEntry(date: .now, state: nil, stale: false, fetchedAt: nil, error: msg, lights: c.lights, accent: c.accent)

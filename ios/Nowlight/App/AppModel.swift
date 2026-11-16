@@ -39,6 +39,17 @@ final class AppModel {
         NowlightShortcuts.updateAppShortcutParameters()
     }
 
+    /// Yeni bir isik ekler (kopruyle eslestikten sonra). Ad ve simge uygulamada saklanir.
+    func addDevice(_ light: LightID, name: String, symbol: String) {
+        var list = BridgeConfig.customDevices
+        if !list.contains(light.rawValue) { list.append(light.rawValue) }
+        BridgeConfig.customDevices = list
+        removed.remove(light.rawValue); BridgeConfig.removed = removed
+        rename(light, to: name)
+        setIcon(light, symbol)
+        AutomationStore.resyncStored()
+    }
+
     func remove(_ light: LightID) {
         removed.insert(light.rawValue)
         BridgeConfig.removed = removed

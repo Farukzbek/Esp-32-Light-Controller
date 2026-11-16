@@ -80,7 +80,7 @@ static bool parseRules(const String &str) {
       v[k++] = f.toInt();
       if (c < 0) break; q = c + 1;
     }
-    if (k != 6 || v[1] < 0 || v[1] > 2 || v[2] < 1 || v[2] > 7 || v[3] < 0 || v[3] > 1439 || v[4] < 0 || v[4] > 1439 || v[5] < 0 || v[5] > 60) return false;
+    if (k != 6 || v[1] < 0 || v[1] > 2 || v[2] < 1 || v[2] > 255 || v[3] < 0 || v[3] > 1439 || v[4] < 0 || v[4] > 1439 || v[5] < 0 || v[5] > 60) return false;
     tmp[n++] = {v[0] != 0, (uint8_t)v[1], (uint8_t)v[2], (uint16_t)v[3], (uint16_t)v[4], (uint16_t)v[5]};
   }
   for (int i = 0; i < n; i++) g_rules[i] = tmp[i];
@@ -128,7 +128,8 @@ static bool inWindowR(const Rule &r) {
 }
 
 // ---------------------------------------------------------------- kopru
-static const char *LAMP_NAMES[3] = {"masa", "yatak", "led"};
+// isik kimlikleri = uygulamadaki yuva numarasi: masa 0, yatak 1, led 2, eklenenler d3...d7 (bit = 1 << yuva)
+static const char *LAMP_NAMES[8] = {"masa", "yatak", "led", "d3", "d4", "d5", "d6", "d7"};
 
 static int jget(const String &js, const char *key) {   // {"masa":1,...} -> 1 (yoksa -2)
   const String k = String("\"") + key + "\":";
@@ -153,13 +154,13 @@ static bool bridgeReq(const String &path, bool post, String *out) {
 
 static void act(const Rule &r, bool force) {
   String state;
-  int cur[3] = {-1, -1, -1};
+  int cur[8] = {-1, -1, -1, -1, -1, -1, -1, -1};
   if (r.action == 0) {                            // cevir: mevcut durum lazim
     if (!bridgeReq("/api/state", false, &state)) return;
-    for (int i = 0; i < 3; i++) cur[i] = jget(state, LAMP_NAMES[i]);
+    for (int i = 0; i < 8; i++) cur[i] = jget(state, LAMP_NAMES[i]);
   }
   String done;
-  for (int i = 0; i < 3; i++) {
+  for (int i = 0; i < 8; i++) {
     if (!(r.lamps & (1 << i))) continue;
     int target = r.action == 1 ? 1 : r.action == 2 ? 0 : (cur[i] == 1 ? 0 : 1);
     if (!bridgeReq(String("/api/set?dev=") + LAMP_NAMES[i] + "&val=" + target, true, nullptr)) return;

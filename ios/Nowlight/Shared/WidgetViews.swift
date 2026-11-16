@@ -14,7 +14,7 @@ struct LightsEntry: TimelineEntry {
 
 extension LightsEntry {
     static func sample(lights: [LightID] = [.masa, .yatak, .led, .all], accent: AccentChoice = .amber, error: String? = nil, stale: Bool = false) -> LightsEntry {
-        LightsEntry(date: .now, state: LightsState(masa: 1, yatak: 0, led: 0, links: .init(masa: true, yatak: true), channel: 1, wifiChannel: 1),
+        LightsEntry(date: .now, state: LightsState(values: ["masa": 1, "yatak": 0, "led": 0], links: ["masa": true, "yatak": true], channel: 1, wifiChannel: 1),
                     stale: stale, fetchedAt: .now, error: error, lights: lights, accent: accent)
     }
 }

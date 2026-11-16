@@ -142,7 +142,7 @@ private struct RuleEditor: View {
     let onTest: (AutomationRule) -> Void
 
     private var lampBits: [(String, String, Int)] {
-        [(LightID.masa, 1), (LightID.yatak, 2), (LightID.led, 4)].filter { LightID.devices.contains($0.0) }.map { ($0.0.title, $0.0.symbol, $0.1) }
+        LightID.devices.map { ($0.title, $0.symbol, $0.bit) }
     }
 
     var body: some View {

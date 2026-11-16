@@ -15,6 +15,13 @@
   <key>UILaunchScreen</key><dict/>
   <key>UISupportedInterfaceOrientations</key>
   <array><string>UIInterfaceOrientationPortrait</string></array>
+  <key>INAlternativeAppNames</key>
+  <array>
+    <dict>
+      <key>INAlternativeAppName</key><string>Işık</string>
+      <key>INAlternativeAppNamePronunciationHint</key><string>ışık</string>
+    </dict>
+  </array>
   <key>NSLocalNetworkUsageDescription</key>
   <string>Odadaki ışıkları kontrol eden köprüye (ev ağındaki ESP32) bağlanmak için gerekli.</string>
   <key>NSAppTransportSecurity</key>

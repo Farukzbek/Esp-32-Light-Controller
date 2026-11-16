@@ -51,14 +51,10 @@ struct LightsScreen: View {
     private var warning: String? {
         if let e = model.error { return e }
         guard let s = model.state else { return nil }
-        let masa = !LightID.devices.contains(.masa) || s.links.masa
-        let yatak = !LightID.devices.contains(.yatak) || s.links.yatak
-        switch (masa, yatak) {
-        case (true, true): return nil
-        case (false, false): return "Masa ve yatak düğümleri ulaşılamıyor"
-        case (false, true): return "Masa düğümü ulaşılamıyor"
-        case (true, false): return "Yatak düğümü ulaşılamıyor"
-        }
+        _ = (model.names, model.removed)
+        let down = LightID.devices.filter { !s.linked($0) }
+        if down.isEmpty { return nil }
+        return down.count == LightID.devices.count && down.count > 1 ? "Hiçbir düğüme ulaşılamıyor" : down.map(\.title).joined(separator: ", ") + " ulaşılamıyor"
     }
 
     var body: some View {

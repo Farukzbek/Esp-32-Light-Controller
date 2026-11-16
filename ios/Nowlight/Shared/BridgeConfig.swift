@@ -37,4 +37,10 @@ enum BridgeConfig {
         get { (shared.dictionary(forKey: "deviceIcons") as? [String: String]) ?? [:] }
         set { shared.set(newValue, forKey: "deviceIcons") }
     }
+
+    /// Kullanicinin ekledigi isiklarin kimlikleri ("d3"..."d7"). Yerlesik uc isik (masa, yatak, led) burada tutulmaz.
+    static var customDevices: [String] {
+        get { shared.stringArray(forKey: "customDevices") ?? [] }
+        set { shared.set(newValue, forKey: "customDevices") }
+    }
 }

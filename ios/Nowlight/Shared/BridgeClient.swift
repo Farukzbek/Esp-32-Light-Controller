@@ -103,10 +103,11 @@ struct BridgeClient {
     func pairStart() async throws -> PairStatus { try pairDecode(await send(request("/api/pair/start", method: "POST"))) }
     func pairStatus() async throws -> PairStatus { try pairDecode(await send(request("/api/pair"))) }
     func pairStop() async { _ = try? await send(request("/api/pair/stop", method: "POST")) }
-    func pairAccept(mac: String, role: LightID) async throws {
+    /// Cihazi bir isik kimligine baglar: mevcut bir kimlik (yerine gecer) ya da yeni bir kimlik ("d3"...). Ad ve simge uygulamada tutulur.
+    func pairAccept(mac: String, id: String) async throws {
         _ = try await send(request("/api/pair/accept", method: "POST", query: [
             URLQueryItem(name: "mac", value: mac),
-            URLQueryItem(name: "role", value: role.rawValue),
+            URLQueryItem(name: "id", value: id),
         ]))
     }
 }

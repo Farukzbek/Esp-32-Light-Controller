@@ -27,10 +27,10 @@ struct ToggleLightIntent: AppIntent {
     static var description = IntentDescription("Seçilen ışığı tersine çevirir.")
     static var openAppWhenRun = false
 
-    @Parameter(title: "Işık") var light: LightID
+    @Parameter(title: "Işık") var light: LightEntity
 
-    init() { light = .masa }
-    init(light: LightID) { self.light = light }
+    init() { light = LightEntity(.masa) }
+    init(light: LightID) { self.light = LightEntity(light) }
 
     func perform() async throws -> some IntentResult {
         let cached = StateCache.load()
@@ -40,8 +40,9 @@ struct ToggleLightIntent: AppIntent {
         } else {
             base = (try? await BridgeClient.fromConfig().state()) ?? cached?.state
         }
-        let wantOn: Bool = light == .all ? (base?.onCount ?? 0) == 0 : (base?.value(light) ?? 0) != 1
-        try await LightActions.set(light, on: wantOn)
+        let target = light.light
+        let wantOn: Bool = target == .all ? (base?.onCount ?? 0) == 0 : (base?.value(target) ?? 0) != 1
+        try await LightActions.set(target, on: wantOn)
         return .result()
     }
 }

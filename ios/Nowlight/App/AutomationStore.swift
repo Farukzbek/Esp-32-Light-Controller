@@ -44,8 +44,8 @@ final class AutomationStore {
     /// Hazir sablon: gece ac, gunduz kapat.
     func addDayNightTemplate() {
         rules += [
-            AutomationRule(name: "Akşam aç", enabled: true, action: .on, lamps: 7, start: 18 * 60, end: 6 * 60, cooldownMin: 0),
-            AutomationRule(name: "Gündüz kapat", enabled: true, action: .off, lamps: 7, start: 6 * 60, end: 18 * 60, cooldownMin: 0),
+            AutomationRule(name: "Akşam aç", enabled: true, action: .on, lamps: AutomationRule.visibleMask, start: 18 * 60, end: 6 * 60, cooldownMin: 0),
+            AutomationRule(name: "Gündüz kapat", enabled: true, action: .off, lamps: AutomationRule.visibleMask, start: 6 * 60, end: 18 * 60, cooldownMin: 0),
         ]
         changed()
     }

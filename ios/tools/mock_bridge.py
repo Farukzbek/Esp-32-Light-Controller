@@ -29,7 +29,9 @@ class H(BaseHTTPRequestHandler):
         if p == "/api/ping": return self._send(200, {"name": "nowlight-bridge"})
         if p == "/api/state" and self._auth():
             with lock: s = dict(state)
-            return self._send(200, {**s, "links": {"masa": True, "yatak": True}, "channel": 1, "wifiChannel": 1})
+            legacy = {k: s[k] for k in ("masa", "yatak", "led")}
+            others = {k: v for k, v in s.items() if k not in legacy}
+            return self._send(200, {**legacy, "devices": others, "links": {k: True for k in s}, "channel": 1, "wifiChannel": 1})
         if p == "/api/pair" and self._auth(): return self._send(200, pair_status())
         if p not in ("/api/state", "/api/pair"): self._send(404, {"error": "yok"})
     def do_POST(self):
@@ -50,7 +52,8 @@ class H(BaseHTTPRequestHandler):
             pair["until"] = 0; pair["started"] = 0
             return self._send(200, {"ok": True})
         if u.path == "/api/pair/accept" and self._auth():
-            q = parse_qs(u.query); print("accept", q.get("mac"), q.get("role"), flush=True)
+            q = parse_qs(u.query); print("accept", q.get("mac"), q.get("id"), flush=True)
+            with lock: state.setdefault(q.get("id", [""])[0], 0)
             return self._send(200, {"ok": True})
         if u.path not in ("/api/set", "/api/pair/start", "/api/pair/stop", "/api/pair/accept"): self._send(404, {"error": "yok"})
     def log_message(self, *a): pass

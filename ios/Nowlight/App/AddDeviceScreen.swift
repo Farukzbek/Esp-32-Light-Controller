@@ -119,12 +119,8 @@ struct DeviceRow: View {
     let light: LightID
 
     private var linked: Bool? {
-        guard let s = model.state else { return nil }
-        switch light {
-        case .masa, .led: return s.links.masa
-        case .yatak: return s.links.yatak
-        case .all: return nil
-        }
+        guard let s = model.state, light != .all else { return nil }
+        return s.linked(light)
     }
 
     var body: some View {
