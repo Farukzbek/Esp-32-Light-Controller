@@ -1,0 +1,50 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  node-firmware:
+    name: Dugum yazilimi (${{ matrix.env }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        env: [esp32s3-supermini, esp32dev, esp32c6, esp32c3, esp32s2]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/cache@v4
+        with:
+          path: ~/.platformio
+          key: pio-${{ runner.os }}-${{ hashFiles('firmware/node/platformio.ini') }}
+      - run: pip install platformio
+      - run: cd firmware/node && pio run -e ${{ matrix.env }}
+
+  bridge-firmware:
+    name: Kopru yazilimi
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/cache@v4
+        with:
+          path: ~/.platformio
+          key: pio-bridge-${{ runner.os }}-${{ hashFiles('firmware/bridge/platformio.ini') }}
+      - run: pip install platformio
+      # now_config.h kisisel (gitignore'da); CI ornek dosyayla derler
+      - run: cp firmware/shared/now_config.example.h firmware/shared/now_config.h
+      - run: cd firmware/bridge && pio run
+
+  crypto-test:
+    name: X25519 test vektorleri
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: c++ -std=c++17 -x c++ -Ifirmware/shared firmware/tools/test_x25519.c -o /tmp/tx && /tmp/tx
