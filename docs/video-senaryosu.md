@@ -50,3 +50,37 @@
 ## Çekim sonrası
 - Videoyu `flash.matestudios.online` sayfasının altına ve README'ye bağla.
 - Kısa bir sürümü (30 sn, sahne 3–8 hızlı) sosyal medya için kes.
+
+---
+
+# Yapay zekâ ile üretim (Higgsfield / Gemini)
+
+Video, kamerayla çekilmeyecek; görüntüler yapay zekâ ile üretilecek. Kural: **yazı ve arayüz içeren her sahne gerçek ekran kaydı olmalı.** Yapay zekâ modelleri ekrandaki metni ve uygulama arayüzünü bozar (harfler değişir, düğmeler uydurulur). Yapay zekâ yalnızca "atmosfer" görüntüleri için kullanılır: kart, lamba, eller.
+
+| Sahne | Kaynak | Not |
+|---|---|---|
+| 1 Açılış | YZ video | Kart + yanan lamba |
+| 2 Malzemeler | Tasarım (Canva/Keynote) | Düz kart grafikleri; YZ ile üretme, çünkü yazı içerir |
+| 3 Web sayfası, kart seçimi | **Gerçek ekran kaydı** | `flash.matestudios.online` |
+| 4 Yükleme | **Gerçek ekran kaydı** | Chrome, Yükle düğmesi, ilerleme çubuğu |
+| 5 Röle bağlantısı | YZ video + kendi çizimin | Bağlantı şemasını (GPIO5 → IN, 5V, GND) düz grafik olarak ekle; kabloları YZ yanlış çizer |
+| 6, 7, 8 Uygulama | **Gerçek ekran kaydı** | iPhone ya da simülatör; sahte köprüyle de alınabilir |
+| 8 Lamba yanması | YZ video | Kısa kesit |
+| 9 Sorun giderme | Tasarım kartı | Düz metin grafiği |
+| 10 Kapanış | Tasarım | Adresler, GitHub |
+
+## YZ video istemleri (İngilizce yaz, modeller daha iyi anlıyor)
+Ortak stil, her isteme ekle: `cinematic product video, warm cozy indoor lighting, shallow depth of field, soft film grain, 16:9, no text, no logos, no captions`
+
+1. **Açılış (sahne 1)** – `Close-up of a small green ESP32 microcontroller development board on a wooden desk, slow dolly in, then cut to a warm living room where a table lamp turns on softly. 6 seconds.`
+2. **Bağlantı atmosferi (sahne 5)** – `Overhead shot of hands connecting jumper wires between a small microcontroller board and a relay module on a clean workbench, calm and precise movements, soft daylight. 6 seconds.`
+3. **Lamba yanması (sahne 8)** – `A bedside lamp on a nightstand turns on with a gentle warm glow, a hand holding a smartphone enters frame from the side but the phone screen is not visible. 5 seconds.`
+4. **Kapanış arka planı (sahne 10)** – `Slow pan across a cozy room with several lamps glowing warm yellow at dusk, peaceful atmosphere. 6 seconds.`
+
+İpuçları: her kliği 5–8 saniye tut, gerekirse üç sürüm üretip en iyisini seç. Karttaki yazıları ya da telefonun ekranını istemde tarif etme. Aynı stil satırını her istemde kullan ki sahneler birbirine benzesin.
+
+## Seslendirme
+Metinleri bu belgedeki tablodan al. Türkçe seslendirme için Gemini'nin ses üretimi, ElevenLabs ya da benzeri bir araç kullan. Hız hafif yavaş, cümleler kısa kalsın.
+
+## Birleştirme
+CapCut, DaVinci Resolve ya da iMovie ile: YZ klipleri + gerçek ekran kayıtları + grafik kartlar + seslendirme + hafif müzik. Gerçek ekran kayıtlarında WiFi adı ve token'ı bulanıklaştır.
