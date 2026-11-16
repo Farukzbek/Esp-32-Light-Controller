@@ -204,6 +204,12 @@ struct DeviceEditor: View {
                     } footer: { Text("Eşleşmeyi köprüden ve cihazdan siler. Cihaz yeniden eşleşmeye hazır olur. Köprü birkaç saniye yeniden başlar.") }
                 }
 
+                if light.isBuiltin && light != .all {
+                    Section {
+                        Label("Röle pini ve mantığı", systemImage: "info.circle").foregroundStyle(.secondary)
+                    } footer: { Text("Röle ayarı yalnızca uygulamadan eşleştirilerek eklenen yeni ışıklarda görünür (Cihaz Ekle → Cihaz ekle). Masa, yatak ve LED düğümlerinin ayarı yazılımlarında sabittir.") }
+                }
+
                 Section {
                     Button("Varsayılana dön", role: .destructive) {
                         model.rename(light, to: ""); model.setIcon(light, nil); dismiss()
