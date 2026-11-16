@@ -8,6 +8,7 @@
 #include "now_link.h"
 #include "pairing.h"
 #include "improv.h"
+#include "ota.h"
 
 // Telefon koprusu: iOS uygulamasi/widget'lari yerel agdan HTTP ile komut verir, kopru ESP-NOW ile dugumlere iletir.
 //
@@ -28,7 +29,9 @@ static Preferences prefs;
 static WebServer server(80);
 static String g_token;
 static int8_t g_st[3] = {-1, -1, -1};      // son bilinen durum (-1 = henuz bildirilmedi)
-#define FW_VERSION "0.4.0"
+#ifndef FW_VERSION
+#define FW_VERSION "0.5.0-dev"
+#endif
 #ifdef NOW_GENERIC
 #define NL_CHANNEL ((int)WiFi.channel())          // genel kopru: ESP-NOW kanali router'in kanali
 #define NL_LEGACY false
@@ -255,11 +258,30 @@ static void handleSetupPage() {
   server.send(200, "text/html", h);
 }
 
+// ---- kablosuz guncelleme (yalnizca genel kopru)
+static void handleVersion() { if (!authorized()) return; server.send(200, "application/json", ota_version_json()); }
+static void handleUpdateStatus() { if (!authorized()) return; server.send(200, "application/json", ota_status_json()); }
+static void handleUpdateCheck() {
+  if (!authorized()) return;
+  if (!ota_supported()) { server.send(400, "application/json", "{\"error\":\"ota yok\"}"); return; }
+  ota_check();
+  server.send(200, "application/json", ota_status_json());
+}
+static void handleUpdateStart() {
+  if (!authorized()) return;
+  if (!ota_start()) { server.send(400, "application/json", "{\"error\":\"guncelleme baslatilamadi (yeni surum yok ya da mesgul)\"}"); return; }
+  server.send(200, "application/json", ota_status_json());
+}
+
 static void startHttp() {
   const char *keys[] = {"X-Token"};
   server.collectHeaders(keys, 1);
   server.on("/api/ping", HTTP_GET, handlePing);
   server.on("/api/setup", HTTP_GET, handleSetupApi);
+  server.on("/api/version", HTTP_GET, handleVersion);
+  server.on("/api/update", HTTP_GET, handleUpdateStatus);
+  server.on("/api/update/check", HTTP_POST, handleUpdateCheck);
+  server.on("/api/update/start", HTTP_POST, handleUpdateStart);
   server.on("/setup", HTTP_GET, handleSetupPage);
   server.on("/api/state", HTTP_GET, handleState);
   server.on("/api/set", HTTP_POST, handleSet);

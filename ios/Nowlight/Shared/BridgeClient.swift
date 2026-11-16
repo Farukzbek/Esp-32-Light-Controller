@@ -93,6 +93,32 @@ struct BridgeClient {
         ]))
     }
 
+    // MARK: Kablosuz guncelleme (genel kopru)
+
+    struct VersionInfo: Decodable { let version: String; let chip: String; let ota: Bool; let generic: Bool }
+    struct UpdateStatus: Decodable {
+        let state: String          // idle | checking | downloading | done | error
+        let current: String
+        let latest: String
+        let available: Bool
+        let progress: Int
+        let error: String
+    }
+
+    /// Eski kopru yazilimlari bu adresi bilmez (404 -> badResponse).
+    func version() async throws -> VersionInfo {
+        let d = try await send(request("/api/version"))
+        guard let v = try? JSONDecoder().decode(VersionInfo.self, from: d) else { throw BridgeError.badResponse }
+        return v
+    }
+    private func updateDecode(_ d: Data) throws -> UpdateStatus {
+        guard let s = try? JSONDecoder().decode(UpdateStatus.self, from: d) else { throw BridgeError.badResponse }
+        return s
+    }
+    func updateStatus() async throws -> UpdateStatus { try updateDecode(await send(request("/api/update"))) }
+    func updateCheck() async throws -> UpdateStatus { try updateDecode(await send(request("/api/update/check", method: "POST"))) }
+    func updateStart() async throws -> UpdateStatus { try updateDecode(await send(request("/api/update/start", method: "POST"))) }
+
     // MARK: Cihaz eslestirme (kopru yazilimi destekliyorsa)
 
     struct PairCandidate: Decodable, Identifiable, Equatable {

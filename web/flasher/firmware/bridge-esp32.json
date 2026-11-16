@@ -1,11 +1,11 @@
 {
   "name": "Nowlight koprusu (ESP32 DevKit (klasik))",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "new_install_prompt_erase": false,
   "builds": [ { "chipFamily": "ESP32", "parts": [
-    { "path": "bridge-esp32/bootloader.bin?v=0.4.0", "offset": 4096 },
-    { "path": "bridge-esp32/partitions.bin?v=0.4.0", "offset": 32768 },
-    { "path": "bridge-esp32/boot_app0.bin?v=0.4.0", "offset": 57344 },
-    { "path": "bridge-esp32/firmware.bin?v=0.4.0", "offset": 65536 }
+    { "path": "bridge-esp32/bootloader.bin?v=0.5.0", "offset": 4096 },
+    { "path": "bridge-esp32/partitions.bin?v=0.5.0", "offset": 32768 },
+    { "path": "bridge-esp32/boot_app0.bin?v=0.5.0", "offset": 57344 },
+    { "path": "bridge-esp32/firmware.bin?v=0.5.0", "offset": 65536 }
   ] } ]
 }

@@ -33,7 +33,7 @@ echo "Tamam: $OUT/firmware"
 
 # ---------------------------------------------------------------- GENEL KOPRU (WiFi Improv ile tarayicidan kurulur)
 # Parcalar ayri ofsetlerde yazilir (factory.bin degil): NVS (WiFi, token, esli dugumler) guncellemede silinmez.
-BRIDGE_VERSION="0.4.0"
+BRIDGE_VERSION="0.5.0"   # yazilimin icine gomulur (FW_VERSION) ve sitedeki manifestle ayni olmali: kopru kendi surumunu buna gore karsilastirir
 APPS="$HOME/.platformio/packages/framework-arduinoespressif32/tools/partitions/boot_app0.bin"
 # ortam | anahtar | baslik | yonga ailesi | bootloader ofseti (ESP32 ve S2: 0x1000, digerleri 0x0)
 BRIDGES=(
@@ -46,7 +46,7 @@ BRIDGES=(
 for entry in "${BRIDGES[@]}"; do
   IFS='|' read -r env key title chip boot <<< "$entry"
   echo "=== $env"
-  ( cd ../bridge && pio run -e "$env" >/dev/null )
+  ( cd ../bridge && PLATFORMIO_BUILD_FLAGS="-DFW_VERSION=\\\"$BRIDGE_VERSION\\\"" pio run -e "$env" >/dev/null )
   d="$OUT/firmware/bridge-$key"; mkdir -p "$d"
   cp "../bridge/.pio/build/$env/bootloader.bin" "../bridge/.pio/build/$env/partitions.bin" "../bridge/.pio/build/$env/firmware.bin" "$d/"
   cp "$APPS" "$d/boot_app0.bin"
