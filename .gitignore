@@ -16,3 +16,4 @@ xcuserdata/
 # Kisisel web yukleyici girdileri (now_config.h ile derlenir)
 web/flasher/firmware/kopru*
 web/flasher/firmware/kapi*
+dist/
