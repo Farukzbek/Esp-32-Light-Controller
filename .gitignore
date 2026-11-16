@@ -12,3 +12,7 @@ firmware/shared/now_config.h
 ios/Nowlight/Nowlight.xcodeproj/
 *.xcuserstate
 xcuserdata/
+
+# Kisisel web yukleyici girdileri (now_config.h ile derlenir)
+web/flasher/firmware/kopru*
+web/flasher/firmware/kapi*

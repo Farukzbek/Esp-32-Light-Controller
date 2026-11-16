@@ -115,6 +115,17 @@
   try { const s = localStorage.getItem("board"); if (s && notes[s]) select.value = s; } catch (e) {}
   select.addEventListener("change", apply);
   apply();
+  // Kisisel girdiler (kopru, kapi dugumu): yalnizca bu klasorde varsa gorunur. Herkese acik surumde bulunmazlar.
+  const personal = { kopru: "Köprü kartı yazılımı. WiFi ve token silinmez.", kapi: "Kapı düğümü (PIR) yazılımı. WiFi bilgisi silinmez." };
+  Object.keys(personal).forEach(id => {
+    fetch(`firmware/${id}.json`).then(r => r.ok ? r.json() : Promise.reject()).then(j => {
+      notes[id] = personal[id];
+      const o = document.createElement("option");
+      o.value = id; o.textContent = j.name;
+      select.appendChild(o);
+      try { if (localStorage.getItem("board") === id) { select.value = id; apply(); } } catch (e) {}
+    }).catch(() => {});
+  });
   if (!("serial" in navigator)) document.getElementById("unsupported").classList.add("show");
   fetch("firmware/esp32s3-supermini.json").then(r => r.json()).then(j => { document.getElementById("ver").textContent = j.version; }).catch(() => {});
 </script>
