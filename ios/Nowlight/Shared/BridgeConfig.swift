@@ -49,4 +49,10 @@ enum BridgeConfig {
         get { (shared.dictionary(forKey: "relayConfig") as? [String: String]) ?? [:] }
         set { shared.set(newValue, forKey: "relayConfig") }
     }
+
+    /// Kopru "eski/kisisel" derleme mi (sabit masa, yatak, led dugumleri var)? Genel koprude false: yerlesik isiklar gizlenir, her sey eslesmeyle eklenir.
+    static var legacy: Bool {
+        get { (shared.object(forKey: "bridgeLegacy") as? Bool) ?? true }
+        set { shared.set(newValue, forKey: "bridgeLegacy") }
+    }
 }

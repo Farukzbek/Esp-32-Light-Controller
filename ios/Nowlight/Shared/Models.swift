@@ -18,8 +18,10 @@ struct LightID: Hashable, Identifiable {
         self.rawValue = rawValue
     }
 
-    /// Azami isik sayisi: ESP-NOW en fazla 6 sifreli esle konusur (hub + yatak + 4 eslesen dugum) -> yuvalar 0...6.
-    static let maxDevices = 7
+    /// Azami isik sayisi: ESP-NOW en fazla 6 sifreli esle konusur. Kisisel koprude hub + yatak + 4 dugum (yuva 0...6, 7 isik),
+    /// genel koprude 5 dugum (yuva 3...7).
+    static var maxDevices: Int { BridgeConfig.legacy ? 7 : 5 }
+    private static var slotLimit: Int { BridgeConfig.legacy ? 7 : 8 }
     /// Kopruyle ortak "yuva" numarasi: masa 0, yatak 1, led 2, eklenenler 3...6. Otomasyon bit maskesi de buna gore (1 << yuva).
     var slot: Int? {
         switch rawValue {
@@ -36,7 +38,7 @@ struct LightID: Hashable, Identifiable {
     /// Tum fiziksel cihazlar (kaldirilanlar dahil), yuva sirasiyla
     static var allDevices: [LightID] {
         let custom = BridgeConfig.customDevices.map { LightID(raw: $0) }.sorted { ($0.slot ?? 99) < ($1.slot ?? 99) }
-        return [.masa, .yatak, .led] + custom
+        return (BridgeConfig.legacy ? [.masa, .yatak, .led] : []) + custom      // genel koprude yerlesik isik yok
     }
     /// Uygulamada gorunen (kaldirilmamis) cihazlar
     static var devices: [LightID] { allDevices.filter { !BridgeConfig.removed.contains($0.rawValue) } }
@@ -44,7 +46,7 @@ struct LightID: Hashable, Identifiable {
     /// Yeni eklenecek isik icin bos yuvanin kimligi (yoksa nil: 8 isik dolu)
     static func nextCustom() -> LightID? {
         let used = Set(allDevices.compactMap(\.slot))
-        return (3..<maxDevices).first { !used.contains($0) }.map { LightID(raw: "d\($0)") }
+        return (3..<slotLimit).first { !used.contains($0) }.map { LightID(raw: "d\($0)") }
     }
 
     /// Eklenen isigin kayitli role ayari (pin, ters mantik); yoksa nil.
@@ -138,12 +140,13 @@ struct LightsState: Codable, Equatable {
     var links: [String: Bool]
     var channel: Int
     var wifiChannel: Int
+    var legacy: Bool = true         // kopru kisisel derleme mi (sabit masa/yatak/led var)? Eski kopruler alani yollamaz -> true
 
-    init(values: [String: Int], links: [String: Bool], channel: Int, wifiChannel: Int) {
-        self.values = values; self.links = links; self.channel = channel; self.wifiChannel = wifiChannel
+    init(values: [String: Int], links: [String: Bool], channel: Int, wifiChannel: Int, legacy: Bool = true) {
+        self.values = values; self.links = links; self.channel = channel; self.wifiChannel = wifiChannel; self.legacy = legacy
     }
 
-    enum CodingKeys: String, CodingKey { case masa, yatak, led, devices, links, channel, wifiChannel }
+    enum CodingKeys: String, CodingKey { case masa, yatak, led, devices, links, channel, wifiChannel, legacy }
 
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
@@ -155,6 +158,7 @@ struct LightsState: Codable, Equatable {
         links = (try? c.decode([String: Bool].self, forKey: .links)) ?? [:]
         channel = try c.decode(Int.self, forKey: .channel)
         wifiChannel = try c.decode(Int.self, forKey: .wifiChannel)
+        legacy = (try c.decodeIfPresent(Bool.self, forKey: .legacy)) ?? true
     }
 
     func encode(to encoder: Encoder) throws {
@@ -166,6 +170,7 @@ struct LightsState: Codable, Equatable {
         try c.encode(links, forKey: .links)
         try c.encode(channel, forKey: .channel)
         try c.encode(wifiChannel, forKey: .wifiChannel)
+        try c.encode(legacy, forKey: .legacy)
     }
 
     func value(_ light: LightID) -> Int {

@@ -157,7 +157,7 @@ bool pair_accept(const String &macStr, uint8_t slot, int pin, int inv, String &e
   uint8_t ch = 0; wifi_second_chan_t c2;
   esp_wifi_get_channel(&ch, &c2);
   PairSecret ps = {};
-  strncpy(ps.pass, NOW_PASSWORD, sizeof(ps.pass) - 1);
+  strncpy(ps.pass, now_net_key().c_str(), sizeof(ps.pass) - 1);
   ps.channel = ch;
   ps.slot = slot;
   ps.pin = (pin >= 0 && pin <= 60) ? (uint8_t)pin : cand.defPin;          // verilmediyse dugumun varsayilani

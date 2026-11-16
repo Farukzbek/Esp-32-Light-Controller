@@ -112,6 +112,12 @@ final class AppModel {
             if let cur = state {
                 for l in LightID.devices where (pendingUntil[l] ?? .distantPast) > Date() { s = s.setting(l, on: cur.isOn(l)) }
             }
+            if s.legacy != BridgeConfig.legacy {                   // kopru turu degisti (genel <-> kisisel): yerlesik isiklar gorunur/gizlenir
+                BridgeConfig.legacy = s.legacy
+                removed = BridgeConfig.removed
+                WidgetCenter.shared.reloadAllTimelines()
+                NowlightShortcuts.updateAppShortcutParameters()
+            }
             adoptBridgeDevices(s)
             state = s
             StateCache.save(s)

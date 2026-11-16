@@ -48,7 +48,13 @@
   <div class="card step">
     <div class="num">1</div>
     <div style="flex:1">
-      <h2>Kartını seç</h2>
+      <h2>Ne kuruyorsun?</h2>
+      <select id="mode" aria-label="Kurulum türü">
+        <option value="node">Işık düğümü (her ışık için bir tane)</option>
+        <option value="bridge">Köprü (evde bir tane, telefonu ışıklara bağlar)</option>
+      </select>
+      <p class="hint" id="modeNote"></p>
+      <h2 style="margin-top:14px">Kartını seç</h2>
       <select id="board" aria-label="Kart türü">
         <optgroup label="ESP32-S3">
           <option value="s3-supermini" data-fw="esp32s3-supermini">ESP32-S3 Super Mini</option>
@@ -114,9 +120,9 @@
   <div class="card step">
     <div class="num">4</div>
     <div style="flex:1">
-      <h2>Uygulamadan ekle</h2>
-      <p>Kartı bir USB adaptörüne tak (ya da bilgisayarda bırak). Telefonda <b>Nowlight → Cihaz Ekle → Cihaz ekle</b> ile eşleştir. Bilgi girmen gerekmez.</p>
-      <p class="small">Eşleşmeyi silmek için kartın BOOT tuşuna 5 sn basılı tut.</p>
+      <h2 id="step4title">Uygulamadan ekle</h2>
+      <p id="step4text">Kartı bir USB adaptörüne tak (ya da bilgisayarda bırak). Telefonda <b>Nowlight → Cihaz Ekle → Cihaz ekle</b> ile eşleştir. Bilgi girmen gerekmez.</p>
+      <p class="small" id="step4small">Eşleşmeyi silmek için kartın BOOT tuşuna 5 sn basılı tut.</p>
     </div>
   </div>
 
@@ -137,15 +143,31 @@
   const select = document.getElementById("board");
   const installer = document.getElementById("installer");
   const fwOf = o => o.dataset.fw || o.value;
+  const modeSel = document.getElementById("mode");
+  // dugum yazilimi adi -> kopru yazilimi anahtari
+  const bridgeKey = { "esp32s3-supermini": "s3", "esp32c3": "c3", "esp32c6": "c6", "esp32s2": "s2", "esp32dev": "esp32" };
+  const modeText = {
+    node: ["Uygulamadan ekle", "Kartı bir USB adaptörüne tak (ya da bilgisayarda bırak). Telefonda <b>Nowlight → Cihaz Ekle → Cihaz ekle</b> ile eşleştir. Bilgi girmen gerekmez.", "Eşleşmeyi silmek için kartın BOOT tuşuna 5 sn basılı tut."],
+    bridge: ["WiFi'ni gir, sonra uygulamaya bağla", "Yükleme bitince sayfa <b>WiFi ayarı</b> sorar: ağını seç ve şifreni gir (şifre yalnızca köprünün hafızasına gider). Sonra telefonda <b>Nowlight → Cihaz Ekle → Köprü ayarları → Köprüyü otomatik bul</b> de, adres ve anahtar kendiliğinden dolar.", "Kurulum penceresi 10 dakika açık kalır. Kapanırsa köprüdeki BOOT tuşuna 2 sn bas. Köprü, router'ın WiFi kanalını kendisi izler."]
+  };
   function apply() {
     const o = select.selectedOptions[0];
     const fw = fwOf(o);
-    installer.setAttribute("manifest", `firmware/${fw}.json?t=${Date.now()}`);   // onbellegi atla: eski yazilim yuklenmesin
-    document.getElementById("boardNote").textContent = notes[fw] ?? pins[fw] ?? "";
-    try { localStorage.setItem("board", o.value); } catch (e) {}
+    const mode = modeSel.value;
+    const manifest = mode === "bridge" ? `firmware/bridge-${bridgeKey[fw]}.json` : `firmware/${fw}.json`;
+    installer.setAttribute("manifest", `${manifest}?t=${Date.now()}`);   // onbellegi atla: eski yazilim yuklenmesin
+    document.getElementById("boardNote").textContent = mode === "bridge" ? "Köprüde röle pini yoktur; yalnızca WiFi ve ESP-NOW kullanır." : (notes[fw] ?? pins[fw] ?? "");
+    document.getElementById("modeNote").textContent = mode === "bridge" ? "Evde yalnızca bir köprü gerekir. Işık düğümlerini sonra ayrıca yüklersin." : "Her ışık (röle) için ayrı bir kart yüklenir.";
+    const t = modeText[mode];
+    document.getElementById("step4title").textContent = t[0];
+    document.getElementById("step4text").innerHTML = t[1];
+    document.getElementById("step4small").textContent = t[2];
+    try { localStorage.setItem("board", o.value); localStorage.setItem("mode", mode); } catch (e) {}
   }
+  try { const m = localStorage.getItem("mode"); if (m === "bridge" || m === "node") modeSel.value = m; } catch (e) {}
   try { const s = localStorage.getItem("board"); if (s && [...select.options].some(o => o.value === s)) select.value = s; } catch (e) {}
   select.addEventListener("change", apply);
+  modeSel.addEventListener("change", apply);
   apply();
   // Kisisel girdiler (kopru, kapi dugumu): yalnizca bu klasorde varsa gorunur. Herkese acik surumde bulunmazlar.
   const personal = { kopru: "Köprü kartı yazılımı. WiFi ve token silinmez.", kapi: "Kapı düğümü (PIR) yazılımı. WiFi bilgisi silinmez." };

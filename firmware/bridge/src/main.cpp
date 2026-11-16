@@ -28,7 +28,17 @@ static Preferences prefs;
 static WebServer server(80);
 static String g_token;
 static int8_t g_st[3] = {-1, -1, -1};      // son bilinen durum (-1 = henuz bildirilmedi)
-#define FW_VERSION "0.3.0"
+#define FW_VERSION "0.4.0"
+#ifdef NOW_GENERIC
+#define NL_CHANNEL ((int)WiFi.channel())          // genel kopru: ESP-NOW kanali router'in kanali
+#define NL_LEGACY false
+#else
+#define NL_CHANNEL NOW_CHANNEL
+#define NL_LEGACY true
+#endif
+#ifndef NL_BOOT_PIN
+#define NL_BOOT_PIN 0
+#endif
 #define SETUP_WINDOW_MS (10UL * 60UL * 1000UL)   // kurulum penceresi: token'i uygulamaya otomatik verir
 static uint32_t g_setupUntil = 0;
 static uint32_t g_wifiTry = 0;
@@ -118,10 +128,17 @@ static String stateJson() {
     first = false;
     o += "\"d" + String(slot) + "\":" + String(now_dyn_state(slot));
   }
-  o += "},\"links\":{\"masa\":" + String((down & 1) ? "false" : "true") + ",\"yatak\":" + String((down & 2) ? "false" : "true");
+  String lk;
+#ifndef NOW_GENERIC
+  lk += "\"masa\":" + String((down & 1) ? "false" : "true") + ",\"yatak\":" + String((down & 2) ? "false" : "true");
+#endif
   for (uint8_t slot = NOW_DYN_FIRST; slot < NOW_DYN_FIRST + NOW_DYN_MAX; slot++)
-    if (now_dyn_present(slot)) o += ",\"d" + String(slot) + "\":" + String((down & (1 << (2 + slot - NOW_DYN_FIRST))) ? "false" : "true");
-  o += "},\"channel\":" + String(NOW_CHANNEL) + ",\"wifiChannel\":" + String((int)WiFi.channel()) + "}";
+    if (now_dyn_present(slot)) {
+      if (lk.length()) lk += ',';
+      lk += "\"d" + String(slot) + "\":" + String((down & (1 << (2 + slot - NOW_DYN_FIRST))) ? "false" : "true");
+    }
+  o += "},\"links\":{" + lk + "},\"legacy\":" + String(NL_LEGACY ? "true" : "false") +
+       ",\"channel\":" + String(NL_CHANNEL) + ",\"wifiChannel\":" + String((int)WiFi.channel()) + "}";
   return o;
 }
 
@@ -259,8 +276,8 @@ static void startHttp() {
 // ---------------------------------------------------------------- seri komutlar
 static void printStatus() {
   Serial.printf("[durum] wifi=%s ip=%s kanal(wifi)=%d kanal(espnow)=%d %s\n",
-                WiFi.status() == WL_CONNECTED ? "bagli" : "yok", WiFi.localIP().toString().c_str(), (int)WiFi.channel(), NOW_CHANNEL,
-                (WiFi.status() == WL_CONNECTED && WiFi.channel() != NOW_CHANNEL) ? "<< UYARI: router kanali ESP-NOW kanalindan farkli!" : "");
+                WiFi.status() == WL_CONNECTED ? "bagli" : "yok", WiFi.localIP().toString().c_str(), (int)WiFi.channel(), NL_CHANNEL,
+                (WiFi.status() == WL_CONNECTED && WiFi.channel() != NL_CHANNEL) ? "<< UYARI: router kanali ESP-NOW kanalindan farkli!" : "");
   Serial.printf("[durum] %s\n", stateJson().c_str());
 }
 
@@ -337,7 +354,7 @@ void setup() {
   WiFi.setAutoReconnect(true);
   WiFi.setSleep(false);                // uyku modu ESP-NOW alimini kacirabilir
   startHttp();
-  pinMode(0, INPUT_PULLUP);                                  // BOOT: 2 sn basili = kurulum penceresi
+  pinMode(NL_BOOT_PIN, INPUT_PULLUP);                                  // BOOT: 2 sn basili = kurulum penceresi
   improv_begin("Nowlight Bridge", FW_VERSION, "ESP32", "Nowlight koprusu", improvConnect);
   wifiConnect();
   Serial.println("\n=== Telefon koprusu ===");
@@ -354,15 +371,17 @@ void loop() {
   const bool up = WiFi.status() == WL_CONNECTED;
   if (up && !g_wifiWasUp) {
     Serial.printf("[wifi] bagli: ip=%s kanal=%d\n", WiFi.localIP().toString().c_str(), (int)WiFi.channel());
+#ifndef NOW_GENERIC
     if (WiFi.channel() != NOW_CHANNEL)
       Serial.printf("[wifi] UYARI: router kanali %d, ESP-NOW kanali %d. Router'in 2.4 GHz kanalini %d'e sabitle, yoksa dugumlerle konusamaz.\n",
                     (int)WiFi.channel(), NOW_CHANNEL, NOW_CHANNEL);
+#endif
     if (MDNS.begin("nowlight")) { MDNS.addService("http", "tcp", 80); Serial.println("[mdns] nowlight.local"); }
   }
   if (up && !g_wifiWasUp) improv_set_provisioned(true, "http://" + WiFi.localIP().toString() + "/setup");
   g_wifiWasUp = up;
   { static uint32_t bootDown = 0;                              // BOOT 2 sn basili: kurulum penceresini ac
-    if (digitalRead(0) == LOW) { if (!bootDown) bootDown = millis(); else if (millis() - bootDown > 2000 && !setupOpen()) openSetup("BOOT tusu"); } else bootDown = 0; }
+    if (digitalRead(NL_BOOT_PIN) == LOW) { if (!bootDown) bootDown = millis(); else if (millis() - bootDown > 2000 && !setupOpen()) openSetup("BOOT tusu"); } else bootDown = 0; }
   if (!up && g_haveSsid && millis() - g_wifiTry > 20000) wifiConnect();   // takilirsa yeniden dene
   delay(2);
 }

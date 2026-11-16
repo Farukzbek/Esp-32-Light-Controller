@@ -1,0 +1,11 @@
+{
+  "name": "Nowlight koprusu (ESP32-S2)",
+  "version": "0.4.0",
+  "new_install_prompt_erase": false,
+  "builds": [ { "chipFamily": "ESP32-S2", "parts": [
+    { "path": "bridge-s2/bootloader.bin?v=0.4.0", "offset": 4096 },
+    { "path": "bridge-s2/partitions.bin?v=0.4.0", "offset": 32768 },
+    { "path": "bridge-s2/boot_app0.bin?v=0.4.0", "offset": 57344 },
+    { "path": "bridge-s2/firmware.bin?v=0.4.0", "offset": 65536 }
+  ] } ]
+}

@@ -5,18 +5,16 @@ struct GuideView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 22) {
-                Text("Yeni bir ışık eklemek üç adım: kartı hazırla, röleyi bağla, uygulamadan eşleştir. Köprüyü yalnızca bir kez kurarsın.")
+                Text("Yeni bir ışık eklemek üç adım: kartı hazırla, röleyi bağla, uygulamadan eşleştir. Köprüyü evde yalnızca bir kez kurarsın.")
                     .font(.subheadline).foregroundStyle(.secondary)
 
-                card("1. Köprüyü kur (bir kez)", steps: [
-                    "Köprü olarak boştaki bir klasik ESP32 devkit kullan (ışık düğümlerinden ayrı).",
-                    "GitHub'daki firmware/bridge yazılımını ESP32'ye yükle (PlatformIO).",
-                    "Seri monitörü aç (115200) ve evin WiFi bilgisini gir:",
-                ], code: "wifi ağ_adı şifre", more: [
-                    "Router'ın 2.4 GHz kanalını sabitle (ESP-NOW ile aynı kanal olmalı).",
-                    "Seri monitörde aşağıdakini yaz ve çıkan anahtarı (token) kopyala:",
-                ], code2: "token", tail: [
-                    "Cihaz Ekle → Köprü ayarları: köprünün IP adresini yaz, anahtarı yapıştır, \"Bağlantıyı dene\"ye bas.",
+                card("1. Köprüyü kur (evde bir kez)", steps: [
+                    "Boştaki bir ESP32 kartını (köprü olacak) USB ile bilgisayara tak.",
+                    "Bilgisayarda Chrome ya da Edge ile flash.matestudios.online sayfasını aç. \"Ne kuruyorsun?\" kısmında Köprü'yü, kartını seç ve Yükle'ye bas.",
+                    "Yükleme bitince sayfa WiFi ayarı sorar: ağını seç, şifreni gir. Şifre yalnızca köprünün hafızasına gider.",
+                    "Köprüyü bir USB adaptörüne tak (7/24 açık kalacak). Telefonu aynı WiFi'ye bağla.",
+                    "Uygulamada Cihaz Ekle → Köprü ayarları → Köprüyü otomatik bul. Adres ve anahtar kendiliğinden dolar, Kaydet'e bas.",
+                    "Otomatik bul çalışmazsa kurulum penceresi kapanmıştır: köprüdeki BOOT tuşuna 2 saniye basıp tekrar dene.",
                 ])
 
                 card("2. Kartı hazırla (her yeni ışık için)", steps: [

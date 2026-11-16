@@ -194,20 +194,45 @@ bool now_dyn_linked(uint8_t slot) {
   return (now_link_down_mask() & (1 << (2 + slot - NOW_DYN_FIRST))) == 0;
 }
 
+String now_net_key() {
+#ifdef NOW_GENERIC
+  static String key;
+  if (!key.length()) {
+    Preferences p;
+    p.begin("bridge", false);
+    key = p.isKey("netkey") ? p.getString("netkey", "") : String();
+    if (key.length() < 16) {                                   // ilk acilis: rastgele 24 karakter (PairSecret.pass 31 karaktere kadar tasir)
+      char b[25];
+      for (int i = 0; i < 24; i += 8) snprintf(b + i, 9, "%08x", (unsigned)esp_random());
+      key = String(b);
+      p.putString("netkey", key);
+    }
+    p.end();
+  }
+  return key;
+#else
+  return String(NOW_PASSWORD);
+#endif
+}
+
 void now_init(void) {
-  SpanPoint::setPassword(NOW_PASSWORD);
+  SpanPoint::setPassword(now_net_key().c_str());
+#ifndef NOW_GENERIC
   s_link[0].name = "hub";
   s_link[0].sp = new SpanPoint(NOW_HUB_MAC, sizeof(NowMsg), sizeof(NowMsg), 4);
   s_link[1].name = "yatak";
   s_link[1].sp = new SpanPoint(NOW_BED_MAC, sizeof(NowMsg), sizeof(NowMsg), 4);
-  s_q = xQueueCreate(12, sizeof(Out));
   parseMac(NOW_HUB_MAC, s_mac[0]);
   parseMac(NOW_BED_MAC, s_mac[1]);
+#endif
+  s_q = xQueueCreate(12, sizeof(Out));
   wifi_promiscuous_filter_t filt = {};
   filt.filter_mask = WIFI_PROMIS_FILTER_MASK_MGMT | WIFI_PROMIS_FILTER_MASK_DATA;
   esp_wifi_set_promiscuous_filter(&filt);
   esp_wifi_set_promiscuous_rx_cb(promiscCb);   // acmak icin now_rssi_enable(true)
-  applyLock(NOW_CHANNEL);
+#ifndef NOW_GENERIC
+  applyLock(NOW_CHANNEL);                      // kisisel derleme: sabit kanal. Genel kopruda kanal router'i izler, dugumler tarayip bulur.
+#endif
   { // kayitli eslesen dugumleri geri yukle
     Preferences p;
     if (p.begin("nodes", true)) {
@@ -219,7 +244,11 @@ void now_init(void) {
       p.end();
     }
   }
+#ifdef NOW_GENERIC
+  Serial.printf("[now] genel kopru MAC = %s  (kanal router'i izler)\n", Network.macAddress().c_str());
+#else
   Serial.printf("[now] kumanda MAC = %s  masa = %s  yatak = %s  sabit kanal = %d\n", Network.macAddress().c_str(), NOW_HUB_MAC, NOW_BED_MAC, NOW_CHANNEL);
+#endif
   xTaskCreate(nowTask, "now", 8192, nullptr, 1, nullptr);
 }
 
@@ -271,10 +300,10 @@ uint8_t now_link_down_mask(void) {
   const uint32_t now = millis();
   const Link &hub = s_link[0], &bed = s_link[1];
   uint8_t m = 0;
-  // hub: hic gorulmediyse ya da 30 sn'dir sessizse
-  if (!hub.everSeen || now - hub.lastRxMs >= 30000) m |= 1;
+  // hub: hic gorulmediyse ya da 30 sn'dir sessizse (genel kopruda hub/yatak yok)
+  if (hub.sp && (!hub.everSeen || now - hub.lastRxMs >= 30000)) m |= 1;
   // yatak: daha once goruldu ve 30 sn'dir sessiz, ya da son komut ulasamadi ve o zamandan beri ses yok
-  if (bed.everSeen && now - bed.lastRxMs >= 30000) m |= 2;
+  if (bed.sp && bed.everSeen && now - bed.lastRxMs >= 30000) m |= 2;
   if (bed.lastFailMs > bed.lastRxMs && now - bed.lastFailMs < 120000) m |= 2;
   if (hub.lastFailMs > hub.lastRxMs && now - hub.lastFailMs < 120000) m |= 1;
   // eslesen dugumler: bit (2 + sira)

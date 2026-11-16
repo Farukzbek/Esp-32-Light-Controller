@@ -24,7 +24,16 @@ uint8_t now_channel(void);   // radyonun su anki kanali
 
 // --- Eslesen dugumler (genel isik dugumleri): yuva 3..6 (uygulamada "d3".."d6") ---
 #define NOW_DYN_FIRST 3
-#define NOW_DYN_MAX   4
+#ifdef NOW_GENERIC
+#define NOW_DYN_MAX   5     // genel kopru: sabit hub/yatak yok, 5 eslesen dugum (yuva 3..7)
+#else
+#define NOW_DYN_MAX   4     // kisisel derleme: hub + yatak + 4 dugum = 6 sifreli esle
+#endif
+#ifdef __cplusplus
+#include <Arduino.h>
+/// ESP-NOW ag anahtari: genel kopruda ilk acilista rastgele uretilir (NVS), kisisel derlemede now_config.h'deki parola.
+String now_net_key();
+#endif
 bool now_dyn_add(uint8_t slot, const uint8_t mac[6]);   // yuvaya dugum bagla (SpanPoint olusturur, NVS'e yazar)
 bool now_dyn_present(uint8_t slot);
 int8_t now_dyn_state(uint8_t slot);                     // 1 acik, 0 kapali, -1 bilinmiyor
