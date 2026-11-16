@@ -21,6 +21,10 @@ ESP-NOW ile çalışan, **pilli ve dokunmatik AMOLED ışık kumandası**. Masa 
         Üç cihaz sabit bir ESP-NOW kanalında buluşur (NOW_CHANNEL)
 ```
 
+## Köprüyü kur (evde bir kez)
+
+**https://flash.matestudios.online** sayfasında **Köprü**'yü seç, kartını seç, USB ile tak ve **Yükle**'ye bas. Yükleme bitince sayfa WiFi bilgisini sorar (Improv): orada gir, terminale bir şey yazman gerekmez. Uygulamada: **Cihaz Ekle → Köprü ayarları → Köprüyü otomatik bul**. Köprü ilk açılışta kendi rastgele ESP-NOW ağ anahtarını üretir ve router'ın WiFi kanalını izler. Işık düğümleri yukarıdaki gibi eklenir.
+
 ## Yeni ışık ekleme (web yükleyici + uygulama)
 
 1. Chrome ya da Edge ile **https://flash.matestudios.online** sayfasını aç, kartını seç (ESP32-S3 / C3 / C6 / S2 / klasik ESP32), USB ile tak ve **Yükle**'ye bas. Program ya da sürücü gerekmez.

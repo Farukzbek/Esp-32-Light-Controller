@@ -21,6 +21,10 @@
      All three meet on one fixed ESP-NOW channel (NOW_CHANNEL)
 ```
 
+## Set up the bridge (once per home)
+
+Open **https://flash.matestudios.online**, choose **Bridge**, pick your board, plug it in by USB and press **Install**. When the install finishes the page asks for your WiFi (Improv): enter it there, nothing to type in a terminal. In the app: **Add Device → Bridge settings → Find bridge automatically**. The bridge creates its own random ESP-NOW network key on first boot and follows your router's WiFi channel. Light nodes are then added as above.
+
 ## Add a new light (web installer + app)
 
 1. Open **https://flash.matestudios.online** in Chrome or Edge, pick your board (ESP32-S3 / C3 / C6 / S2 / classic ESP32), plug it in by USB and press **Install**. No tools or drivers needed.
