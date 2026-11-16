@@ -1,0 +1,149 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Nowlight Kurulum Rehberi</title>
+<meta name="description" content="Nowlight köprüsünü ve ışık düğümlerini kurma rehberi: yazılımı tarayıcıdan yükle, uygulamayla eşleştir, widget ve Siri ekle.">
+<style>
+  :root {
+    --bg: #0b0b0c; --card: #17171a; --line: #2a2a2f; --text: #f2f2f4; --muted: #9a9aa3;
+    --accent: #ffc93c; --ink: #14120c; --warn: #ff9f43; --ok: #34d27b;
+  }
+  @media (prefers-color-scheme: light) {
+    :root { --bg: #f6f6f7; --card: #ffffff; --line: #e1e1e6; --text: #17171a; --muted: #62626b; --ink: #14120c; }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 16px/1.5 -apple-system, system-ui, "Segoe UI", Roboto, sans-serif; }
+  main { max-width: 620px; margin: 0 auto; padding: 32px 16px 64px; }
+  h1 { font-size: 28px; margin: 0 0 4px; letter-spacing: -0.02em; }
+  .sub { color: var(--muted); margin: 0 0 28px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 18px; padding: 18px; margin-bottom: 14px; }
+  .step { display: flex; gap: 14px; }
+  .num { flex: none; width: 28px; height: 28px; border-radius: 50%; background: var(--accent); color: var(--ink); font-weight: 700; display: grid; place-items: center; font-size: 14px; }
+  h2 { font-size: 17px; margin: 2px 0 6px; }
+  p { margin: 6px 0; color: var(--muted); }
+  select { width: 100%; padding: 12px 14px; border-radius: 12px; border: 1px solid var(--line); background: var(--bg); color: var(--text); font-size: 16px; margin-top: 8px; }
+  .hint { font-size: 14px; }
+  .install { margin-top: 12px; }
+  esp-web-install-button button { background: var(--accent); color: var(--ink); border: 0; border-radius: 14px; padding: 14px 22px; font-size: 17px; font-weight: 700; cursor: pointer; width: 100%; }
+  .warn { border-color: var(--warn); color: var(--warn); display: none; }
+  .warn.show { display: block; }
+  .small { font-size: 13px; color: var(--muted); }
+  details { margin-top: 10px; }
+  summary { cursor: pointer; color: var(--text); }
+  code { background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 1px 6px; font-size: 14px; }
+  a { color: var(--accent); }
+</style><style>
+  main { max-width: 720px; }
+  h1 { font-size: 30px; }
+  h3 { font-size: 15px; margin: 16px 0 4px; }
+  ol, ul { margin: 6px 0; padding-left: 22px; color: var(--muted); }
+  li { margin: 4px 0; }
+  li b, p b { color: var(--text); }
+  .shots { display: flex; gap: 10px; flex-wrap: wrap; margin: 14px 0 4px; }
+  .shots figure { margin: 0; flex: 1 1 140px; max-width: 200px; }
+  .shots img { width: 100%; border-radius: 16px; border: 1px solid var(--line); display: block; }
+  .shots figcaption { font-size: 12px; color: var(--muted); margin-top: 6px; text-align: center; }
+  .cta { display: block; text-align: center; background: var(--accent); color: var(--ink); font-weight: 700; border-radius: 14px; padding: 14px 22px; text-decoration: none; margin-top: 12px; }
+  .note { border-left: 3px solid var(--accent); padding: 2px 0 2px 12px; margin: 12px 0; color: var(--muted); }
+  .danger { border-color: var(--warn); }
+  table { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 14px; }
+  th, td { text-align: left; padding: 8px 6px; border-bottom: 1px solid var(--line); color: var(--muted); vertical-align: top; }
+  th { color: var(--text); }
+</style>
+
+</head>
+<body>
+<main>
+  <p class="small"><a href="/">← Yükleyiciye dön</a></p>
+  <h1>Nowlight kurulum rehberi</h1>
+  <p class="sub">Boş bir ESP32'yi, telefondan açıp kapattığın bir ışığa çevir. Kod yazmana, program kurmana gerek yok. Toplam yaklaşık 10 dakika.</p>
+
+  <div class="card">
+    <h2>Neye ihtiyacın var?</h2>
+    <ul>
+      <li><b>Bir köprü kartı:</b> evde bir tane. Telefonun ışıklarla bu kart üzerinden konuşur.</li>
+      <li><b>Her ışık için bir ESP32 kartı</b> (S3, C3, C6, S2 ya da klasik ESP32) ve veri kablosu (yalnızca şarj kablosu çalışmaz).</li>
+      <li><b>Her ışık için bir röle modülü</b> ve lamba.</li>
+      <li><b>Chrome ya da Edge</b> yüklü bir bilgisayar (ya da Android telefon). Safari ve iPhone USB üzerinden yükleme yapamaz.</li>
+      <li><b>iPhone'da Nowlight uygulaması.</b></li>
+    </ul>
+    <p class="note danger"><b>Güvenlik:</b> Rölenin lamba tarafı şebeke gerilimidir. Bağlantıyı elektrik bilen biriyle yap, sigortayı kapat. İlk denemeyi yalnızca düşük gerilimle (röle tıkını dinleyerek) yapmanı öneririm.</p>
+  </div>
+
+  <h2 style="margin:26px 0 10px;font-size:21px">Bölüm 1: Köprüyü kur (evde bir kez)</h2>
+
+  <div class="card step"><div class="num">1</div><div style="flex:1">
+    <h2>Köprü yazılımını yükle</h2>
+    <p><a href="/">Yükleyici sayfasında</a> <b>Ne kuruyorsun?</b> listesinden <b>Köprü</b>'yü, sonra kendi kartını seç. Kartı USB ile tak, <b>Yükle</b>'ye bas ve çıkan listeden kartının portunu seç. Yaklaşık bir dakika sürer.</p>
+  </div></div>
+
+  <div class="card step"><div class="num">2</div><div style="flex:1">
+    <h2>WiFi'ni gir</h2>
+    <p>Yükleme bitince sayfa <b>WiFi ayarı</b> sorar. Ağını seç, şifreni yaz. Şifre yalnızca köprünün hafızasına gider, başka hiçbir yere gönderilmez. Köprü bağlanınca kartı bir USB adaptörüne tak ve evde bir köşeye koy.</p>
+  </div></div>
+
+  <div class="card step"><div class="num">3</div><div style="flex:1">
+    <h2>Uygulamaya bağla</h2>
+    <p>Telefonda <b>Nowlight → Cihaz Ekle → Köprü ayarları → Köprüyü otomatik bul</b>'a bas. Adres ve anahtar kendiliğinden dolar, <b>Kaydet</b> de. Telefon köprüyle aynı WiFi'de olmalı.</p>
+    <p class="small">Kurulum penceresi 10 dakika açık kalır. Kapanırsa köprüdeki <b>BOOT</b> tuşuna 2 saniye bas. Köprü, router'ın WiFi kanalını kendisi izler ve kendi rastgele ESP-NOW ağ anahtarını üretir.</p>
+  </div></div>
+
+  <h2 style="margin:26px 0 10px;font-size:21px">Bölüm 2: Işık ekle (her yeni ışık için)</h2>
+
+  <div class="card step"><div class="num">1</div><div style="flex:1">
+    <h2>Kartı yükle</h2>
+    <p><a href="/">Yükleyici sayfasında</a> bu sefer <b>Işık düğümü</b>'nü seç, kartını seç (çip adı kartın üzerinde yazar: ESP32-S3, C3, C6, S2). USB ile tak, <b>Yükle</b>'ye bas. Port görünmüyorsa kartın <b>BOOT</b> tuşuna basılı tutarak kabloyu tak, tuşu bırak ve tekrar dene.</p>
+  </div></div>
+
+  <div class="card step"><div class="num">2</div><div style="flex:1">
+    <h2>Röleyi bağla</h2>
+    <p>Rölenin sinyal ucunu (<code>IN</code>) kartın röle çıkışına, <code>VCC</code>'yi 5V'a, <code>GND</code>'yi GND'ye bağla. Çıkış pini yükleyici sayfasında kartının altında yazar:</p>
+    <table>
+      <tr><th>Kart</th><th>Röle çıkışı</th></tr>
+      <tr><td>ESP32-S3, C3, C6, S2</td><td>GPIO5</td></tr>
+      <tr><td>ESP32 klasik (DevKit, NodeMCU-32S)</td><td>GPIO23</td></tr>
+    </table>
+    <p class="small">Pin farklıysa uygulamadan değiştirebilirsin (Cihaz Ekle → cihaza dokun → Röle). Kartı bir USB adaptörüne tak.</p>
+  </div></div>
+
+  <div class="card step"><div class="num">3</div><div style="flex:1">
+    <h2>Uygulamada eşleştir</h2>
+    <p><b>Cihaz Ekle → Cihaz ekle → Cihaz ara</b>'ya bas. Kartın birkaç saniye içinde <b>Nowlight-XXXX</b> adıyla çıkar. Üzerine dokun, <b>Yeni ışık olarak ekle</b>'yi seç, bir ad (örneğin Salon) ve simge seç, <b>Bağla</b>'ya bas. Aç ve kapat düğmelerini dene.</p>
+    <div class="shots">
+      <figure><img src="img/app-pairing.png" alt="Cihaz bulundu ekranı"><figcaption>Cihaz bulundu</figcaption></figure>
+      <figure><img src="img/app-new-light.png" alt="Ad ve simge seçimi"><figcaption>Ad ve simge</figcaption></figure>
+      <figure><img src="img/app-lights.png" alt="Işıklar ekranı"><figcaption>Işıklar ekranı</figcaption></figure>
+    </div>
+  </div></div>
+
+  <div class="card step"><div class="num">4</div><div style="flex:1">
+    <h2>Widget ve Siri (isteğe bağlı)</h2>
+    <p><b>Widget:</b> ana ekranda boş bir yere uzun bas, <b>+</b> ile Nowlight'ı ekle. Widget'a uzun basıp <b>Widget'ı Düzenle</b> ile hangi ışıkların görüneceğini seç (en fazla 8).</p>
+    <p><b>Siri:</b> Işıklar ekranının altındaki <b>Siri'ye ekle</b> kartından ışıkları seç. Her ışık için "aç" ve "kapat" cümlesi hazır gelir, her birini bir kez sesli söylersin. Sonra "Hey Siri, salon kapat" demen yeter, telefon kilitliyken de çalışır.</p>
+    <p class="small">Cümleyi "ışık" kelimesiyle başlatma: Siri bunu kendi Ev uygulamasına yönlendirip "evinde ayarlanmış ışık yok" diyebilir. "Salon kapat" gibi sade adlar güvenli.</p>
+    <div class="shots">
+      <figure><img src="img/app-widgets.png" alt="Widget önizlemeleri"><figcaption>Widget'lar</figcaption></figure>
+      <figure><img src="img/app-siri.png" alt="Siri komutları ekleme"><figcaption>Siri komutları</figcaption></figure>
+    </div>
+  </div></div>
+
+  <h2 style="margin:26px 0 10px;font-size:21px">Sorun mu var?</h2>
+  <div class="card">
+    <table>
+      <tr><th>Sorun</th><th>Çözüm</th></tr>
+      <tr><td>Yükleyicide port görünmüyor</td><td>Veri kablosu kullan. Kartın <b>BOOT</b> tuşuna basılı tutarak kabloyu tak, tuşu bırak. Başka bir program (Arduino, PlatformIO) portu açıksa kapat.</td></tr>
+      <tr><td>Tarayıcı "desteklemiyor" diyor</td><td>Chrome ya da Edge kullan (bilgisayarda ya da Android'de). iPhone ve Safari olmaz.</td></tr>
+      <tr><td>Uygulama cihazı bulamıyor</td><td>Telefon köprüyle aynı WiFi'de mi? Cihaz yeni güç aldıysa birkaç saniye bekle. Başka bir köprüye bağlıysa BOOT tuşuna 5 saniye basarak eşleşmeyi sil.</td></tr>
+      <tr><td>Köprüyü otomatik bulamıyor</td><td>Köprüdeki BOOT tuşuna 2 saniye bas (10 dakikalık kurulum penceresini yeniden açar) ve tekrar dene.</td></tr>
+      <tr><td>Işık ters çalışıyor</td><td>Cihaz Ekle → cihaza dokun → Röle bölümünde <b>Ters mantık</b>'ı değiştir.</td></tr>
+      <tr><td>Siri "evinde ışık yok" diyor</td><td>Komutu "ışık" kelimesiyle başlatma, "Siri'ye ekle" ile kendi cümleni ekle.</td></tr>
+    </table>
+  </div>
+
+  <a class="cta" href="/">Yükleyiciye git</a>
+  <p class="small" style="margin-top:24px">Yazılım açık kaynaktır: <a href="https://github.com/Farukzbek/Nowlight">GitHub</a>. Ayrıntılı belgeler ve devre bilgisi depoda.</p>
+</main>
+</body>
+</html>
