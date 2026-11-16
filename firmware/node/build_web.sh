@@ -3,7 +3,7 @@
 # Kullanim: cd firmware/node && ./build_web.sh
 set -e
 cd "$(dirname "$0")"
-VERSION="0.2.1"   # protokol (pair_proto.h PAIR_VERSION) degisince YENIDEN URET ve YAYINLA: eski dugum yeni kopruyu yok sayar
+VERSION="0.2.2"   # protokol (pair_proto.h PAIR_VERSION) degisince YENIDEN URET ve YAYINLA: eski dugum yeni kopruyu yok sayar
 OUT="../../web/flasher"
 mkdir -p "$OUT/firmware"
 
@@ -25,7 +25,7 @@ for entry in "${BOARDS[@]}"; do
   "name": "Nowlight dugumu ($title)",
   "version": "$VERSION",
   "new_install_prompt_erase": true,
-  "builds": [ { "chipFamily": "$chip", "parts": [ { "path": "$env.bin", "offset": 0 } ] } ]
+  "builds": [ { "chipFamily": "$chip", "parts": [ { "path": "$env.bin?v=$VERSION", "offset": 0 } ] } ]
 }
 JSON
 done

@@ -19,6 +19,8 @@ struct PairingFlow: View {
     @State private var busy = false
     @State private var poll: Task<Void, Never>?
     @State private var editing: LightID?
+    @State private var searchStart = Date()
+    @State private var foundAfter: Int?
 
     private var stepIndex: Int { [Step.intro, .searching, .pick, .role, .test, .done].firstIndex(of: step) ?? 0 }
 
@@ -77,7 +79,9 @@ struct PairingFlow: View {
             Text("Köprü eşleşme modunda, yeni cihazları dinliyor. Cihaza yeni güç verdiysen birkaç saniye içinde burada görünür.").foregroundStyle(.secondary)
             HStack(spacing: 10) {
                 ProgressView()
-                Text("\(status?.secondsLeft ?? 0) sn kaldı").monospacedDigit().foregroundStyle(.secondary)
+                TimelineView(.periodic(from: searchStart, by: 1)) { ctx in
+                    Text("\(Int(ctx.date.timeIntervalSince(searchStart))) sn").monospacedDigit().foregroundStyle(.secondary)
+                }
             }
             if let s = status, !s.found.isEmpty {
                 ForEach(s.found) { c in candidateRow(c) }
@@ -89,6 +93,7 @@ struct PairingFlow: View {
     private var pick: some View {
         VStack(alignment: .leading, spacing: 14) {
             header("checkmark.seal.fill", "Cihaz bulundu")
+            if let t = foundAfter { Text("\(t) saniyede bulundu").font(.subheadline).foregroundStyle(.secondary) }
             ForEach(status?.found ?? []) { c in candidateRow(c) }
             Text("Birden fazla cihaz görünüyorsa, istediğini seçmeden önce diğerlerini fişten çekip emin olabilirsin.").font(.footnote).foregroundStyle(.secondary)
         }
@@ -244,6 +249,7 @@ struct PairingFlow: View {
         do {
             let c = try BridgeClient.fromConfig()
             status = try await c.pairStart()
+            searchStart = Date(); foundAfter = nil
             step = .searching
             poll?.cancel()
             poll = Task {
@@ -252,7 +258,7 @@ struct PairingFlow: View {
                     guard let st = try? await c.pairStatus() else { continue }
                     await MainActor.run {
                         status = st
-                        if !st.found.isEmpty && step == .searching { step = .pick }
+                        if !st.found.isEmpty && step == .searching { foundAfter = Int(Date().timeIntervalSince(searchStart)); step = .pick }
                         if !st.open && st.found.isEmpty && step == .searching { error = "Süre doldu, cihaz bulunamadı. Cihaza güç verdiğinden emin ol ve tekrar ara."; step = .intro }
                     }
                 }

@@ -118,16 +118,32 @@ static bool handleAccept() {
 
 static void pairingLoop() {
   static uint8_t ch = 0;
-  static uint32_t dwell = 0, lastHello = 0;
+  static uint32_t dwell = 0, lastHello = 0, lockedAt = 0;
   static bool locked = false;
+  static bool tried[14];                               // bu turda denenen kanallar
 
   if (g_haveAccept) { handleAccept(); g_haveAccept = false; }
 
   if (locked) {
     if (!(g_beaconMs && millis() - g_beaconMs < 6000)) {        // kopru sustu (pencere kapandi): yeniden tara
       locked = false; ch = 0;
-      for (int i = 0; i < 14; i++) g_rssiCh[i] = -127;
+      for (int i = 0; i < 14; i++) { g_rssiCh[i] = -127; tried[i] = false; }
       Serial.println("[eslesme] kopru sesi kesildi, yeniden taraniyor");
+    } else if (millis() - lockedAt > 20000) {
+      // 20 sn'dir eslesme olmadi: bu kanal (komsu kanalin yankisi olabilir) kotu secim, sinyal siralamasinda bir sonrakine gec
+      tried[ch] = true;
+      uint8_t next = 0; int8_t nextR = -127;
+      for (uint8_t c = 1; c <= 13; c++) if (!tried[c] && g_rssiCh[c] > nextR) { nextR = g_rssiCh[c]; next = c; }
+      if (next) {
+        esp_wifi_set_channel(next, WIFI_SECOND_CHAN_NONE);
+        ch = next; lockedAt = millis(); lastHello = 0;
+        Serial.printf("[eslesme] eslesme olmadi, siradaki kanal: %u (sinyal %d dBm)\n", next, nextR);
+      } else {                                         // hepsi denendi: bastan tara
+        locked = false; ch = 0;
+        for (int i = 0; i < 14; i++) { g_rssiCh[i] = -127; tried[i] = false; }
+        Serial.println("[eslesme] tum kanallar denendi, yeniden taraniyor");
+      }
+      return;
     } else {
       if (millis() - lastHello >= 700) {
         lastHello = millis();
@@ -152,7 +168,8 @@ static void pairingLoop() {
       for (uint8_t c = 1; c <= 13; c++) if (g_rssiCh[c] > bestR) { bestR = g_rssiCh[c]; best = c; }
       if (best) {
         esp_wifi_set_channel(best, WIFI_SECOND_CHAN_NONE);
-        locked = true; ch = best; lastHello = 0; g_beaconMs = millis();
+        locked = true; ch = best; lastHello = 0; lockedAt = millis(); g_beaconMs = millis();
+        for (int i = 0; i < 14; i++) tried[i] = false;
         Serial.printf("[eslesme] kopru bulundu: kanal %u (sinyal %d dBm), uygulamadan secilmeyi bekliyor\n", best, bestR);
         return;
       }

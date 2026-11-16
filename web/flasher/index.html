@@ -140,7 +140,7 @@
   function apply() {
     const o = select.selectedOptions[0];
     const fw = fwOf(o);
-    installer.setAttribute("manifest", `firmware/${fw}.json`);
+    installer.setAttribute("manifest", `firmware/${fw}.json?t=${Date.now()}`);   // onbellegi atla: eski yazilim yuklenmesin
     document.getElementById("boardNote").textContent = notes[fw] ?? pins[fw] ?? "";
     try { localStorage.setItem("board", o.value); } catch (e) {}
   }
