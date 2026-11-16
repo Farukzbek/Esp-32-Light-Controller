@@ -11,6 +11,7 @@ final class AppModel {
     var error: String?
     var lastUpdate: Date?
     private var polling: Task<Void, Never>?
+    private var deletedAt: [String: Date] = [:]       // yeni silinen isiklar: kopru yeniden baslayana kadar benimsenmez
     private var pendingUntil: [LightID: Date] = [:]   // komut gonderilen isigin eski cevapla geri donmemesi icin
 
     var connected: Bool { state != nil && error == nil }
@@ -60,7 +61,10 @@ final class AppModel {
     /// Eklenen isigi KALICI siler: dugumun eslesmesi silinir (kopru kisaca yeniden baslar), uygulamadan ve otomasyonlardan kalkar.
     func deleteDevice(_ light: LightID) async throws {
         guard !light.isBuiltin else { return }
-        try await BridgeClient.fromConfig().nodeForget(id: light.rawValue)
+        // Kopru bu isigi zaten bilmiyorsa (400: ornegin daha once silindi, hayalet kayit) yerelden silmek yeterli; yalnizca ag hatasinda dur.
+        do { try await BridgeClient.fromConfig().nodeForget(id: light.rawValue) }
+        catch BridgeError.badResponse { }
+        deletedAt[light.rawValue] = Date()           // kopru yeniden baslayana kadar eski durumda goruneceginden hemen geri eklenmesin
         BridgeConfig.customDevices = BridgeConfig.customDevices.filter { $0 != light.rawValue }
         removed.remove(light.rawValue); BridgeConfig.removed = removed
         names.removeValue(forKey: light.rawValue); BridgeConfig.names = names
@@ -123,7 +127,10 @@ final class AppModel {
     /// Kopru "d3".."d6" ışığını biliyor ama uygulamada yoksa (eşleşme cevabı yarıda kaldıysa, başka telefondan eklendiyse) listeye ekler.
     private func adoptBridgeDevices(_ s: LightsState) {
         let known = Set(BridgeConfig.customDevices)
-        let found = s.values.keys.filter { $0.count == 2 && $0.hasPrefix("d") && ($0.last?.isNumber ?? false) && !known.contains($0) }
+        let found = s.values.keys.filter {
+            $0.count == 2 && $0.hasPrefix("d") && ($0.last?.isNumber ?? false) && !known.contains($0)
+                && Date().timeIntervalSince(deletedAt[$0] ?? .distantPast) > 60      // yeni silinen isigi 60 sn geri ekleme
+        }
         guard !found.isEmpty else { return }
         BridgeConfig.customDevices = BridgeConfig.customDevices + found.sorted()
         removed = BridgeConfig.removed          // gorunumler tazelensin
