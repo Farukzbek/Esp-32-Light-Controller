@@ -3,6 +3,9 @@
 Tüm kartlarda **aynı yazılım**: içinde hiçbir ayar yok. İlk açılışta köprüyle eşleşmeyi bekler, eşleşince bir röle (ışık) olur.
 
 ## Yükleme (kolay yol): web yükleyici
+**https://flash.matestudios.online** (Chrome ya da Edge). Kartı seç, USB ile tak, Yükle.
+
+Yerelde denemek için:
 `web/flasher` klasörünü bir web sunucusuyla aç (Chrome ya da Edge, bilgisayarda/Android'de):
 ```bash
 cd web/flasher && python3 -m http.server 8765      # sonra http://localhost:8765
