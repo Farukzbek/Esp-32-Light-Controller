@@ -21,3 +21,11 @@ int8_t now_rssi(int link, uint32_t *ageMs);
 // Sinyal olcumu sadece istenince acilir (promiscuous mod radyoyu/islemciyi yorar): durum sayfasi acikken.
 void now_rssi_enable(bool on);
 uint8_t now_channel(void);   // radyonun su anki kanali
+
+// --- Eslesen dugumler (genel isik dugumleri): yuva 3..6 (uygulamada "d3".."d6") ---
+#define NOW_DYN_FIRST 3
+#define NOW_DYN_MAX   4
+bool now_dyn_add(uint8_t slot, const uint8_t mac[6]);   // yuvaya dugum bagla (SpanPoint olusturur, NVS'e yazar)
+bool now_dyn_present(uint8_t slot);
+int8_t now_dyn_state(uint8_t slot);                     // 1 acik, 0 kapali, -1 bilinmiyor
+bool now_dyn_linked(uint8_t slot);                      // dugum son zamanlarda konustu mu

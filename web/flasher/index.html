@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Nowlight Yükleyici</title>
+<meta name="description" content="ESP32'ye Nowlight ışık düğümü yazılımını tarayıcıdan yükle.">
+<style>
+  :root {
+    --bg: #0b0b0c; --card: #17171a; --line: #2a2a2f; --text: #f2f2f4; --muted: #9a9aa3;
+    --accent: #ffc93c; --ink: #14120c; --warn: #ff9f43; --ok: #34d27b;
+  }
+  @media (prefers-color-scheme: light) {
+    :root { --bg: #f6f6f7; --card: #ffffff; --line: #e1e1e6; --text: #17171a; --muted: #62626b; --ink: #14120c; }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 16px/1.5 -apple-system, system-ui, "Segoe UI", Roboto, sans-serif; }
+  main { max-width: 620px; margin: 0 auto; padding: 32px 16px 64px; }
+  h1 { font-size: 28px; margin: 0 0 4px; letter-spacing: -0.02em; }
+  .sub { color: var(--muted); margin: 0 0 28px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 18px; padding: 18px; margin-bottom: 14px; }
+  .step { display: flex; gap: 14px; }
+  .num { flex: none; width: 28px; height: 28px; border-radius: 50%; background: var(--accent); color: var(--ink); font-weight: 700; display: grid; place-items: center; font-size: 14px; }
+  h2 { font-size: 17px; margin: 2px 0 6px; }
+  p { margin: 6px 0; color: var(--muted); }
+  select { width: 100%; padding: 12px 14px; border-radius: 12px; border: 1px solid var(--line); background: var(--bg); color: var(--text); font-size: 16px; margin-top: 8px; }
+  .hint { font-size: 14px; }
+  .install { margin-top: 12px; }
+  esp-web-install-button button { background: var(--accent); color: var(--ink); border: 0; border-radius: 14px; padding: 14px 22px; font-size: 17px; font-weight: 700; cursor: pointer; width: 100%; }
+  .warn { border-color: var(--warn); color: var(--warn); display: none; }
+  .warn.show { display: block; }
+  .small { font-size: 13px; color: var(--muted); }
+  details { margin-top: 10px; }
+  summary { cursor: pointer; color: var(--text); }
+  code { background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 1px 6px; font-size: 14px; }
+  a { color: var(--accent); }
+</style>
+</head>
+<body>
+<main>
+  <h1>Nowlight Yükleyici</h1>
+  <p class="sub">ESP32'ye ışık düğümü yazılımını tarayıcıdan yükle. Program ya da sürücü kurmana gerek yok.</p>
+
+  <div class="card warn" id="unsupported">
+    Bu tarayıcı USB üzerinden yükleme yapamıyor. <b>Chrome</b> ya da <b>Edge</b> ile (bilgisayarda ya da Android'de) aç. iPhone ve Safari desteklemiyor.
+  </div>
+
+  <div class="card step">
+    <div class="num">1</div>
+    <div style="flex:1">
+      <h2>Kartını seç</h2>
+      <select id="board" aria-label="Kart türü">
+        <option value="esp32s3-supermini">ESP32-S3 Super Mini</option>
+        <option value="esp32c6">ESP32-C6 DevKit</option>
+        <option value="esp32dev">ESP32 DevKit (klasik, CP2102 / CH340)</option>
+      </select>
+      <p class="hint" id="boardNote"></p>
+    </div>
+  </div>
+
+  <div class="card step">
+    <div class="num">2</div>
+    <div style="flex:1">
+      <h2>Kartı USB ile bilgisayara tak</h2>
+      <p>Veri kablosu kullan (yalnızca şarj kablosu çalışmaz). Başka bir program kartın seri portunu açıksa kapat.</p>
+    </div>
+  </div>
+
+  <div class="card step">
+    <div class="num">3</div>
+    <div style="flex:1">
+      <h2>Yükle</h2>
+      <p>Düğmeye bas, açılan listeden kartının portunu seç ve onayla. Yükleme bir dakika kadar sürer.</p>
+      <div class="install">
+        <esp-web-install-button id="installer" manifest="firmware/esp32s3-supermini.json">
+          <button slot="activate">Yükle</button>
+          <span slot="unsupported"></span>
+          <span slot="not-allowed">Bu sayfa güvenli (https ya da localhost) bağlantıyla açılmalı.</span>
+        </esp-web-install-button>
+      </div>
+      <details>
+        <summary>Port listede görünmüyor</summary>
+        <p class="small">Kartın <b>BOOT</b> tuşuna basılı tutarak USB kablosunu tak, sonra tuşu bırak ve tekrar dene. Bazı kartlarda ilk yüklemede bu gerekir.</p>
+      </details>
+    </div>
+  </div>
+
+  <div class="card step">
+    <div class="num">4</div>
+    <div style="flex:1">
+      <h2>Uygulamadan ekle</h2>
+      <p>Kartı bir USB adaptörüne tak (ya da bilgisayarda bırak). Telefonda <b>Nowlight → Cihaz Ekle → Cihaz ekle</b> ile eşleştir. Bilgi girmen gerekmez.</p>
+      <p class="small">Eşleşmeyi silmek için kartın BOOT tuşuna 5 sn basılı tut.</p>
+    </div>
+  </div>
+
+  <p class="small">Yazılım açık kaynaktır: <a href="https://github.com/Farukzbek/Esp-32-Light-Controller">GitHub</a>. Sürüm <span id="ver"></span>.</p>
+</main>
+
+<script type="module" src="https://unpkg.com/esp-web-tools@10.0.1/dist/web/install-button.js?module"></script>
+<script>
+  const notes = {
+    "esp32s3-supermini": "Röle çıkışı GPIO5. Yerleşik USB ile bağlanır.",
+    "esp32c6": "Röle çıkışı GPIO5. USB-C portundan bağlan.",
+    "esp32dev": "Röle çıkışı GPIO23. Bazı kartlarda BOOT tuşu gerekebilir."
+  };
+  const select = document.getElementById("board");
+  const installer = document.getElementById("installer");
+  function apply() {
+    const id = select.value;
+    installer.setAttribute("manifest", `firmware/${id}.json`);
+    document.getElementById("boardNote").textContent = notes[id] || "";
+    try { localStorage.setItem("board", id); } catch (e) {}
+  }
+  try { const s = localStorage.getItem("board"); if (s && notes[s]) select.value = s; } catch (e) {}
+  select.addEventListener("change", apply);
+  apply();
+  if (!("serial" in navigator)) document.getElementById("unsupported").classList.add("show");
+  fetch("firmware/esp32s3-supermini.json").then(r => r.json()).then(j => { document.getElementById("ver").textContent = j.version; }).catch(() => {});
+</script>
+</body>
+</html>

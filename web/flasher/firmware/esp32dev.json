@@ -1,0 +1,6 @@
+{
+  "name": "Nowlight dugumu (ESP32 DevKit (klasik))",
+  "version": "0.1.0",
+  "new_install_prompt_erase": true,
+  "builds": [ { "chipFamily": "ESP32", "parts": [ { "path": "esp32dev.bin", "offset": 0 } ] } ]
+}

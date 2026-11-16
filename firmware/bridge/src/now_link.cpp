@@ -3,6 +3,8 @@
 #include "now_link.h"
 #include "freertos/queue.h"
 #include "esp_wifi.h"
+#include <Preferences.h>
+#include "pairing.h"
 #include <string.h>
 
 // Kontrolcu iki cihazla konusur:
@@ -11,7 +13,8 @@
 // SpanPoint::send() true donse bile karsi uygulama mesaji anlamis olmayabilir (802.11 donanim ACK'i
 // yazilimdan bagimsiz gelir). Gercek onay, karsinin ayni seq ile dondurdugu STATE mesajidir.
 
-#define LINKS 2
+// Baglantilar: 0 = hub (masa, led), 1 = yatak, 2.. = eslesen dugumler (yuva 3..6)
+#define LINKS (2 + NOW_DYN_MAX)
 #ifndef NOW_VERBOSE
 #define NOW_VERBOSE 0   // 1: her mesaji seri porta yaz (teshis)
 #endif
@@ -29,6 +32,7 @@ struct Link {
   bool everSeen = false;
   uint32_t lastRxMs = 0;
   uint32_t lastFailMs = 0;   // son ulasilamayan komut
+  uint32_t createdMs = 0;    // eslesen dugum: baglanti olusturuldugu an
 };
 
 struct Out { NowMsg m; uint8_t link; };
@@ -38,11 +42,13 @@ static Link s_link[LINKS];
 // --- Sinyal gucu (RSSI): promiscuous modda iki cihazin gonderdigi ESP-NOW cercevelerinden okunur ---
 static bool s_promisc = false;      // promiscuous (RSSI) modu acik mi
 static uint8_t s_mac[LINKS][6];
-static volatile int8_t s_rssi[LINKS] = {0, 0};
-static volatile uint32_t s_rssiMs[LINKS] = {0, 0};
+static volatile int8_t s_rssi[LINKS] = {};
+static volatile uint32_t s_rssiMs[LINKS] = {};
+static volatile int8_t s_dyn[NOW_DYN_MAX] = {-1, -1, -1, -1};   // eslesen dugumlerin durumu
 
-static void promiscCb(void *buf, wifi_promiscuous_pkt_type_t) {
+static void promiscCb(void *buf, wifi_promiscuous_pkt_type_t type) {
   const wifi_promiscuous_pkt_t *p = (const wifi_promiscuous_pkt_t *)buf;
+  if (type == WIFI_PKT_MGMT) pair_sniff(p);       // eslesme penceresi: HELLO yakala
   if (p->rx_ctrl.sig_len < 16) return;
   const uint8_t *src = p->payload + 10;            // 802.11 basligi: addr2 = gonderen
   for (int k = 0; k < LINKS; k++) {
@@ -67,9 +73,13 @@ static volatile bool s_newState = false;
 static volatile bool s_failed = false;
 static volatile uint16_t s_seq = 0;
 
-static uint8_t linkOfDev(uint8_t dev) { return dev == DEV_YATAK ? 1 : 0; }
+static uint8_t linkOfDev(uint8_t dev) {
+  if (dev >= NOW_DYN_FIRST && dev < NOW_DYN_FIRST + NOW_DYN_MAX) return 2 + (dev - NOW_DYN_FIRST);
+  return dev == DEV_YATAK ? 1 : 0;
+}
 
 static void enqueue(const NowMsg &m, uint8_t link) {
+  if (link >= LINKS || !s_link[link].sp) return;   // bos yuva
   Out o = {m, link};
   if (s_q) xQueueSend(s_q, &o, 0);
 }
@@ -85,10 +95,12 @@ static void applyLock(uint8_t ch) {
 static void pollIncoming() {
   for (int k = 0; k < LINKS; k++) {
     Link &L = s_link[k];
+    if (!L.sp) continue;
     NowMsg in;
     while (L.sp->get(&in)) {
       if (in.type != NOW_STATE) continue;
       for (int i = 0; i < 4; i++) if (in.st[i] != NOW_UNKNOWN) s_state[i] = in.st[i];
+      if (k >= 2) s_dyn[k - 2] = in.val ? 1 : 0;   // eslesen dugum: durum dev/val alaninda
       s_newState = true;
       L.everSeen = true;
       L.lastRxMs = millis();
@@ -111,6 +123,7 @@ static void nowTask(void *) {
     Out o;
     if (xQueueReceive(s_q, &o, pdMS_TO_TICKS(20)) == pdTRUE) {
       Link &L = s_link[o.link];
+      if (!L.sp) continue;
       uint32_t t0 = millis();
       bool ok = L.sp->send(&o.m);
 #if NOW_VERBOSE
@@ -124,7 +137,7 @@ static void nowTask(void *) {
     // yanit gelmeyen komutlari yeniden dene
     for (int k = 0; k < LINKS; k++) {
       Link &L = s_link[k];
-      if (!L.havePending || millis() - L.sentAt <= 350) continue;
+      if (!L.sp || !L.havePending || millis() - L.sentAt <= 350) continue;
       if (L.tries < 3) {
         L.sp->send(&L.pending);
         L.sentAt = millis();
@@ -150,6 +163,37 @@ static void nowTask(void *) {
   }
 }
 
+static String macToStr(const uint8_t m[6]) {
+  char b[18];
+  snprintf(b, sizeof(b), "%02X:%02X:%02X:%02X:%02X:%02X", m[0], m[1], m[2], m[3], m[4], m[5]);
+  return String(b);
+}
+
+bool now_dyn_add(uint8_t slot, const uint8_t mac[6]) {
+  if (slot < NOW_DYN_FIRST || slot >= NOW_DYN_FIRST + NOW_DYN_MAX) return false;
+  const int k = 2 + (slot - NOW_DYN_FIRST);
+  Link n;                                    // yeni baglanti (eski varsa SpanPoint'i bellekte kalir, kullanilmaz)
+  n.name = "dugum";
+  n.createdMs = millis();
+  memcpy(s_mac[k], mac, 6);
+  n.sp = new SpanPoint(macToStr(mac).c_str(), sizeof(NowMsg), sizeof(NowMsg), 4);
+  s_dyn[k - 2] = -1;
+  s_link[k] = n;
+  Preferences p;
+  if (p.begin("nodes", false)) { char key[4]; snprintf(key, sizeof(key), "m%u", slot); p.putBytes(key, mac, 6); p.end(); }
+  Serial.printf("[now] dugum baglandi: yuva %u = %s\n", slot, macToStr(mac).c_str());
+  return true;
+}
+
+bool now_dyn_present(uint8_t slot) {
+  return slot >= NOW_DYN_FIRST && slot < NOW_DYN_FIRST + NOW_DYN_MAX && s_link[2 + slot - NOW_DYN_FIRST].sp != nullptr;
+}
+int8_t now_dyn_state(uint8_t slot) { return now_dyn_present(slot) ? s_dyn[slot - NOW_DYN_FIRST] : -1; }
+bool now_dyn_linked(uint8_t slot) {
+  if (!now_dyn_present(slot)) return false;
+  return (now_link_down_mask() & (1 << (2 + slot - NOW_DYN_FIRST))) == 0;
+}
+
 void now_init(void) {
   SpanPoint::setPassword(NOW_PASSWORD);
   s_link[0].name = "hub";
@@ -164,6 +208,17 @@ void now_init(void) {
   esp_wifi_set_promiscuous_filter(&filt);
   esp_wifi_set_promiscuous_rx_cb(promiscCb);   // acmak icin now_rssi_enable(true)
   applyLock(NOW_CHANNEL);
+  { // kayitli eslesen dugumleri geri yukle
+    Preferences p;
+    if (p.begin("nodes", true)) {
+      for (uint8_t slot = NOW_DYN_FIRST; slot < NOW_DYN_FIRST + NOW_DYN_MAX; slot++) {
+        char key[4]; snprintf(key, sizeof(key), "m%u", slot);
+        uint8_t mac[6];
+        if (p.isKey(key) && p.getBytes(key, mac, 6) == 6) { p.end(); now_dyn_add(slot, mac); p.begin("nodes", true); }
+      }
+      p.end();
+    }
+  }
   Serial.printf("[now] kumanda MAC = %s  masa = %s  yatak = %s  sabit kanal = %d\n", Network.macAddress().c_str(), NOW_HUB_MAC, NOW_BED_MAC, NOW_CHANNEL);
   xTaskCreate(nowTask, "now", 8192, nullptr, 1, nullptr);
 }
@@ -176,6 +231,7 @@ void now_send_set(uint8_t dev, bool on) {
 
 void now_query(void) {
   for (uint8_t k = 0; k < LINKS; k++) {
+    if (!s_link[k].sp) continue;
     NowMsg m = {};
     m.type = NOW_QUERY; m.seq = ++s_seq;
     enqueue(m, k);
@@ -205,6 +261,13 @@ uint8_t now_link_down_mask(void) {
   if (bed.everSeen && now - bed.lastRxMs >= 30000) m |= 2;
   if (bed.lastFailMs > bed.lastRxMs && now - bed.lastFailMs < 120000) m |= 2;
   if (hub.lastFailMs > hub.lastRxMs && now - hub.lastFailMs < 120000) m |= 1;
+  // eslesen dugumler: bit (2 + sira)
+  for (int k = 2; k < LINKS; k++) {
+    const Link &L = s_link[k];
+    if (!L.sp) continue;
+    const bool silent = L.everSeen ? (now - L.lastRxMs >= 30000) : (now - L.createdMs >= 45000);
+    if (silent || (L.lastFailMs > L.lastRxMs && now - L.lastFailMs < 120000)) m |= (1 << k);
+  }
   return m;
 }
 

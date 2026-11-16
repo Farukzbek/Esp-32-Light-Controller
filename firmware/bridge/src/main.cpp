@@ -6,12 +6,15 @@
 #include "esp_random.h"
 #include "now_proto.h"
 #include "now_link.h"
+#include "pairing.h"
 
 // Telefon koprusu: iOS uygulamasi/widget'lari yerel agdan HTTP ile komut verir, kopru ESP-NOW ile dugumlere iletir.
 //
 //   GET  /api/ping                     kimlik (token gerekmez): {"name":"nowlight-bridge"}
 //   GET  /api/state                    {"masa":0|1|-1,"yatak":..,"led":..,"links":{"masa":true,"yatak":false},"channel":1,"wifiChannel":1}
-//   POST /api/set   dev=masa|yatak|led|all  val=0|1
+//   POST /api/set   dev=masa|yatak|led|d3..d6|all  val=0|1
+//   Eslesme: POST /api/pair/start | GET /api/pair | POST /api/pair/accept?mac=..&id=d3 | POST /api/pair/stop
+//   (durumda eslesen dugumler: "devices":{"d3":1}, links:{"d3":true})
 // Token: istek basligi "X-Token". Ilk acilista rastgele uretilir, seri porttan "token" ile gosterilir.
 //
 // Seri komutlar (115200): wifi <ssid> <sifre> | ip <adres> [ag_gecidi] | ip auto | token | newtoken | status | reboot
@@ -76,11 +79,20 @@ static void pollState() {
 static String stateJson() {
   pollState();
   const uint8_t down = now_link_down_mask();
-  char b[200];
-  snprintf(b, sizeof(b),
-           "{\"masa\":%d,\"yatak\":%d,\"led\":%d,\"links\":{\"masa\":%s,\"yatak\":%s},\"channel\":%d,\"wifiChannel\":%d}",
-           g_st[0], g_st[1], g_st[2], (down & 1) ? "false" : "true", (down & 2) ? "false" : "true", NOW_CHANNEL, (int)WiFi.channel());
-  return String(b);
+  String o = "{\"masa\":" + String(g_st[0]) + ",\"yatak\":" + String(g_st[1]) + ",\"led\":" + String(g_st[2]);
+  o += ",\"devices\":{";
+  bool first = true;
+  for (uint8_t slot = NOW_DYN_FIRST; slot < NOW_DYN_FIRST + NOW_DYN_MAX; slot++) {
+    if (!now_dyn_present(slot)) continue;
+    if (!first) o += ',';
+    first = false;
+    o += "\"d" + String(slot) + "\":" + String(now_dyn_state(slot));
+  }
+  o += "},\"links\":{\"masa\":" + String((down & 1) ? "false" : "true") + ",\"yatak\":" + String((down & 2) ? "false" : "true");
+  for (uint8_t slot = NOW_DYN_FIRST; slot < NOW_DYN_FIRST + NOW_DYN_MAX; slot++)
+    if (now_dyn_present(slot)) o += ",\"d" + String(slot) + "\":" + String((down & (1 << (2 + slot - NOW_DYN_FIRST))) ? "false" : "true");
+  o += "},\"channel\":" + String(NOW_CHANNEL) + ",\"wifiChannel\":" + String((int)WiFi.channel()) + "}";
+  return o;
 }
 
 // ---------------------------------------------------------------- HTTP
@@ -109,6 +121,16 @@ static void handleState() {
   server.send(200, "application/json", stateJson());
 }
 
+// "masa" | "yatak" | "led" | "d3".."d6" -> yuva numarasi (yoksa -1)
+static int devSlot(const String &dev) {
+  for (int i = 0; i < 3; i++) if (dev == DEV_NAMES[i]) return i;
+  if (dev.length() == 2 && dev[0] == 'd' && isDigit(dev[1])) {
+    const int slot = dev[1] - '0';
+    if (now_dyn_present(slot)) return slot;
+  }
+  return -1;
+}
+
 static void handleSet() {
   if (!authorized()) return;
   const String dev = server.arg("dev"), val = server.arg("val");
@@ -116,14 +138,27 @@ static void handleSet() {
   const bool on = (val == "1");
   if (dev == "all") {
     for (int i = 0; i < 3; i++) now_send_set(i, on);
+    for (int s = NOW_DYN_FIRST; s < NOW_DYN_FIRST + NOW_DYN_MAX; s++) if (now_dyn_present(s)) now_send_set(s, on);
   } else {
-    int d = -1;
-    for (int i = 0; i < 3; i++) if (dev == DEV_NAMES[i]) d = i;
+    const int d = devSlot(dev);
     if (d < 0) { server.send(400, "application/json", "{\"error\":\"dev\"}"); return; }
     now_send_set(d, on);
   }
   Serial.printf("[http] set %s=%d\n", dev.c_str(), on);
   server.send(200, "application/json", "{\"ok\":true}");   // gercek onay: sonraki /api/state'te dugumun bildirdigi deger
+}
+
+// ---- eslesme
+static void handlePairStart() { if (!authorized()) return; pair_start(); server.send(200, "application/json", pair_json()); }
+static void handlePairStatus() { if (!authorized()) return; server.send(200, "application/json", pair_json()); }
+static void handlePairStop() { if (!authorized()) return; pair_stop(); server.send(200, "application/json", "{\"ok\":true}"); }
+static void handlePairAccept() {
+  if (!authorized()) return;
+  const String id = server.arg("id");
+  if (id.length() != 2 || id[0] != 'd' || !isDigit(id[1])) { server.send(400, "application/json", "{\"error\":\"id: yalnizca d3..d6 (yerlesik isiklarin yerine gecme henuz yok)\"}"); return; }
+  String err;
+  if (!pair_accept(server.arg("mac"), id[1] - '0', err)) { server.send(400, "application/json", "{\"error\":\"" + err + "\"}"); return; }
+  server.send(200, "application/json", "{\"ok\":true}");
 }
 
 static void startHttp() {
@@ -132,6 +167,10 @@ static void startHttp() {
   server.on("/api/ping", HTTP_GET, handlePing);
   server.on("/api/state", HTTP_GET, handleState);
   server.on("/api/set", HTTP_POST, handleSet);
+  server.on("/api/pair/start", HTTP_POST, handlePairStart);
+  server.on("/api/pair", HTTP_GET, handlePairStatus);
+  server.on("/api/pair/accept", HTTP_POST, handlePairAccept);
+  server.on("/api/pair/stop", HTTP_POST, handlePairStop);
   server.onNotFound([]() { server.send(404, "application/json", "{\"error\":\"yok\"}"); });
   server.begin();
 }
@@ -223,6 +262,7 @@ void loop() {
   handleSerial();
   server.handleClient();
   pollState();
+  pair_loop();
 
   const bool up = WiFi.status() == WL_CONNECTED;
   if (up && !g_wifiWasUp) {

@@ -1,0 +1,6 @@
+{
+  "name": "Nowlight dugumu (ESP32-S3 Super Mini)",
+  "version": "0.1.0",
+  "new_install_prompt_erase": true,
+  "builds": [ { "chipFamily": "ESP32-S3", "parts": [ { "path": "esp32s3-supermini.bin", "offset": 0 } ] } ]
+}

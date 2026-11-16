@@ -34,3 +34,18 @@ Token, `X-Token` başlığında gönderilir (`/api/ping` hariç).
 | `POST /api/set?dev=masa\|yatak\|led\|all&val=0\|1` | Komut gönderir. Gerçek onay, bir sonraki `/api/state`'te düğümün bildirdiği değerdir. |
 
 Adres: `nowlight.local` (mDNS) ya da cihazın IP'si.
+
+## Cihaz eşleştirme (genel düğümler)
+Köprü, `firmware/node` yazılımı yüklü yeni düğümleri uygulamadan eşleştirir (en fazla 4 düğüm: yuva `d3`…`d6`). Eşleşen düğümler köprünün NVS'inde (`nodes`) saklanır ve açılışta yeniden bağlanır.
+
+| İstek | Anlam |
+|---|---|
+| `POST /api/pair/start` | Eşleşme penceresini açar (120 sn): köprü beacon yayınlar, yeni düğümlerin HELLO'sunu dinler |
+| `GET /api/pair` | `{"open":true,"secondsLeft":87,"found":[{"mac":"AA:..","name":"Nowlight-1122","rssi":-52}]}` |
+| `POST /api/pair/accept?mac=AA:..&id=d3` | Adayı yuvaya bağlar; ağ parolası, kanal ve yuvayı şifreli gönderir |
+| `POST /api/pair/stop` | Pencereyi kapatır |
+
+`/api/state` artık eşleşen düğümleri de bildirir: `"devices":{"d3":1}`, `"links":{"d3":true}`. `POST /api/set?dev=d3&val=1` ile komut verilir; `dev=all` eşleşen düğümleri de kapsar.
+Yerleşik ışıkların (masa, yatak, led) yerine geçme şimdilik yok (`accept` yalnızca `d3`…`d6` kabul eder).
+
+Protokol, güvenlik ve sınırlar: `firmware/shared/pair_proto.h`, `firmware/node/README.md`.

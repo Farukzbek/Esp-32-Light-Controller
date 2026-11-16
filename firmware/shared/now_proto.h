@@ -5,10 +5,12 @@
 // Iki uc da BU dosyayi kullanir: mesaj boyutu (sizeof(NowMsg)) iki tarafta ayni olmak zorunda.
 
 // Cihaza ozel ayarlar (MAC adresleri, ESP-NOW kanali, sifreleme parolasi) now_config.h icinde.
+#ifndef NOW_NO_CONFIG   // genel dugum (firmware/node): ayar derleme zamaninda degil, eslesirken gelir
 #if __has_include("now_config.h")
 #include "now_config.h"
 #else
 #error "now_config.h yok: firmware/shared/now_config.example.h dosyasini now_config.h olarak kopyalayip doldur (bkz. docs/setup.md)"
+#endif
 #endif
 
 enum : uint8_t { NOW_SET = 1, NOW_QUERY = 2, NOW_STATE = 3 };

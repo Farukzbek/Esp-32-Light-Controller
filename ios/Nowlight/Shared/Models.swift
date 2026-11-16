@@ -1,7 +1,7 @@
 import AppIntents
 import SwiftUI
 
-/// Kontrol edilen isiklar. `all` = hepsi. Uc yerlesik isik (masa, yatak, led) ve kullanicinin ekledigi isiklar ("d3"..."d7", en fazla 8 isik).
+/// Kontrol edilen isiklar. `all` = hepsi. Uc yerlesik isik (masa, yatak, led) ve kullanicinin ekledigi isiklar ("d3"..."d6", en fazla 7 isik).
 struct LightID: Hashable, Identifiable {
     let rawValue: String
     var id: String { rawValue }
@@ -18,8 +18,9 @@ struct LightID: Hashable, Identifiable {
         self.rawValue = rawValue
     }
 
-    static let maxDevices = 8
-    /// Kopruyle ortak "yuva" numarasi: masa 0, yatak 1, led 2, eklenenler 3...7. Otomasyon bit maskesi de buna gore (1 << yuva).
+    /// Azami isik sayisi: ESP-NOW en fazla 6 sifreli esle konusur (hub + yatak + 4 eslesen dugum) -> yuvalar 0...6.
+    static let maxDevices = 7
+    /// Kopruyle ortak "yuva" numarasi: masa 0, yatak 1, led 2, eklenenler 3...6. Otomasyon bit maskesi de buna gore (1 << yuva).
     var slot: Int? {
         switch rawValue {
         case "masa": 0

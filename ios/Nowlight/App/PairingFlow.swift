@@ -110,7 +110,7 @@ struct PairingFlow: View {
     private var roles: some View {
         VStack(alignment: .leading, spacing: 14) {
             header("slider.horizontal.3", "Bu cihaz ne olacak?")
-            Text("Yeni bir ışık olarak ekle ya da mevcut bir ışığın yerine geçir.").foregroundStyle(.secondary)
+            Text("Cihazı yeni bir ışık olarak ekle.").foregroundStyle(.secondary)
 
             // Yeni isik
             Button { addingNew = true; role = nil } label: {
@@ -148,23 +148,25 @@ struct PairingFlow: View {
                 .padding(12).background(Color.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
             }
 
-            Text("Mevcut ışığın yerine geçir").font(.footnote.weight(.semibold)).foregroundStyle(.secondary).padding(.top, 4)
-            ForEach(LightID.allDevices, id: \.self) { light in
-                let removed = model.removed.contains(light.rawValue)
-                let occupied = !removed && (model.state?.linked(light) ?? false)
-                Button { role = light; addingNew = false } label: {
-                    HStack(spacing: 12) {
-                        Image(systemName: light.symbol).foregroundStyle(.black).frame(width: 40, height: 40).background(Color.lampOn, in: RoundedRectangle(cornerRadius: 11, style: .continuous))
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(light.title).font(.body.weight(.semibold))
-                            Text(removed ? "Kaldırılmış, geri eklenecek" : (occupied ? "Şu an bağlı bir cihaz var, yenisi onun yerine geçer" : "Cihaz yok"))
-                                .font(.caption).foregroundStyle(occupied ? Color.orange : .secondary)
+            // Yerlesik isiklarin (masa, yatak, led) kopruda sabit karti var; yalnizca eklenen isiklarin yerine gecilebilir.
+            let replaceable = LightID.allDevices.filter { !$0.isBuiltin }
+            if !replaceable.isEmpty {
+                Text("Eklediğin bir ışığın yerine geçir").font(.footnote.weight(.semibold)).foregroundStyle(.secondary).padding(.top, 4)
+                ForEach(replaceable, id: \.self) { light in
+                    let removed = model.removed.contains(light.rawValue)
+                    Button { role = light; addingNew = false } label: {
+                        HStack(spacing: 12) {
+                            Image(systemName: light.symbol).foregroundStyle(.black).frame(width: 40, height: 40).background(Color.lampOn, in: RoundedRectangle(cornerRadius: 11, style: .continuous))
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(light.title).font(.body.weight(.semibold))
+                                Text(removed ? "Kaldırılmış, geri eklenecek" : "Yeni cihaz bunun yerine geçer").font(.caption).foregroundStyle(.secondary)
+                            }
+                            Spacer()
+                            Image(systemName: role == light ? "checkmark.circle.fill" : "circle").foregroundStyle(role == light ? Color.lampOn : .secondary).font(.title3)
                         }
-                        Spacer()
-                        Image(systemName: role == light ? "checkmark.circle.fill" : "circle").foregroundStyle(role == light ? Color.lampOn : .secondary).font(.title3)
-                    }
-                    .padding(12).background(Color.white.opacity(role == light ? 0.14 : 0.08), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-                }.buttonStyle(.plain)
+                        .padding(12).background(Color.white.opacity(role == light ? 0.14 : 0.08), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                    }.buttonStyle(.plain)
+                }
             }
 
             Button { Task { await accept() } } label: {
