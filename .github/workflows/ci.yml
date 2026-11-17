@@ -24,6 +24,8 @@ jobs:
           key: pio-${{ runner.os }}-${{ hashFiles('firmware/node/platformio.ini') }}
       - run: pip install platformio
       - run: cd firmware/node && pio run -e ${{ matrix.env }}
+      # Imaj OTA yuvasina sigiyor mu? Su an uyari (C3/C6 sigmiyor); min_spiffs bolum tablosuna gecince --warn-only kalkar (docs/plan-dugum-ota.md)
+      - run: python3 firmware/tools/check_app_fit.py firmware/node/.pio/build/${{ matrix.env }} --warn-only
 
   bridge-firmware:
     name: Kopru yazilimi
@@ -48,3 +50,16 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: c++ -std=c++17 -x c++ -Ifirmware/shared firmware/tools/test_x25519.c -o /tmp/tx && /tmp/tx
+
+  ota-logic-test:
+    name: Dugum OTA aktarim mantigi ve araclari
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      # Kayipli/cift/sirasiz sahte hatta aktarim (firmware/shared/ota_xfer.h)
+      - run: c++ -std=c++17 -x c++ -Wall -Ifirmware/shared firmware/tools/test_ota_xfer.c -o /tmp/tox && /tmp/tox
+      # Bolum sigma denetimi ve OTA bilgi dosyasi araci
+      - run: cd firmware/tools && python3 test_ota_tools.py
