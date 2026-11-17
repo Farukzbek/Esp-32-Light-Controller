@@ -3,7 +3,7 @@
 set -e
 cd "$(dirname "$0")/.."
 rm -rf dist/flasher-public && mkdir -p dist/flasher-public/firmware
-cp web/flasher/index.html web/flasher/rehber.html dist/flasher-public/
+cp web/flasher/index.html web/flasher/rehber.html web/flasher/guide.html dist/flasher-public/
 cp -R web/flasher/img dist/flasher-public/img
 cp web/flasher/firmware/esp32*.json web/flasher/firmware/esp32*.bin dist/flasher-public/firmware/
 cp web/flasher/firmware/bridge-*.json dist/flasher-public/firmware/

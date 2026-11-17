@@ -1,0 +1,150 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Nowlight Setup Guide</title>
+<meta name="description" content="How to set up the Nowlight bridge and light nodes: install the firmware from your browser, pair it with the app, add widgets and Siri.">
+<style>
+  :root {
+    --bg: #0b0b0c; --card: #17171a; --line: #2a2a2f; --text: #f2f2f4; --muted: #9a9aa3;
+    --accent: #ffc93c; --ink: #14120c; --warn: #ff9f43; --ok: #34d27b;
+  }
+  @media (prefers-color-scheme: light) {
+    :root { --bg: #f6f6f7; --card: #ffffff; --line: #e1e1e6; --text: #17171a; --muted: #62626b; --ink: #14120c; }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 16px/1.5 -apple-system, system-ui, "Segoe UI", Roboto, sans-serif; }
+  main { max-width: 620px; margin: 0 auto; padding: 32px 16px 64px; }
+  h1 { font-size: 28px; margin: 0 0 4px; letter-spacing: -0.02em; }
+  .sub { color: var(--muted); margin: 0 0 28px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 18px; padding: 18px; margin-bottom: 14px; }
+  .step { display: flex; gap: 14px; }
+  .num { flex: none; width: 28px; height: 28px; border-radius: 50%; background: var(--accent); color: var(--ink); font-weight: 700; display: grid; place-items: center; font-size: 14px; }
+  h2 { font-size: 17px; margin: 2px 0 6px; }
+  p { margin: 6px 0; color: var(--muted); }
+  select { width: 100%; padding: 12px 14px; border-radius: 12px; border: 1px solid var(--line); background: var(--bg); color: var(--text); font-size: 16px; margin-top: 8px; }
+  .hint { font-size: 14px; }
+  .install { margin-top: 12px; }
+  esp-web-install-button button { background: var(--accent); color: var(--ink); border: 0; border-radius: 14px; padding: 14px 22px; font-size: 17px; font-weight: 700; cursor: pointer; width: 100%; }
+  .warn { border-color: var(--warn); color: var(--warn); display: none; }
+  .warn.show { display: block; }
+  .small { font-size: 13px; color: var(--muted); }
+  details { margin-top: 10px; }
+  summary { cursor: pointer; color: var(--text); }
+  code { background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 1px 6px; font-size: 14px; }
+  a { color: var(--accent); }
+</style><style>
+  main { max-width: 720px; }
+  h1 { font-size: 30px; }
+  h3 { font-size: 15px; margin: 16px 0 4px; }
+  ol, ul { margin: 6px 0; padding-left: 22px; color: var(--muted); }
+  li { margin: 4px 0; }
+  li b, p b { color: var(--text); }
+  .shots { display: flex; gap: 10px; flex-wrap: wrap; margin: 14px 0 4px; }
+  .shots figure { margin: 0; flex: 1 1 140px; max-width: 200px; }
+  .shots img { width: 100%; border-radius: 16px; border: 1px solid var(--line); display: block; }
+  .shots figcaption { font-size: 12px; color: var(--muted); margin-top: 6px; text-align: center; }
+  .cta { display: block; text-align: center; background: var(--accent); color: var(--ink); font-weight: 700; border-radius: 14px; padding: 14px 22px; text-decoration: none; margin-top: 12px; }
+  .note { border-left: 3px solid var(--accent); padding: 2px 0 2px 12px; margin: 12px 0; color: var(--muted); }
+  .danger { border-color: var(--warn); }
+  table { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 14px; }
+  th, td { text-align: left; padding: 8px 6px; border-bottom: 1px solid var(--line); color: var(--muted); vertical-align: top; }
+  th { color: var(--text); }
+</style>
+
+</head>
+<body>
+<main>
+  <p class="small"><a href="/">← Back to the installer</a> · <a href="/rehber.html">Türkçe</a></p>
+  <h1>Nowlight setup guide</h1>
+  <p class="sub">Turn a blank ESP32 into a light you switch from your phone. No coding, no software to install. About 10 minutes in total.</p>
+
+  <div class="card">
+    <h2>What you need</h2>
+    <ul>
+      <li><b>One bridge board:</b> one per home. Your phone talks to the lights through it.</li>
+      <li><b>One ESP32 board per light</b> (S3, C3, C6, S2 or classic ESP32) and a data cable (a charge-only cable does not work).</li>
+      <li><b>One relay module per light</b> and the lamp.</li>
+      <li>A computer with <b>Chrome or Edge</b> (or an Android phone). Safari and iPhone cannot flash over USB.</li>
+      <li><b>The Nowlight app</b> on your iPhone.</li>
+    </ul>
+    <p class="note danger"><b>Safety:</b> The lamp side of the relay is mains voltage. Have someone who knows electricity do the wiring and switch the fuse off. For the first test, use low voltage only and just listen for the relay click.</p>
+  </div>
+
+  <h2 style="margin:26px 0 10px;font-size:21px">Part 1: Set up the bridge (once per home)</h2>
+
+  <div class="card step"><div class="num">1</div><div style="flex:1">
+    <h2>Install the bridge firmware</h2>
+    <p>On the <a href="/">installer page</a> pick <b>Bridge</b> under <b>What are you installing?</b>, then pick your board. Plug the board in over USB, press <b>Install</b> and choose the board's port from the list. It takes about a minute.</p>
+  </div></div>
+
+  <div class="card step"><div class="num">2</div><div style="flex:1">
+    <h2>Enter your WiFi</h2>
+    <p>When the install finishes the page asks for your <b>WiFi settings</b>. Pick your network and type the password. The password only goes into the bridge's memory and is not sent anywhere else. Once the bridge is connected, plug it into a USB charger and put it in a corner of your home.</p>
+  </div></div>
+
+  <div class="card step"><div class="num">3</div><div style="flex:1">
+    <h2>Connect the app</h2>
+    <p>On your phone tap <b>Nowlight → Add Device → Bridge settings → Find bridge automatically</b>. The address and key fill in by themselves, then tap <b>Save</b>. The phone must be on the same WiFi as the bridge.</p>
+    <p class="small">The setup window stays open for 10 minutes. If it closes, hold the <b>BOOT</b> button on the bridge for 2 seconds. The bridge follows your router's WiFi channel by itself and creates its own random ESP-NOW network key.</p>
+  </div></div>
+
+  <h2 style="margin:26px 0 10px;font-size:21px">Part 2: Add a light (for every new light)</h2>
+
+  <div class="card step"><div class="num">1</div><div style="flex:1">
+    <h2>Install the board</h2>
+    <p>On the <a href="/">installer page</a> pick <b>Light node</b> this time, then your board (the chip name is printed on the board: ESP32-S3, C3, C6, S2). Plug it in over USB and press <b>Install</b>. If the port does not show up, hold the board's <b>BOOT</b> button while plugging in the cable, release it and try again.</p>
+  </div></div>
+
+  <div class="card step"><div class="num">2</div><div style="flex:1">
+    <h2>Wire the relay</h2>
+    <p>Connect the relay's signal pin (<code>IN</code>) to the board's relay output, <code>VCC</code> to 5V and <code>GND</code> to GND. The output pin is shown under your board on the installer page:</p>
+    <table>
+      <tr><th>Board</th><th>Relay output</th></tr>
+      <tr><td>ESP32-S3, C3, C6, S2</td><td>GPIO5</td></tr>
+      <tr><td>Classic ESP32 (DevKit, NodeMCU-32S)</td><td>GPIO23</td></tr>
+    </table>
+    <p class="small">If you used another pin you can change it in the app (Add Device → tap the device → Relay). Plug the board into a USB charger.</p>
+  </div></div>
+
+  <div class="card step"><div class="num">3</div><div style="flex:1">
+    <h2>Pair it in the app</h2>
+    <p>Tap <b>Add Device → Add device → Search for device</b>. Within a few seconds your board appears as <b>Nowlight-XXXX</b>. Tap it, choose <b>Add as a new light</b>, pick a name (for example Living room) and an icon, then tap <b>Connect</b>. Try the on and off buttons.</p>
+    <div class="shots">
+      <figure><img src="img/app-pairing.png" alt="Device found screen"><figcaption>Device found</figcaption></figure>
+      <figure><img src="img/app-new-light.png" alt="Name and icon"><figcaption>Name and icon</figcaption></figure>
+      <figure><img src="img/app-lights.png" alt="Lights screen"><figcaption>Lights screen</figcaption></figure>
+    </div>
+    <p class="small">The app interface is currently in Turkish; an English version is planned.</p>
+  </div></div>
+
+  <div class="card step"><div class="num">4</div><div style="flex:1">
+    <h2>Widgets and Siri (optional)</h2>
+    <p><b>Widgets:</b> long-press an empty spot on the home screen, tap <b>+</b> and add Nowlight. Long-press the widget and choose <b>Edit Widget</b> to pick which lights to show (up to 8).</p>
+    <p><b>Siri:</b> on the Lights screen use the <b>Add to Siri</b> card at the bottom and select your lights. A phrase for "on" and "off" comes ready for each light, and you say each one aloud once. After that, "Hey Siri, living room off" is enough, and it works while the phone is locked.</p>
+    <p class="small">Do not start the phrase with the word "light": Siri may hand it over to its own Home app and answer that no lights are set up in your home. A plain name like "living room off" is safe.</p>
+    <div class="shots">
+      <figure><img src="img/app-widgets.png" alt="Widget previews"><figcaption>Widgets</figcaption></figure>
+      <figure><img src="img/app-siri.png" alt="Adding Siri commands"><figcaption>Siri commands</figcaption></figure>
+    </div>
+  </div></div>
+
+  <h2 style="margin:26px 0 10px;font-size:21px">Something wrong?</h2>
+  <div class="card">
+    <table>
+      <tr><th>Problem</th><th>Fix</th></tr>
+      <tr><td>The installer shows no port</td><td>Use a data cable. Hold the board's <b>BOOT</b> button while plugging in the cable, then release it. Close any other program (Arduino, PlatformIO) that has the port open.</td></tr>
+      <tr><td>The browser says it is not supported</td><td>Use Chrome or Edge (on a computer or Android). iPhone and Safari do not work.</td></tr>
+      <tr><td>The app cannot find the device</td><td>Is the phone on the same WiFi as the bridge? If the board was just powered, wait a few seconds. If it is paired to another bridge, hold its BOOT button for 5 seconds to erase the pairing.</td></tr>
+      <tr><td>The app cannot find the bridge automatically</td><td>Hold the BOOT button on the bridge for 2 seconds (it reopens the 10-minute setup window) and try again.</td></tr>
+      <tr><td>The light works backwards</td><td>Add Device → tap the device → in the Relay section toggle <b>Inverted logic</b>.</td></tr>
+      <tr><td>Siri says there are no lights in your home</td><td>Do not start the phrase with "light". Use "Add to Siri" to add your own phrase.</td></tr>
+    </table>
+  </div>
+
+  <a class="cta" href="/">Go to the installer</a>
+  <p class="small" style="margin-top:24px">The software is open source: <a href="https://github.com/Farukzbek/Nowlight">GitHub</a>. More documentation and wiring details are in the repository.</p>
+</main>
+</body>
+</html>

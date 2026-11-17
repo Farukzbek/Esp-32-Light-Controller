@@ -34,27 +34,30 @@
   summary { cursor: pointer; color: var(--text); }
   code { background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 1px 6px; font-size: 14px; }
   a { color: var(--accent); }
+  .langbar { text-align: right; margin-bottom: -8px; }
+  .langbar button { background: var(--card); color: var(--text); border: 1px solid var(--line); border-radius: 10px; padding: 6px 12px; font-size: 13px; cursor: pointer; }
 </style>
 </head>
 <body>
 <main>
-  <h1>Nowlight Yükleyici</h1>
-  <p class="sub">ESP32'ye ışık düğümü yazılımını tarayıcıdan yükle. Program ya da sürücü kurmana gerek yok. <a href="/rehber.html">Kurulum rehberi</a></p>
+  <div class="langbar"><button type="button" id="langBtn" aria-label="Language">EN</button></div>
+  <h1 data-i18n="h1">Nowlight Yükleyici</h1>
+  <p class="sub" data-i18n-html="sub">ESP32'ye ışık düğümü yazılımını tarayıcıdan yükle. Program ya da sürücü kurmana gerek yok. <a href="/rehber.html">Kurulum rehberi</a></p>
 
-  <div class="card warn" id="unsupported">
+  <div class="card warn" id="unsupported" data-i18n-html="unsupported">
     Bu tarayıcı USB üzerinden yükleme yapamıyor. <b>Chrome</b> ya da <b>Edge</b> ile (bilgisayarda ya da Android'de) aç. iPhone ve Safari desteklemiyor.
   </div>
 
   <div class="card step">
     <div class="num">1</div>
     <div style="flex:1">
-      <h2>Ne kuruyorsun?</h2>
+      <h2 data-i18n="q1">Ne kuruyorsun?</h2>
       <select id="mode" aria-label="Kurulum türü">
-        <option value="node">Işık düğümü (her ışık için bir tane)</option>
-        <option value="bridge">Köprü (evde bir tane, telefonu ışıklara bağlar)</option>
+        <option value="node" data-i18n="optNode">Işık düğümü (her ışık için bir tane)</option>
+        <option value="bridge" data-i18n="optBridge">Köprü (evde bir tane, telefonu ışıklara bağlar)</option>
       </select>
       <p class="hint" id="modeNote"></p>
-      <h2 style="margin-top:14px">Kartını seç</h2>
+      <h2 style="margin-top:14px" data-i18n="q2">Kartını seç</h2>
       <select id="board" aria-label="Kart türü">
         <optgroup label="ESP32-S3">
           <option value="s3-supermini" data-fw="esp32s3-supermini">ESP32-S3 Super Mini</option>
@@ -75,17 +78,17 @@
           <option value="s2-mini" data-fw="esp32s2">Wemos S2 Mini (ESP32-S2)</option>
           <option value="s2-saola" data-fw="esp32s2">ESP32-S2 Saola-1 / DevKitM</option>
         </optgroup>
-        <optgroup label="ESP32 (klasik)">
+        <optgroup label="ESP32 (klasik)" data-i18n-label="grpClassic">
           <option value="esp32-devkit" data-fw="esp32dev">ESP32 DevKit V1 (30 / 38 pin)</option>
           <option value="esp32-nodemcu" data-fw="esp32dev">NodeMCU-32S</option>
           <option value="esp32-d1mini" data-fw="esp32dev">Wemos D1 Mini32</option>
-          <option value="esp32-wroom" data-fw="esp32dev">ESP32-WROOM-32 modülü / diğer klasik ESP32</option>
+          <option value="esp32-wroom" data-fw="esp32dev" data-i18n="optWroom">ESP32-WROOM-32 modülü / diğer klasik ESP32</option>
         </optgroup>
       </select>
       <p class="hint" id="boardNote"></p>
       <details>
-        <summary>Kartım listede yok</summary>
-        <p class="small">Kartının üzerindeki çip adına bak (ESP32-S3, -C3, -C6, -S2 ya da ESP32) ve o gruptan herhangi bir kartı seç. Aynı yazılım çipin tüm kartlarında çalışır. Röle pinini kendi kartına göre bağla. ESP32-H2, ESP32-P4 ve ESP8266 desteklenmiyor (WiFi/ESP-NOW yok ya da farklı çip).</p>
+        <summary data-i18n="sumBoard">Kartım listede yok</summary>
+        <p class="small" data-i18n-html="boardHelp">Kartının üzerindeki çip adına bak (ESP32-S3, -C3, -C6, -S2 ya da ESP32) ve o gruptan herhangi bir kartı seç. Aynı yazılım çipin tüm kartlarında çalışır. Röle pinini kendi kartına göre bağla. ESP32-H2, ESP32-P4 ve ESP8266 desteklenmiyor (WiFi/ESP-NOW yok ya da farklı çip).</p>
       </details>
     </div>
   </div>
@@ -93,26 +96,26 @@
   <div class="card step">
     <div class="num">2</div>
     <div style="flex:1">
-      <h2>Kartı USB ile bilgisayara tak</h2>
-      <p>Veri kablosu kullan (yalnızca şarj kablosu çalışmaz). Başka bir program kartın seri portunu açıksa kapat.</p>
+      <h2 data-i18n="s2h">Kartı USB ile bilgisayara tak</h2>
+      <p data-i18n="s2p">Veri kablosu kullan (yalnızca şarj kablosu çalışmaz). Başka bir program kartın seri portunu açıksa kapat.</p>
     </div>
   </div>
 
   <div class="card step">
     <div class="num">3</div>
     <div style="flex:1">
-      <h2>Yükle</h2>
-      <p>Düğmeye bas, açılan listeden kartının portunu seç ve onayla. Yükleme bir dakika kadar sürer.</p>
+      <h2 data-i18n="s3h">Yükle</h2>
+      <p data-i18n="s3p">Düğmeye bas, açılan listeden kartının portunu seç ve onayla. Yükleme bir dakika kadar sürer.</p>
       <div class="install">
         <esp-web-install-button id="installer" manifest="firmware/esp32s3-supermini.json">
-          <button slot="activate">Yükle</button>
+          <button slot="activate" data-i18n="btn">Yükle</button>
           <span slot="unsupported"></span>
-          <span slot="not-allowed">Bu sayfa güvenli (https ya da localhost) bağlantıyla açılmalı.</span>
+          <span slot="not-allowed" data-i18n="notAllowed">Bu sayfa güvenli (https ya da localhost) bağlantıyla açılmalı.</span>
         </esp-web-install-button>
       </div>
       <details>
-        <summary>Port listede görünmüyor</summary>
-        <p class="small">Kartın <b>BOOT</b> tuşuna basılı tutarak USB kablosunu tak, sonra tuşu bırak ve tekrar dene. Bazı kartlarda ilk yüklemede bu gerekir.</p>
+        <summary data-i18n="sumPort">Port listede görünmüyor</summary>
+        <p class="small" data-i18n-html="portHelp">Kartın <b>BOOT</b> tuşuna basılı tutarak USB kablosunu tak, sonra tuşu bırak ve tekrar dene. Bazı kartlarda ilk yüklemede bu gerekir.</p>
       </details>
     </div>
   </div>
@@ -126,19 +129,80 @@
     </div>
   </div>
 
-  <p class="small">Yazılım açık kaynaktır: <a href="https://github.com/Farukzbek/Nowlight">GitHub</a>. <span id="verLabel">Işık düğümü</span> sürümü <span id="ver"></span>.</p>
+  <p class="small"><span data-i18n-html="foot">Yazılım açık kaynaktır: <a href="https://github.com/Farukzbek/Nowlight">GitHub</a>.</span> <span id="verLabel">Işık düğümü</span> <span data-i18n="verWord">sürümü</span> <span id="ver"></span>.</p>
 </main>
 
 <script type="module" src="https://unpkg.com/esp-web-tools@10.0.1/dist/web/install-button.js?module"></script>
 <script>
-  // Yazilim (data-fw) ve rolenin baglanacagi pin: kart basina ayri not
-  const pins = {
-    "esp32s3-supermini": "Röle çıkışı GPIO5. Yerleşik USB ile bağlanır.",
-    "esp32c3": "Röle çıkışı GPIO5. Yerleşik USB ile bağlanır.",
-    "esp32c6": "Röle çıkışı GPIO5. USB-C portundan bağlan.",
-    "esp32s2": "Röle çıkışı GPIO5. Yerleşik USB ile bağlanır.",
-    "esp32dev": "Röle çıkışı GPIO23. Bazı kartlarda yükleme sırasında BOOT tuşu gerekebilir."
+
+  // Dil: ?lang=en|tr, sonra kayitli tercih, sonra tarayici dili
+  const I18N = {
+    tr: {
+      title: "Nowlight Yükleyici",
+      h1: "Nowlight Yükleyici",
+      sub: "ESP32'ye ışık düğümü yazılımını tarayıcıdan yükle. Program ya da sürücü kurmana gerek yok. <a href=\"/rehber.html\">Kurulum rehberi</a>",
+      unsupported: "Bu tarayıcı USB üzerinden yükleme yapamıyor. <b>Chrome</b> ya da <b>Edge</b> ile (bilgisayarda ya da Android'de) aç. iPhone ve Safari desteklemiyor.",
+      q1: "Ne kuruyorsun?", q2: "Kartını seç",
+      optNode: "Işık düğümü (her ışık için bir tane)", optBridge: "Köprü (evde bir tane, telefonu ışıklara bağlar)",
+      grpClassic: "ESP32 (klasik)", optWroom: "ESP32-WROOM-32 modülü / diğer klasik ESP32",
+      sumBoard: "Kartım listede yok",
+      boardHelp: "Kartının üzerindeki çip adına bak (ESP32-S3, -C3, -C6, -S2 ya da ESP32) ve o gruptan herhangi bir kartı seç. Aynı yazılım çipin tüm kartlarında çalışır. Röle pinini kendi kartına göre bağla. ESP32-H2, ESP32-P4 ve ESP8266 desteklenmiyor (WiFi/ESP-NOW yok ya da farklı çip).",
+      s2h: "Kartı USB ile bilgisayara tak", s2p: "Veri kablosu kullan (yalnızca şarj kablosu çalışmaz). Başka bir program kartın seri portunu açıksa kapat.",
+      s3h: "Yükle", s3p: "Düğmeye bas, açılan listeden kartının portunu seç ve onayla. Yükleme bir dakika kadar sürer.",
+      btn: "Yükle", notAllowed: "Bu sayfa güvenli (https ya da localhost) bağlantıyla açılmalı.",
+      sumPort: "Port listede görünmüyor",
+      portHelp: "Kartın <b>BOOT</b> tuşuna basılı tutarak USB kablosunu tak, sonra tuşu bırak ve tekrar dene. Bazı kartlarda ilk yüklemede bu gerekir.",
+      foot: "Yazılım açık kaynaktır: <a href=\"https://github.com/Farukzbek/Nowlight\">GitHub</a>.",
+      verWord: "sürümü", verNode: "Işık düğümü", verBridge: "Köprü",
+      pins: { "esp32s3-supermini": "Röle çıkışı GPIO5. Yerleşik USB ile bağlanır.", "esp32c3": "Röle çıkışı GPIO5. Yerleşik USB ile bağlanır.", "esp32c6": "Röle çıkışı GPIO5. USB-C portundan bağlan.", "esp32s2": "Röle çıkışı GPIO5. Yerleşik USB ile bağlanır.", "esp32dev": "Röle çıkışı GPIO23. Bazı kartlarda yükleme sırasında BOOT tuşu gerekebilir." },
+      bridgeBoard: "Köprüde röle pini yoktur; yalnızca WiFi ve ESP-NOW kullanır.",
+      noteBridge: "Evde yalnızca bir köprü gerekir. Işık düğümlerini sonra ayrıca yüklersin.", noteNode: "Her ışık (röle) için ayrı bir kart yüklenir.",
+      node: ["Uygulamadan ekle", "Kartı bir USB adaptörüne tak (ya da bilgisayarda bırak). Telefonda <b>Nowlight → Cihaz Ekle → Cihaz ekle</b> ile eşleştir. Bilgi girmen gerekmez.", "Eşleşmeyi silmek için kartın BOOT tuşuna 5 sn basılı tut."],
+      bridge: ["WiFi'ni gir, sonra uygulamaya bağla", "Yükleme bitince sayfa <b>WiFi ayarı</b> sorar: ağını seç ve şifreni gir (şifre yalnızca köprünün hafızasına gider). Sonra telefonda <b>Nowlight → Cihaz Ekle → Köprü ayarları → Köprüyü otomatik bul</b> de, adres ve anahtar kendiliğinden dolar.", "Kurulum penceresi 10 dakika açık kalır. Kapanırsa köprüdeki BOOT tuşuna 2 sn bas. Köprü, router'ın WiFi kanalını kendisi izler."],
+      guide: "/rehber.html", personalKopru: "Köprü kartı yazılımı. WiFi ve token silinmez.", personalKapi: "Kapı düğümü (PIR) yazılımı. WiFi bilgisi silinmez.", other: "EN"
+    },
+    en: {
+      title: "Nowlight Installer",
+      h1: "Nowlight Installer",
+      sub: "Install the Nowlight light-node firmware on an ESP32 right from your browser. No software or drivers needed. <a href=\"/guide.html\">Setup guide</a>",
+      unsupported: "This browser cannot flash over USB. Open the page in <b>Chrome</b> or <b>Edge</b> (on a computer or on Android). iPhone and Safari are not supported.",
+      q1: "What are you installing?", q2: "Pick your board",
+      optNode: "Light node (one per light)", optBridge: "Bridge (one per home, connects the phone to the lights)",
+      grpClassic: "ESP32 (classic)", optWroom: "ESP32-WROOM-32 module / other classic ESP32",
+      sumBoard: "My board is not listed",
+      boardHelp: "Look at the chip name printed on your board (ESP32-S3, -C3, -C6, -S2 or plain ESP32) and pick any board from that group. The same firmware runs on every board with that chip. Wire the relay pin for your own board. ESP32-H2, ESP32-P4 and ESP8266 are not supported (no WiFi/ESP-NOW or a different chip).",
+      s2h: "Plug the board into your computer", s2p: "Use a data cable (a charge-only cable does not work). Close any other program that has the board's serial port open.",
+      s3h: "Install", s3p: "Press the button, pick your board's port from the list and confirm. The install takes about a minute.",
+      btn: "Install", notAllowed: "This page must be opened over a secure (https or localhost) connection.",
+      sumPort: "The port is not listed",
+      portHelp: "Hold the <b>BOOT</b> button while plugging in the USB cable, then release it and try again. Some boards need this for the first install.",
+      foot: "The software is open source: <a href=\"https://github.com/Farukzbek/Nowlight\">GitHub</a>.",
+      verWord: "version", verNode: "Light node", verBridge: "Bridge",
+      pins: { "esp32s3-supermini": "Relay output is GPIO5. Connects over the built-in USB.", "esp32c3": "Relay output is GPIO5. Connects over the built-in USB.", "esp32c6": "Relay output is GPIO5. Connect through the USB-C port.", "esp32s2": "Relay output is GPIO5. Connects over the built-in USB.", "esp32dev": "Relay output is GPIO23. Some boards need the BOOT button held during the install." },
+      bridgeBoard: "The bridge has no relay pin; it only uses WiFi and ESP-NOW.",
+      noteBridge: "You only need one bridge per home. You install the light nodes separately afterwards.", noteNode: "Each light (relay) gets its own board.",
+      node: ["Add it in the app", "Plug the board into a USB charger (or leave it in the computer). In the phone app go to <b>Nowlight → Add Device → Add device</b> to pair it. You do not type anything in.", "To erase the pairing, hold the board's BOOT button for 5 s."],
+      bridge: ["Enter your WiFi, then connect the app", "When the install finishes the page asks for your <b>WiFi settings</b>: pick your network and enter the password (it only goes into the bridge's memory). Then in the phone app tap <b>Nowlight → Add Device → Bridge settings → Find bridge automatically</b> and the address and key fill in by themselves.", "The setup window stays open for 10 minutes. If it closes, hold the BOOT button on the bridge for 2 s. The bridge follows your router's WiFi channel by itself."],
+      guide: "/guide.html", personalKopru: "Bridge board firmware. WiFi and token are kept.", personalKapi: "Door node (PIR) firmware. WiFi settings are kept.", other: "TR"
+    }
   };
+  let lang = "tr";
+  try {
+    const q = new URLSearchParams(location.search).get("lang");
+    const saved = localStorage.getItem("lang");
+    lang = (q === "en" || q === "tr") ? q : (saved === "en" || saved === "tr") ? saved : ((navigator.language || "").toLowerCase().startsWith("tr") ? "tr" : "en");
+  } catch (e) {}
+  const T = () => I18N[lang];
+  function applyLang() {
+    const d = T();
+    document.documentElement.lang = lang;
+    document.title = d.title;
+    document.querySelectorAll("[data-i18n]").forEach(el => { if (d[el.dataset.i18n] != null) el.textContent = d[el.dataset.i18n]; });
+    document.querySelectorAll("[data-i18n-html]").forEach(el => { if (d[el.dataset.i18nHtml] != null) el.innerHTML = d[el.dataset.i18nHtml]; });
+    document.querySelectorAll("[data-i18n-label]").forEach(el => { if (d[el.dataset.i18nLabel] != null) el.label = d[el.dataset.i18nLabel]; });
+    document.getElementById("langBtn").textContent = d.other;
+  }
+  // Yazilim (data-fw) ve rolenin baglanacagi pin: kart basina ayri not (metinler I18N.pins icinde)
   const notes = { kopru: "", kapi: "" };
   const select = document.getElementById("board");
   const installer = document.getElementById("installer");
@@ -146,10 +210,6 @@
   const modeSel = document.getElementById("mode");
   // dugum yazilimi adi -> kopru yazilimi anahtari
   const bridgeKey = { "esp32s3-supermini": "s3", "esp32c3": "c3", "esp32c6": "c6", "esp32s2": "s2", "esp32dev": "esp32" };
-  const modeText = {
-    node: ["Uygulamadan ekle", "Kartı bir USB adaptörüne tak (ya da bilgisayarda bırak). Telefonda <b>Nowlight → Cihaz Ekle → Cihaz ekle</b> ile eşleştir. Bilgi girmen gerekmez.", "Eşleşmeyi silmek için kartın BOOT tuşuna 5 sn basılı tut."],
-    bridge: ["WiFi'ni gir, sonra uygulamaya bağla", "Yükleme bitince sayfa <b>WiFi ayarı</b> sorar: ağını seç ve şifreni gir (şifre yalnızca köprünün hafızasına gider). Sonra telefonda <b>Nowlight → Cihaz Ekle → Köprü ayarları → Köprüyü otomatik bul</b> de, adres ve anahtar kendiliğinden dolar.", "Kurulum penceresi 10 dakika açık kalır. Kapanırsa köprüdeki BOOT tuşuna 2 sn bas. Köprü, router'ın WiFi kanalını kendisi izler."]
-  };
   let verSeq = 0;
   function apply() {
     const o = select.selectedOptions[0];
@@ -157,13 +217,13 @@
     const mode = modeSel.value;
     const manifest = mode === "bridge" ? `firmware/bridge-${bridgeKey[fw]}.json` : `firmware/${fw}.json`;
     installer.setAttribute("manifest", `${manifest}?t=${Date.now()}`);   // onbellegi atla: eski yazilim yuklenmesin
-    document.getElementById("boardNote").textContent = mode === "bridge" ? "Köprüde röle pini yoktur; yalnızca WiFi ve ESP-NOW kullanır." : (notes[fw] ?? pins[fw] ?? "");
-    document.getElementById("modeNote").textContent = mode === "bridge" ? "Evde yalnızca bir köprü gerekir. Işık düğümlerini sonra ayrıca yüklersin." : "Her ışık (röle) için ayrı bir kart yüklenir.";
+    document.getElementById("boardNote").textContent = mode === "bridge" ? T().bridgeBoard : (notes[fw] ?? T().pins[fw] ?? "");
+    document.getElementById("modeNote").textContent = mode === "bridge" ? T().noteBridge : T().noteNode;
     // Altta secili kurulumun (dugum ya da kopru) surumu gosterilir
     const seq = ++verSeq;
-    document.getElementById("verLabel").textContent = mode === "bridge" ? "Köprü" : "Işık düğümü";
+    document.getElementById("verLabel").textContent = mode === "bridge" ? T().verBridge : T().verNode;
     fetch(`${manifest}?t=${Date.now()}`).then(r => r.json()).then(j => { if (seq === verSeq) document.getElementById("ver").textContent = j.version; }).catch(() => { if (seq === verSeq) document.getElementById("ver").textContent = ""; });
-    const t = modeText[mode];
+    const t = T()[mode];
     document.getElementById("step4title").textContent = t[0];
     document.getElementById("step4text").innerHTML = t[1];
     document.getElementById("step4small").textContent = t[2];
@@ -171,14 +231,20 @@
   }
   try { const m = localStorage.getItem("mode"); if (m === "bridge" || m === "node") modeSel.value = m; } catch (e) {}
   try { const s = localStorage.getItem("board"); if (s && [...select.options].some(o => o.value === s)) select.value = s; } catch (e) {}
+  document.getElementById("langBtn").addEventListener("click", () => {
+    lang = lang === "tr" ? "en" : "tr";
+    try { localStorage.setItem("lang", lang); } catch (e) {}
+    applyLang(); apply();
+  });
   select.addEventListener("change", apply);
   modeSel.addEventListener("change", apply);
+  applyLang();
   apply();
   // Kisisel girdiler (kopru, kapi dugumu): yalnizca bu klasorde varsa gorunur. Herkese acik surumde bulunmazlar.
-  const personal = { kopru: "Köprü kartı yazılımı. WiFi ve token silinmez.", kapi: "Kapı düğümü (PIR) yazılımı. WiFi bilgisi silinmez." };
-  Object.keys(personal).forEach(id => {
+  const personalKey = { kopru: "personalKopru", kapi: "personalKapi" };
+  Object.keys(personalKey).forEach(id => {
     fetch(`firmware/${id}.json`).then(r => r.ok ? r.json() : Promise.reject()).then(j => {
-      notes[id] = personal[id];
+      notes[id] = T()[personalKey[id]];
       let g = document.getElementById("personalGroup");
       if (!g) { g = document.createElement("optgroup"); g.id = "personalGroup"; g.label = "Kişisel"; select.appendChild(g); }
       const o = document.createElement("option");
