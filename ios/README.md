@@ -44,3 +44,9 @@ Uygulamayı belirli bir sekmede açmak için `-tab 0|1|2` başlatma argümanı k
 - **Kilitliyken de çalışır:** bu komutları `NowlightIntents` Siri uzantısı (`IntentsExt/`, tanım `Shared/Siri.intentdefinition`) uygulamayı açmadan arka planda çalıştırır.
 - Uzantının App Group'u Xcode'da bir kez seçilmelidir (NowlightIntents → Signing & Capabilities → App Groups → `group.online.matestudios.nowlight`); komut satırı derlemesi bunu kendiliğinden yapamaz.
 - Not: komutun başına "ışık" gibi kelimeler koyma, Siri bunu Apple Ev komutu sanıp "evinde ayarlanmış ışık yok" der. Sade adlar ("led kapat") güvenli.
+
+## Roller: servo ve hareket sensörü (PIR)
+
+Yeni cihaz eklerken rol seçilir: **Işık**, **Servo** (aç/kapat için iki ayarlı açı + elle açı kaydırıcısı + "Bırak") ya da **Hareket sensörü**. Servo ve PIR "Tüm ışıklar"a katılmaz. Servo, hedefe varınca ayarlı süre sonra bırakılır ve elle oynatılabilir (karşı koymaz). Otomasyon kurallarında servo "Aç" = açık açısına, "Kapat" = kapalı açısına gider. Kurallara **gün seçimi** eklendi (örneğin perde Pazar günleri açılmasın). Ayrıntı: [docs/protocol.md](../docs/protocol.md).
+
+Gelistirme: `tools/mock_bridge.py 8080 test --roles` (servo d3 + PIR d4 ile) ve `tools/mock_door.py` (Otomasyon ekranı için sahte kapı düğümü).

@@ -7,7 +7,7 @@ struct WidgetsScreen: View {
 
     private var entry: LightsEntry {
         _ = model.removed                                  // kaldirma degisince onizleme tazelensin
-        let d = LightID.devices
+        let d = LightID.controllable
         let lights = d.count >= 2 ? d + [.all] : d
         if let s = model.state {
             return LightsEntry(date: .now, state: s, stale: false, fetchedAt: model.lastUpdate, error: nil, lights: lights, accent: .amber)

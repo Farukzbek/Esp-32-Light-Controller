@@ -25,6 +25,9 @@ final class AppModel {
     /// Kullanici simgeleri
     var icons: [String: String] = BridgeConfig.icons
 
+    /// Cihaz rolleri (servo, PIR). Kopru bildirir; gorunumler bunu izler.
+    var roles: [String: String] = BridgeConfig.roles
+
     func setIcon(_ light: LightID, _ symbol: String?) {
         if let symbol, symbol != light.defaultSymbol { icons[light.rawValue] = symbol } else { icons.removeValue(forKey: light.rawValue) }
         BridgeConfig.icons = icons
@@ -41,8 +44,13 @@ final class AppModel {
     }
 
     /// Yeni bir isik ekler (kopruyle eslestikten sonra). Ad ve simge uygulamada saklanir.
-    func addDevice(_ light: LightID, name: String, symbol: String, pin: Int? = nil, inv: Bool? = nil) {
-        if let pin, let inv { var r = BridgeConfig.relay; r[light.rawValue] = "\(pin):\(inv ? 1 : 0)"; BridgeConfig.relay = r }
+    func addDevice(_ light: LightID, name: String, symbol: String, pin: Int? = nil, inv: Bool? = nil, role: NodeRole = .light, servoOff: Int = 0, servoOn: Int = 90) {
+        if role != .light { roles[light.rawValue] = role.rawValue; BridgeConfig.roles = roles }
+        var rs = BridgeConfig.roleSettings
+        if role == .servo { rs[light.rawValue] = ServoSettings(pin: pin ?? 5, off: servoOff, on: servoOn).stored }
+        if role == .pir { rs[light.rawValue] = PirSettings(pin: pin ?? 4).stored }
+        BridgeConfig.roleSettings = rs
+        if role == .light, let pin, let inv { var r = BridgeConfig.relay; r[light.rawValue] = "\(pin):\(inv ? 1 : 0)"; BridgeConfig.relay = r }
         var list = BridgeConfig.customDevices
         if !list.contains(light.rawValue) { list.append(light.rawValue) }
         BridgeConfig.customDevices = list
@@ -54,8 +62,37 @@ final class AppModel {
 
     /// Eklenen isigin role ayarini (pin, ters mantik) dugume gonderir ve telefonda saklar.
     func setRelay(_ light: LightID, pin: Int, inv: Bool) async throws {
+        guard light.role == .light, !light.isBuiltin || light == .masa || light == .yatak else { return }
         try await BridgeClient.fromConfig().nodeConfig(id: light.rawValue, pin: pin, inv: inv)
         var r = BridgeConfig.relay; r[light.rawValue] = "\(pin):\(inv ? 1 : 0)"; BridgeConfig.relay = r
+    }
+
+    /// Servo ayari: dugume gonderilir ve telefonda saklanir.
+    func setServo(_ light: LightID, _ s: ServoSettings) async throws {
+        try await BridgeClient.fromConfig().servoConfig(id: light.rawValue, pin: s.pin, inv: s.inv, off: s.off, on: s.on, speed: s.speed, release: s.release, min: s.min, max: s.max)
+        var rs = BridgeConfig.roleSettings; rs[light.rawValue] = s.stored; BridgeConfig.roleSettings = rs
+    }
+    func servoSettings(_ light: LightID) -> ServoSettings { ServoSettings(stored: BridgeConfig.roleSettings[light.rawValue]) ?? ServoSettings() }
+
+    /// PIR ayari: dugume gonderilir ve telefonda saklanir.
+    func setPir(_ light: LightID, _ s: PirSettings) async throws {
+        try await BridgeClient.fromConfig().pirConfig(id: light.rawValue, pin: s.pin, hold: s.hold, confirm: s.confirm, cooldown: s.cooldown, inv: s.inv)
+        var rs = BridgeConfig.roleSettings; rs[light.rawValue] = s.stored; BridgeConfig.roleSettings = rs
+    }
+    func pirSettings(_ light: LightID) -> PirSettings { PirSettings(stored: BridgeConfig.roleSettings[light.rawValue]) ?? PirSettings() }
+
+    /// Servoyu bir acyi gonderir (kaydirici). Aciyi hemen gosterir; kopru onaylayinca gercek deger gelir.
+    func servoGoto(_ light: LightID, angle: Int) async {
+        if var s = state { s.servo[light.rawValue] = LightsState.ServoInfo(angle: angle, free: false); state = s }
+        do { try await BridgeClient.fromConfig().servoGoto(id: light.rawValue, angle: angle); error = nil }
+        catch { self.error = (error as? LocalizedError)?.errorDescription ?? "Komut gönderilemedi" }
+    }
+
+    /// Servoyu birakir: PWM kesilir, elle oynatilabilir.
+    func servoFree(_ light: LightID) async {
+        do { try await BridgeClient.fromConfig().servoFree(id: light.rawValue); error = nil
+            try? await Task.sleep(nanoseconds: 600_000_000); await refresh()
+        } catch { self.error = (error as? LocalizedError)?.errorDescription ?? "Komut gönderilemedi" }
     }
 
     /// Eklenen isigi KALICI siler: dugumun eslesmesi silinir (kopru kisaca yeniden baslar), uygulamadan ve otomasyonlardan kalkar.
@@ -70,6 +107,8 @@ final class AppModel {
         names.removeValue(forKey: light.rawValue); BridgeConfig.names = names
         icons.removeValue(forKey: light.rawValue); BridgeConfig.icons = icons
         var r = BridgeConfig.relay; r.removeValue(forKey: light.rawValue); BridgeConfig.relay = r
+        roles.removeValue(forKey: light.rawValue); BridgeConfig.roles = roles
+        var rs = BridgeConfig.roleSettings; rs.removeValue(forKey: light.rawValue); BridgeConfig.roleSettings = rs
         AutomationStore.clearBit(light.bit)
         WidgetCenter.shared.reloadAllTimelines()
         NowlightShortcuts.updateAppShortcutParameters()
@@ -118,6 +157,7 @@ final class AppModel {
                 WidgetCenter.shared.reloadAllTimelines()
                 NowlightShortcuts.updateAppShortcutParameters()
             }
+            syncRoles(s)
             adoptBridgeDevices(s)
             state = s
             StateCache.save(s)
@@ -128,6 +168,16 @@ final class AppModel {
         } catch {
             self.error = (error as? LocalizedError)?.errorDescription ?? "Bağlantı hatası"
         }
+    }
+
+    /// Kopru rolleri (servo, PIR) bildirir: telefondakini tazeler; gorunumler ve widget/Siri listeleri guncellenir.
+    private func syncRoles(_ s: LightsState) {
+        let fresh = s.roles.filter { $0.value != "light" }
+        guard fresh != BridgeConfig.roles else { return }
+        BridgeConfig.roles = fresh
+        roles = fresh
+        WidgetCenter.shared.reloadAllTimelines()
+        NowlightShortcuts.updateAppShortcutParameters()
     }
 
     /// Kopru "d3".."d6" ışığını biliyor ama uygulamada yoksa (eşleşme cevabı yarıda kaldıysa, başka telefondan eklendiyse) listeye ekler.
@@ -153,7 +203,7 @@ final class AppModel {
         if let s = state {
             state = s.setting(light, on: wantOn)
             let until = Date().addingTimeInterval(1.5)
-            for l in (light == .all ? LightID.devices : [light]) { pendingUntil[l] = until }
+            for l in (light == .all ? LightID.lights : [light]) { pendingUntil[l] = until }
         }
         do {
             try await BridgeClient.fromConfig().apply(light, on: wantOn)

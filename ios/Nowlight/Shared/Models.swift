@@ -1,6 +1,14 @@
 import AppIntents
 import SwiftUI
 
+/// Eslesen cihazin rolu: ISIK (role, ac/kapat), SERVO (aci kontrollu, serbest birakilabilir), PIR (hareket sensoru).
+enum NodeRole: String, Codable, CaseIterable {
+    case light, servo, pir
+    var title: String { switch self { case .light: "Işık"; case .servo: "Servo"; case .pir: "Hareket sensörü (PIR)" } }
+    var newTitle: String { switch self { case .light: "Yeni ışık"; case .servo: "Yeni servo"; case .pir: "Yeni sensör" } }
+    var symbol: String { switch self { case .light: "lightbulb.fill"; case .servo: "gearshape.2.fill"; case .pir: "figure.walk.motion" } }
+}
+
 /// Kontrol edilen isiklar. `all` = hepsi. Uc yerlesik isik (masa, yatak, led) ve kullanicinin ekledigi isiklar ("d3"..."d6", en fazla 7 isik).
 struct LightID: Hashable, Identifiable {
     let rawValue: String
@@ -34,6 +42,13 @@ struct LightID: Hashable, Identifiable {
     }
     var bit: Int { slot.map { 1 << $0 } ?? 0 }
     var isBuiltin: Bool { rawValue == "masa" || rawValue == "yatak" || rawValue == "led" }
+
+    /// Cihazin rolu (yerlesik isiklar her zaman isik).
+    var role: NodeRole { isBuiltin ? .light : (BridgeConfig.roles[rawValue].flatMap(NodeRole.init(rawValue:)) ?? .light) }
+    /// Yalnizca ISIK rolundeki cihazlar: "Tum isiklar" bunlari acip kapatir (servo ve PIR katilmaz).
+    static var lights: [LightID] { devices.filter { $0.role == .light } }
+    /// Ac/kapat yapilabilen cihazlar (isik + servo); widget, Siri ve otomasyon bunlari listeler. PIR yok.
+    static var controllable: [LightID] { devices.filter { $0.role != .pir } }
 
     /// Tum fiziksel cihazlar (kaldirilanlar dahil), yuva sirasiyla
     static var allDevices: [LightID] {
@@ -69,7 +84,7 @@ struct LightID: Hashable, Identifiable {
         case "yatak": "Yatak lambası"
         case "led": "LED şerit"
         case "all": "Tüm ışıklar"
-        default: "Yeni ışık"
+        default: role.newTitle
         }
     }
 
@@ -94,7 +109,7 @@ struct LightID: Hashable, Identifiable {
         case "yatak": "bed.double.fill"
         case "led": "light.ribbon.fill"
         case "all": "lightswitch.on.fill"
-        default: "lightbulb.fill"
+        default: role.symbol
         }
     }
 }
@@ -108,6 +123,7 @@ enum IconChoices {
         "fork.knife", "bathtub.fill", "door.left.hand.open", "window.shade.open", "fan.fill", "flame.fill",
         "moon.stars.fill", "sun.max.fill", "sparkles", "star.fill", "bolt.fill", "house.fill",
         "leaf.fill", "music.note", "party.popper.fill", "powerplug.fill",
+        "gearshape.2.fill", "gearshape.fill", "figure.walk.motion", "sensor.fill", "window.shade.closed", "arrow.up.and.down.circle.fill",
     ]
 }
 
@@ -141,12 +157,17 @@ struct LightsState: Codable, Equatable {
     var channel: Int
     var wifiChannel: Int
     var legacy: Bool = true         // kopru kisisel derleme mi (sabit masa/yatak/led var)? Eski kopruler alani yollamaz -> true
+    var roles: [String: String] = [:]          // cihaz -> "light" | "servo" | "pir" (eski kopruler yollamaz: hepsi isik)
+    var servo: [String: ServoInfo] = [:]       // servo -> son komut verilen aci ve serbest mi
 
-    init(values: [String: Int], links: [String: Bool], channel: Int, wifiChannel: Int, legacy: Bool = true) {
+    struct ServoInfo: Codable, Equatable { var angle: Int; var free: Bool }
+
+    init(values: [String: Int], links: [String: Bool], channel: Int, wifiChannel: Int, legacy: Bool = true, roles: [String: String] = [:], servo: [String: ServoInfo] = [:]) {
         self.values = values; self.links = links; self.channel = channel; self.wifiChannel = wifiChannel; self.legacy = legacy
+        self.roles = roles; self.servo = servo
     }
 
-    enum CodingKeys: String, CodingKey { case masa, yatak, led, devices, links, channel, wifiChannel, legacy }
+    enum CodingKeys: String, CodingKey { case masa, yatak, led, devices, links, channel, wifiChannel, legacy, roles, servo }
 
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
@@ -159,6 +180,8 @@ struct LightsState: Codable, Equatable {
         channel = try c.decode(Int.self, forKey: .channel)
         wifiChannel = try c.decode(Int.self, forKey: .wifiChannel)
         legacy = (try c.decodeIfPresent(Bool.self, forKey: .legacy)) ?? true
+        roles = (try? c.decodeIfPresent([String: String].self, forKey: .roles)) ?? [:]
+        servo = (try? c.decodeIfPresent([String: ServoInfo].self, forKey: .servo)) ?? [:]
     }
 
     func encode(to encoder: Encoder) throws {
@@ -171,10 +194,12 @@ struct LightsState: Codable, Equatable {
         try c.encode(channel, forKey: .channel)
         try c.encode(wifiChannel, forKey: .wifiChannel)
         try c.encode(legacy, forKey: .legacy)
+        try c.encode(roles, forKey: .roles)
+        try c.encode(servo, forKey: .servo)
     }
 
     func value(_ light: LightID) -> Int {
-        light == .all ? (LightID.devices.contains { value($0) == 1 } ? 1 : 0) : (values[light.rawValue] ?? -1)
+        light == .all ? (LightID.lights.contains { value($0) == 1 } ? 1 : 0) : (values[light.rawValue] ?? -1)
     }
 
     func isOn(_ light: LightID) -> Bool { value(light) == 1 }
@@ -183,14 +208,14 @@ struct LightsState: Codable, Equatable {
     func linked(_ light: LightID) -> Bool { links[light == .led ? "masa" : light.rawValue] ?? true }
 
     /// "Tum isiklar" icin acik sayisi
-    var onCount: Int { LightID.devices.filter { isOn($0) }.count }
+    var onCount: Int { LightID.lights.filter { isOn($0) }.count }
     /// Hepsi acik mi / bir kismi mi acik (kart sadece hepsi aciksa tamamen yanar)
-    var allOn: Bool { onCount == LightID.devices.count }
+    var allOn: Bool { onCount == LightID.lights.count }
     var partial: Bool { onCount > 0 && !allOn }
 
     func setting(_ light: LightID, on: Bool) -> LightsState {
         var s = self
-        if light == .all { for d in LightID.devices { s.values[d.rawValue] = on ? 1 : 0 } }
+        if light == .all { for d in LightID.lights { s.values[d.rawValue] = on ? 1 : 0 } }
         else { s.values[light.rawValue] = on ? 1 : 0 }
         return s
     }

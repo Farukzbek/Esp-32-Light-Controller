@@ -5,6 +5,7 @@
 #include <Preferences.h>
 #include <time.h>
 #include "esp_random.h"
+#include "rule_days.h"
 
 // Kapi dugumu: PIR sensoru odaya giris/hareket algilayinca KOPRUYE (firmware/bridge) komut atar.
 //  KURALLAR (en fazla 8, uygulamadan gelir): her kural = etkin mi, eylem (0 cevir, 1 ac, 2 kapat), isiklar (bit maskesi),
@@ -28,7 +29,7 @@ struct Cfg {
   uint16_t winStart = 18 * 60, winEnd = 7 * 60;   // dakika (gece yarisini asabilir)
 } g;
 
-struct Rule { bool en = true; uint8_t action = 1, lamps = 1; uint16_t start = 0, end = 0, cool = 0; };
+struct Rule { bool en = true; uint8_t action = 1, lamps = 1; uint16_t start = 0, end = 0, cool = 0; uint8_t days = RULE_ALL_DAYS; };   // days: bit0 Pzt ... bit6 Paz (shared/rule_days.h)
 #define MAX_RULES 8
 static Rule g_rules[MAX_RULES];
 static uint8_t g_nRules = 0;
@@ -60,11 +61,12 @@ static String rulesToString() {
     const Rule &r = g_rules[i];
     if (i) o += ';';
     o += String(r.en ? 1 : 0) + ":" + r.action + ":" + r.lamps + ":" + r.start + ":" + r.end + ":" + r.cool;
+    if (r.days != RULE_ALL_DAYS) o += ":" + String(r.days);       // 7. alan yalnizca her gun disindaysa (eski uygulamalarla uyum)
   }
   return o;
 }
 
-// "en:eylem:isiklar:bas:bit:bekleme;..." -> kurallar. Gecersizse hicbir sey degismez.
+// "en:eylem:isiklar:bas:bit:bekleme[:gunler];..." -> kurallar (gunler: bit0 Pzt ... bit6 Paz, yoksa her gun). Gecersizse hicbir sey degismez.
 static bool parseRules(const String &str) {
   Rule tmp[MAX_RULES]; int n = 0;
   int pos = 0;
@@ -73,15 +75,16 @@ static bool parseRules(const String &str) {
     const String item = str.substring(pos, e);
     pos = e + 1;
     if (!item.length()) continue;
-    long v[6]; int k = 0, q = 0;
-    while (k < 6) {
+    long v[7]; int k = 0, q = 0;
+    while (k < 7) {
       int c = item.indexOf(':', q); const String f = item.substring(q, c < 0 ? item.length() : c);
       if (!f.length()) return false;
       v[k++] = f.toInt();
       if (c < 0) break; q = c + 1;
     }
-    if (k != 6 || v[1] < 0 || v[1] > 2 || v[2] < 1 || v[2] > 255 || v[3] < 0 || v[3] > 1439 || v[4] < 0 || v[4] > 1439 || v[5] < 0 || v[5] > 60) return false;
-    tmp[n++] = {v[0] != 0, (uint8_t)v[1], (uint8_t)v[2], (uint16_t)v[3], (uint16_t)v[4], (uint16_t)v[5]};
+    if (k == 6) v[6] = RULE_ALL_DAYS;
+    if ((k != 6 && k != 7) || v[6] < 1 || v[6] > 127 || v[1] < 0 || v[1] > 2 || v[2] < 1 || v[2] > 255 || v[3] < 0 || v[3] > 1439 || v[4] < 0 || v[4] > 1439 || v[5] < 0 || v[5] > 60) return false;
+    tmp[n++] = {v[0] != 0, (uint8_t)v[1], (uint8_t)v[2], (uint16_t)v[3], (uint16_t)v[4], (uint16_t)v[5], (uint8_t)v[6]};
   }
   for (int i = 0; i < n; i++) g_rules[i] = tmp[i];
   g_nRules = n;
@@ -120,11 +123,10 @@ static bool nowLocal(struct tm &t) {
 }
 
 static bool inWindowR(const Rule &r) {
-  if (r.start == r.end) return true;              // bas = bit: gun boyu
+  if (r.start == r.end && r.days == RULE_ALL_DAYS) return true;   // gun boyu, her gun: saate gerek yok
   struct tm t;
-  if (!nowLocal(t)) return false;                 // saat bilinmiyorsa kural calismaz
-  const uint16_t m = t.tm_hour * 60 + t.tm_min;
-  return r.start < r.end ? (m >= r.start && m < r.end) : (m >= r.start || m < r.end);
+  if (!nowLocal(t)) return false;                 // saat bilinmiyorsa (gun/saat siniri olan) kural calismaz
+  return rule_in_window(r.days, t.tm_wday, t.tm_hour * 60 + t.tm_min, r.start, r.end);
 }
 
 // ---------------------------------------------------------------- kopru

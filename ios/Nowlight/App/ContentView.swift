@@ -42,11 +42,11 @@ struct LightsScreen: View {
 
     private let columns = [GridItem(.flexible(), spacing: 14), GridItem(.flexible(), spacing: 14)]
 
-    private var showAll: Bool { _ = model.removed; return LightID.devices.count >= 2 }
+    private var showAll: Bool { _ = model.removed; return LightID.lights.count >= 2 }
 
     private var tiles: [LightID] {
         let d = LightID.devices
-        _ = model.removed                                  // kaldirma/geri ekleme gorunumu tazeler
+        _ = (model.removed, model.roles)                   // kaldirma/geri ekleme ve rol degisimi gorunumu tazeler
         return d
     }
 
@@ -71,7 +71,9 @@ struct LightsScreen: View {
                     } else {
                         if showAll { LightTile(light: .all, wide: true) }      // "Tum isiklar": en ustte tam genislikte
                         LazyVGrid(columns: columns, spacing: 14) {
-                            ForEach(tiles, id: \.self) { LightTile(light: $0) }
+                            ForEach(tiles, id: \.self) { l in
+                                if l.role == .pir { PirTile(light: l) } else { LightTile(light: l) }
+                            }
                         }
                         SiriPromoCard().padding(.top, 10)
                     }
@@ -138,7 +140,9 @@ struct LightTile: View {
     let light: LightID
     var wide = false
     @State private var taps = 0
+    @State private var showServo = false
 
+    private var isServo: Bool { _ = model.roles; return light.role == .servo }
     private var value: Int { model.state?.value(light) ?? -1 }
     /// Kart yanik: tek isik acikken o isik; "Tum isiklar" icin yalnizca HEPSI aciksa (kismi durumda yanmaz, sadece 1/3 yazar).
     private var on: Bool { _ = model.removed; return light == .all ? (model.state?.allOn ?? false) : value == 1 }
@@ -148,7 +152,10 @@ struct LightTile: View {
     private var status: String {
         _ = model.removed                                  // cihaz kaldirilinca/geri eklenince sayim (1/2, 1/3) tazelensin
         guard let s = model.state else { return "—" }
-        if light == .all { return s.onCount == 0 ? "Kapalı" : "\(s.onCount)/\(LightID.devices.count)" + (s.allOn ? " açık" : "") }
+        if light == .all { return s.onCount == 0 ? "Kapalı" : "\(s.onCount)/\(LightID.lights.count)" + (s.allOn ? " açık" : "") }
+        if isServo, let a = s.servo[light.rawValue], a.angle >= 0, value != -1 {
+            return (on ? "Açık" : "Kapalı") + " · \(a.angle)°" + (a.free ? " · serbest" : "")
+        }
         return value == -1 ? "—" : (on ? "Açık" : "Kapalı")
     }
 
@@ -216,6 +223,13 @@ struct LightTile: View {
         .buttonStyle(PressStyle())
         .disabled(model.state == nil)
         .sensoryFeedback(.impact(flexibility: .soft), trigger: taps)
+        .contextMenu {
+            if isServo {
+                Button { showServo = true } label: { Label("Açıyı ayarla", systemImage: "slider.horizontal.3") }
+                Button { Task { await model.servoFree(light) } } label: { Label("Serbest bırak", systemImage: "hand.raised.fill") }
+            }
+        }
+        .sheet(isPresented: $showServo) { ServoSheet(light: light) }
         .animation(.spring(response: 0.35, dampingFraction: 0.75), value: on)
         .animation(.spring(response: 0.35, dampingFraction: 0.75), value: partial)
         .accessibilityLabel("\(light.title), \(status)")

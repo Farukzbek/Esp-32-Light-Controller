@@ -34,7 +34,7 @@ struct TileFace: View {
 
     private var status: String {
         guard let s = entry.state else { return "—" }
-        if light == .all { return s.onCount == 0 ? "Kapalı" : "\(s.onCount)/\(LightID.devices.count)" + (s.allOn ? " açık" : "") }
+        if light == .all { return s.onCount == 0 ? "Kapalı" : "\(s.onCount)/\(LightID.lights.count)" + (s.allOn ? " açık" : "") }
         return value == -1 ? "—" : (on ? "Açık" : "Kapalı")
     }
 

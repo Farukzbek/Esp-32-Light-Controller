@@ -78,7 +78,7 @@ struct BridgeClient {
     func apply(_ light: LightID, on: Bool) async throws {
         if light == .all {
             try await withThrowingTaskGroup(of: Void.self) { g in      // uc istek ayni anda
-                for d in LightID.devices { g.addTask { try await self.set(d, on: on) } }
+                for d in LightID.lights { g.addTask { try await self.set(d, on: on) } }
                 try await g.waitForAll()
             }
         } else {
@@ -149,8 +149,8 @@ struct BridgeClient {
     func pairStatus() async throws -> PairStatus { try pairDecode(await send(request("/api/pair"))) }
     func pairStop() async { _ = try? await send(request("/api/pair/stop", method: "POST")) }
     /// Cihazi bir isik kimligine baglar: mevcut bir kimlik (yerine gecer) ya da yeni bir kimlik ("d3"...). Ad ve simge uygulamada tutulur.
-    func pairAccept(mac: String, id: String, pin: Int? = nil, inv: Bool? = nil) async throws {
-        var q = [URLQueryItem(name: "mac", value: mac), URLQueryItem(name: "id", value: id)]
+    func pairAccept(mac: String, id: String, pin: Int? = nil, inv: Bool? = nil, role: NodeRole = .light) async throws {
+        var q = [URLQueryItem(name: "mac", value: mac), URLQueryItem(name: "id", value: id), URLQueryItem(name: "role", value: role.rawValue)]
         if let pin { q.append(URLQueryItem(name: "pin", value: String(pin))) }
         if let inv { q.append(URLQueryItem(name: "inv", value: inv ? "1" : "0")) }
         _ = try await send(request("/api/pair/accept", method: "POST", query: q))
@@ -160,6 +160,33 @@ struct BridgeClient {
     func nodeConfig(id: String, pin: Int, inv: Bool) async throws {
         _ = try await send(request("/api/node/config", method: "POST", query: [
             URLQueryItem(name: "id", value: id), URLQueryItem(name: "pin", value: String(pin)), URLQueryItem(name: "inv", value: inv ? "1" : "0"),
+        ]))
+    }
+
+    // MARK: Servo ve PIR
+    /// Servo ayarlari. hiz: 10 derece/sn biriminde (0 = aninda); birakma: 100 ms biriminde (0 = asla birakma, surekli tut).
+    func servoConfig(id: String, pin: Int, inv: Bool, off: Int, on: Int, speed: Int, release: Int, min: Int, max: Int) async throws {
+        _ = try await send(request("/api/node/servo", method: "POST", query: [
+            URLQueryItem(name: "id", value: id), URLQueryItem(name: "pin", value: String(pin)), URLQueryItem(name: "inv", value: inv ? "1" : "0"),
+            URLQueryItem(name: "off", value: String(off)), URLQueryItem(name: "on", value: String(on)), URLQueryItem(name: "speed", value: String(speed)),
+            URLQueryItem(name: "release", value: String(release)), URLQueryItem(name: "min", value: String(min)), URLQueryItem(name: "max", value: String(max)),
+        ]))
+    }
+    /// Servoyu bir acyi gonder (0...180). hiz verilmezse servonun ayarli hizi kullanilir.
+    func servoGoto(id: String, angle: Int, speed: Int? = nil) async throws {
+        var q = [URLQueryItem(name: "id", value: id), URLQueryItem(name: "angle", value: String(angle))]
+        if let speed { q.append(URLQueryItem(name: "speed", value: String(speed))) }
+        _ = try await send(request("/api/servo", method: "POST", query: q))
+    }
+    /// Servoyu birak: elle oynatilabilir.
+    func servoFree(id: String) async throws {
+        _ = try await send(request("/api/servo/free", method: "POST", query: [URLQueryItem(name: "id", value: id)]))
+    }
+    /// PIR ayarlari: tutma (sn), onay (10 ms), bekleme (sn), ters (LOW = hareket).
+    func pirConfig(id: String, pin: Int, hold: Int, confirm: Int, cooldown: Int, inv: Bool) async throws {
+        _ = try await send(request("/api/node/pir", method: "POST", query: [
+            URLQueryItem(name: "id", value: id), URLQueryItem(name: "pin", value: String(pin)), URLQueryItem(name: "hold", value: String(hold)),
+            URLQueryItem(name: "confirm", value: String(confirm)), URLQueryItem(name: "cooldown", value: String(cooldown)), URLQueryItem(name: "inv", value: inv ? "1" : "0"),
         ]))
     }
 

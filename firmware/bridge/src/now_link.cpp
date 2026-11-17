@@ -45,6 +45,9 @@ static uint8_t s_mac[LINKS][6];
 static volatile int8_t s_rssi[LINKS] = {};
 static volatile uint32_t s_rssiMs[LINKS] = {};
 static volatile int8_t s_dyn[NOW_DYN_MAX] = {-1, -1, -1, -1};   // eslesen dugumlerin durumu
+static volatile int16_t s_angle[NOW_DYN_MAX] = {-1, -1, -1, -1};  // servo dugumlerinin son bildirilen acisi
+static volatile uint8_t s_free[NOW_DYN_MAX] = {};                // servo birakilmis mi
+static uint8_t s_role[NOW_DYN_MAX] = {};                          // eslesen dugumun rolu (ROLE_*)
 
 static void promiscCb(void *buf, wifi_promiscuous_pkt_type_t type) {
   const wifi_promiscuous_pkt_t *p = (const wifi_promiscuous_pkt_t *)buf;
@@ -98,6 +101,13 @@ static void pollIncoming() {
     if (!L.sp) continue;
     NowMsg in;
     while (L.sp->get(&in)) {
+      if (in.type == NOW_ANGLE) {                  // servo dugumu: son aci ve serbest/tutuyor bilgisi
+        if (k >= 2) { s_angle[k - 2] = in.val; s_free[k - 2] = in.st[0] & 1; }
+        L.everSeen = true;
+        L.lastRxMs = millis();
+        if (L.havePending && in.seq == L.pending.seq) L.havePending = false;
+        continue;
+      }
       if (in.type != NOW_STATE) continue;
       for (int i = 0; i < 4; i++) if (in.st[i] != NOW_UNKNOWN) s_state[i] = in.st[i];
       if (k >= 2) s_dyn[k - 2] = in.val ? 1 : 0;   // eslesen dugum: durum dev/val alaninda
@@ -131,7 +141,7 @@ static void nowTask(void *) {
 #else
       (void)ok; (void)t0;
 #endif
-      if (o.m.type == NOW_SET) { L.pending = o.m; L.havePending = true; L.sentAt = millis(); L.tries = 1; }
+      if (o.m.type == NOW_SET || o.m.type == NOW_SERVO_GOTO) { L.pending = o.m; L.havePending = true; L.sentAt = millis(); L.tries = 1; }
     }
 
     // yanit gelmeyen komutlari yeniden dene
@@ -178,6 +188,7 @@ bool now_dyn_add(uint8_t slot, const uint8_t mac[6]) {
   memcpy(s_mac[k], mac, 6);
   n.sp = new SpanPoint(macToStr(mac).c_str(), sizeof(NowMsg), sizeof(NowMsg), 4);
   s_dyn[k - 2] = -1;
+  s_angle[k - 2] = -1; s_free[k - 2] = 0;
   s_link[k] = n;
   Preferences p;
   if (p.begin("nodes", false)) { char key[4]; snprintf(key, sizeof(key), "m%u", slot); p.putBytes(key, mac, 6); p.end(); }
@@ -240,6 +251,8 @@ void now_init(void) {
         char key[4]; snprintf(key, sizeof(key), "m%u", slot);
         uint8_t mac[6];
         if (p.isKey(key) && p.getBytes(key, mac, 6) == 6) { p.end(); now_dyn_add(slot, mac); p.begin("nodes", true); }
+        char rk[4]; snprintf(rk, sizeof(rk), "r%u", slot);
+        if (p.isKey(rk)) s_role[slot - NOW_DYN_FIRST] = p.getUChar(rk, ROLE_LIGHT);
       }
       p.end();
     }
@@ -250,6 +263,41 @@ void now_init(void) {
   Serial.printf("[now] kumanda MAC = %s  masa = %s  yatak = %s  sabit kanal = %d\n", Network.macAddress().c_str(), NOW_HUB_MAC, NOW_BED_MAC, NOW_CHANNEL);
 #endif
   xTaskCreate(nowTask, "now", 8192, nullptr, 1, nullptr);
+}
+
+uint8_t now_role(uint8_t slot) {
+  return (slot >= NOW_DYN_FIRST && slot < NOW_DYN_FIRST + NOW_DYN_MAX) ? s_role[slot - NOW_DYN_FIRST] : (uint8_t)ROLE_LIGHT;
+}
+void now_set_role(uint8_t slot, uint8_t role) {
+  if (slot < NOW_DYN_FIRST || slot >= NOW_DYN_FIRST + NOW_DYN_MAX) return;
+  s_role[slot - NOW_DYN_FIRST] = role;
+  Preferences p;
+  if (p.begin("nodes", false)) { char key[4]; snprintf(key, sizeof(key), "r%u", slot); p.putUChar(key, role); p.end(); }
+}
+int16_t now_dyn_angle(uint8_t slot) { return now_dyn_present(slot) ? s_angle[slot - NOW_DYN_FIRST] : -1; }
+bool now_dyn_free(uint8_t slot) { return now_dyn_present(slot) && s_free[slot - NOW_DYN_FIRST]; }
+
+void now_send_servo_cfg(uint8_t slot, uint8_t pin, bool inv, uint8_t offAngle, uint8_t onAngle, uint8_t speed, uint8_t releaseDs, uint8_t minAngle, uint8_t maxAngle) {
+  NowMsg a = {};
+  a.type = NOW_SERVO_CFG; a.dev = slot; a.val = pin; a.st[0] = inv ? 1 : 0; a.st[1] = offAngle; a.st[2] = onAngle; a.st[3] = speed; a.seq = ++s_seq;
+  NowMsg b = {};
+  b.type = NOW_SERVO_CFG2; b.dev = slot; b.val = releaseDs; b.st[0] = minAngle; b.st[1] = maxAngle; b.st[2] = b.st[3] = NOW_UNKNOWN; b.seq = ++s_seq;
+  for (int i = 0; i < 2; i++) { enqueue(a, linkOfDev(slot)); enqueue(b, linkOfDev(slot)); }   // paket kaybina karsi iki kez
+}
+void now_send_servo_goto(uint8_t slot, uint8_t angle, int speed) {
+  NowMsg m = {};
+  m.type = NOW_SERVO_GOTO; m.dev = slot; m.val = angle; m.st[0] = speed < 0 ? NOW_UNKNOWN : (uint8_t)speed; m.st[1] = m.st[2] = m.st[3] = NOW_UNKNOWN; m.seq = ++s_seq;
+  enqueue(m, linkOfDev(slot));
+}
+void now_send_servo_free(uint8_t slot) {
+  NowMsg m = {};
+  m.type = NOW_SERVO_FREE; m.dev = slot; m.st[0] = m.st[1] = m.st[2] = m.st[3] = NOW_UNKNOWN; m.seq = ++s_seq;
+  enqueue(m, linkOfDev(slot)); enqueue(m, linkOfDev(slot));
+}
+void now_send_pir_cfg(uint8_t slot, uint8_t pin, uint8_t holdS, uint8_t confirm10ms, uint8_t cooldownS, bool inv) {
+  NowMsg m = {};
+  m.type = NOW_PIR_CFG; m.dev = slot; m.val = pin; m.st[0] = holdS; m.st[1] = confirm10ms; m.st[2] = cooldownS; m.st[3] = inv ? 1 : 0; m.seq = ++s_seq;
+  enqueue(m, linkOfDev(slot)); enqueue(m, linkOfDev(slot));
 }
 
 void now_send_cfg(uint8_t slot, uint8_t pin, bool inv) {
@@ -264,7 +312,8 @@ void now_forget(uint8_t slot) {
   m.type = NOW_FORGET; m.dev = slot; m.st[0] = m.st[1] = m.st[2] = m.st[3] = NOW_UNKNOWN; m.seq = ++s_seq;
   for (int i = 0; i < 3; i++) enqueue(m, linkOfDev(slot));
   Preferences p;
-  if (p.begin("nodes", false)) { char key[4]; snprintf(key, sizeof(key), "m%u", slot); p.remove(key); p.end(); }
+  if (p.begin("nodes", false)) { char key[4]; snprintf(key, sizeof(key), "m%u", slot); p.remove(key); snprintf(key, sizeof(key), "r%u", slot); p.remove(key); p.end(); }
+  if (slot >= NOW_DYN_FIRST && slot < NOW_DYN_FIRST + NOW_DYN_MAX) s_role[slot - NOW_DYN_FIRST] = ROLE_LIGHT;
   Serial.printf("[now] dugum unutuldu: yuva %u\n", slot);
 }
 

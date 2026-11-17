@@ -25,7 +25,7 @@ struct LightsConfigurationIntent: WidgetConfigurationIntent {
         return slots.enumerated().compactMap { i, s -> LightID? in
             // 1-4. yuva secilmediyse konumuna gore varsayilan; 5-8. yuva bos birakilirsa gosterilmez
             guard let l = s == nil ? (i < 4 ? defaults[i] : nil) : s?.light else { return nil }
-            return l == .all ? (LightID.devices.count >= 2 ? l : nil) : (LightID.devices.contains(l) ? l : nil)
+            return l == .all ? (LightID.lights.count >= 2 ? l : nil) : (LightID.controllable.contains(l) ? l : nil)
         }
     }
 }

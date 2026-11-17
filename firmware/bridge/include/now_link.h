@@ -40,3 +40,15 @@ int8_t now_dyn_state(uint8_t slot);                     // 1 acik, 0 kapali, -1 
 bool now_dyn_linked(uint8_t slot);                      // dugum son zamanlarda konustu mu
 void now_send_cfg(uint8_t slot, uint8_t pin, bool inv); // role pini / ters mantik (NOW_CFG)
 void now_forget(uint8_t slot);                          // dugume eslesmeyi sildir (NOW_FORGET) ve kaydi sil
+
+// --- Servo ve PIR rolleri (bkz. shared/now_proto.h) ---
+uint8_t now_role(uint8_t slot);                         // ROLE_LIGHT / ROLE_SERVO / ROLE_PIR
+void now_set_role(uint8_t slot, uint8_t role);          // eslesmede kopru rolu belirler (NVS'e yazar)
+int16_t now_dyn_angle(uint8_t slot);                    // servonun son bildirilen acisi, -1 bilinmiyor
+bool now_dyn_free(uint8_t slot);                        // servo birakilmis mi (elle oynatilabilir)
+// pin, ters yon, kapali acisi, acik acisi, hiz (10 derece/sn; 0 = aninda), birakma suresi (100 ms; 0 = asla), alt ve ust aci siniri
+void now_send_servo_cfg(uint8_t slot, uint8_t pin, bool inv, uint8_t offAngle, uint8_t onAngle, uint8_t speed, uint8_t releaseDs, uint8_t minAngle, uint8_t maxAngle);
+void now_send_servo_goto(uint8_t slot, uint8_t angle, int speed);   // speed < 0: ayardaki hiz
+void now_send_servo_free(uint8_t slot);                              // servoyu hemen birak
+// PIR: pin, tutma suresi (sn), onay suresi (10 ms), bekleme (sn), ters (LOW = hareket)
+void now_send_pir_cfg(uint8_t slot, uint8_t pin, uint8_t holdS, uint8_t confirm10ms, uint8_t cooldownS, bool inv);

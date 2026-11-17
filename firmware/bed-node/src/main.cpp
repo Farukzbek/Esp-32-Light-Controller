@@ -1,5 +1,6 @@
 #include "HomeSpan.h"
 #include "now_proto.h"
+#include <Preferences.h>
 
 // Yatak lambasi: ESP-NOW ile kumandadan komut alir, rolesi (GPIO5, ters mantik: LOW = acik) surer.
 // WiFi'ye / router'a / HomeKit'e BAGLANMAZ. Uc cihaz NOW_CHANNEL kanalinda sabit bulusur.
@@ -8,8 +9,13 @@
 // Dokunma mantigi masa dugumuyle ayni: acilista 3 sn kalibrasyon, yavas baseline takibi, 3 ardisik okuma, 400 ms bekleme.
 
 #define RELAY_PIN 5
-#define RELAY_ON  LOW
-#define RELAY_OFF HIGH
+#define RELAY_ACTIVE_LOW 1     // 1: IN=LOW iken role calisir (cogu 5V role modulu)
+// Role pini ve mantigi derleme degeridir ama telefon uygulamasindan degistirilebilir (NOW_CFG, kopruden gelir) ve flash'ta (NVS "nlbed") saklanir.
+static uint8_t g_pin = RELAY_PIN;
+static bool g_inv = RELAY_ACTIVE_LOW;
+static Preferences prefs;
+#define RELAY_ON  (g_inv ? LOW : HIGH)
+#define RELAY_OFF (g_inv ? HIGH : LOW)
 
 #define TOUCH_PIN        9     // ESP32-S3'te GPIO1..14 dokunmatiktir (T1..T14)
 // Esik KAPALI KASAYLA (bant 1 mm duvarin arkasinda) olculdu: parmak ucu x1.09-1.11, avuc ici x1.17, yaklastirma (degmeden) x1.04'u gecmedi.
@@ -32,7 +38,18 @@ static int g_npeers = 1;
 
 static void relaySet(bool on) {
   g_on = on;
-  digitalWrite(RELAY_PIN, on ? RELAY_ON : RELAY_OFF);
+  digitalWrite(g_pin, on ? RELAY_ON : RELAY_OFF);
+}
+
+// Uygulamadan gelen role ayari: gecerli bir cikis pini olmali, dokunma pinine esit olamaz. Role kapali kalir, eski pin serbest birakilir.
+static void applyRelayCfg(uint8_t pin, bool inv) {
+  if (!GPIO_IS_VALID_OUTPUT_GPIO(pin) || pin == TOUCH_PIN) { Serial.printf("[now] CFG reddedildi: gecersiz pin %u\n", pin); return; }
+  const bool wasOn = g_on;
+  if (pin != g_pin) { relaySet(false); pinMode(g_pin, INPUT); g_pin = pin; digitalWrite(g_pin, inv ? HIGH : LOW); pinMode(g_pin, OUTPUT); }
+  g_inv = inv;
+  relaySet(wasOn && pin == g_pin ? wasOn : false);
+  prefs.begin("nlbed", false); prefs.putUChar("pin", g_pin); prefs.putUChar("inv", g_inv ? 1 : 0); prefs.end();
+  Serial.printf("[now] CFG role pini=%u ters=%d\n", g_pin, g_inv);
 }
 
 static void touchCalibrate() {
@@ -72,9 +89,15 @@ void setup() {
   Serial.begin(115200);
   delay(500);
 
-  // Role acilista gitmesin: cikisi acmadan once seviyeyi HIGH (kapali) yap
-  gpio_set_level((gpio_num_t)RELAY_PIN, 1);
-  pinMode(RELAY_PIN, OUTPUT);
+  // Kayitli role ayari (uygulamadan degistirildiyse)
+  prefs.begin("nlbed", true);
+  const uint8_t savedPin = prefs.getUChar("pin", 255);
+  if (savedPin != 255 && GPIO_IS_VALID_OUTPUT_GPIO(savedPin) && savedPin != TOUCH_PIN) { g_pin = savedPin; g_inv = prefs.getUChar("inv", RELAY_ACTIVE_LOW) != 0; }
+  prefs.end();
+
+  // Role acilista gitmesin: cikisi acmadan once seviyeyi kapali yap
+  gpio_set_level((gpio_num_t)g_pin, RELAY_OFF);
+  pinMode(g_pin, OUTPUT);
   relaySet(false);
 
   touchCalibrate();
@@ -137,6 +160,9 @@ void loop() {
       Serial.printf("[now] SET yatak=%d seq=%u\n", m.val, m.seq);
       sendStateTo(pi, m.seq);
     } else if (m.type == NOW_QUERY) {
+      sendStateTo(pi, m.seq);
+    } else if (m.type == NOW_CFG && m.dev == DEV_YATAK && g_npeers == 2 && pi == 1) {   // yalnizca telefon koprusunden
+      applyRelayCfg(m.val, m.st[0] & 1);
       sendStateTo(pi, m.seq);
     }
   }

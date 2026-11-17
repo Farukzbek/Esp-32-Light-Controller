@@ -54,28 +54,66 @@ struct AutomationRule: Codable, Identifiable, Equatable {
     var start = 18 * 60           // dakika
     var end = 6 * 60              // bitis haric; gece yarisini asabilir; bas == bit: gun boyu
     var cooldownMin = 0           // 0...60
+    var days = 127                // calisma gunleri: bit0 Pazartesi ... bit6 Pazar; 127 = her gun. Gece yarisini asan aralikta gun, aralik BASLADIGI gundur.
 
     /// Uygulamada gorunen (kaldirilmamis) isiklarin bit maskesi: masa 1, yatak 2, led 4.
-    static var visibleMask: Int { LightID.devices.reduce(0) { $0 | $1.bit } }
+    static var visibleMask: Int { LightID.controllable.reduce(0) { $0 | $1.bit } }
     /// Kural yalnizca gorunen isiklara uygulanir; hic gorunen isik kalmadiysa dugumde kapali gonderilir.
     var effectiveLamps: Int { lamps & Self.visibleMask }
 
-    var wire: String { "\(enabled && effectiveLamps != 0 ? 1 : 0):\(action.rawValue):\(effectiveLamps != 0 ? effectiveLamps : lamps):\(start):\(end):\(cooldownMin)" }
+    /// Dugume giden metin. 7. alan (gunler) yalnizca her gun disindaysa eklenir: eski kapi dugumu yazilimi 6 alan bekler.
+    var wire: String {
+        let base = "\(enabled && effectiveLamps != 0 ? 1 : 0):\(action.rawValue):\(effectiveLamps != 0 ? effectiveLamps : lamps):\(start):\(end):\(cooldownMin)"
+        return days & 127 == 127 ? base : base + ":\(days & 127)"
+    }
+    /// Eski kapi dugumu (gun destegi yok) bu kurali reddeder: yalnizca gunu kisitli kural gonderilirken gerekir.
+    var needsDaySupport: Bool { days & 127 != 127 }
 
     static func parse(_ wire: String) -> [AutomationRule] {
         wire.split(separator: ";").enumerated().compactMap { i, item in
             let v = item.split(separator: ":").compactMap { Int($0) }
-            guard v.count == 6, let a = Action(rawValue: v[1]) else { return nil }
-            return AutomationRule(name: "Kural \(i + 1)", enabled: v[0] != 0, action: a, lamps: v[2], start: v[3], end: v[4], cooldownMin: v[5])
+            guard v.count == 6 || v.count == 7, let a = Action(rawValue: v[1]) else { return nil }
+            return AutomationRule(name: "Kural \(i + 1)", enabled: v[0] != 0, action: a, lamps: v[2], start: v[3], end: v[4], cooldownMin: v[5], days: v.count == 7 ? v[6] : 127)
         }
     }
 
     static func hhmm(_ m: Int) -> String { String(format: "%02d:%02d", m / 60, m % 60) }
-    var windowText: String { start == end ? "Gün boyu" : "\(Self.hhmm(start)) – \(Self.hhmm(end))" }
+    var windowText: String {
+        let t = start == end ? "Gün boyu" : "\(Self.hhmm(start)) – \(Self.hhmm(end))"
+        return days & 127 == 127 ? t : "\(Self.daySummary(days)) · \(t)"
+    }
+
+    static let dayNames = ["Pzt", "Sal", "Çar", "Per", "Cum", "Cmt", "Paz"]
+    /// "Her gün", "Hafta içi", "Hafta sonu" ya da gun adlari.
+    static func daySummary(_ days: Int) -> String {
+        let d = days & 127
+        if d == 127 { return "Her gün" }
+        if d == 0b0011111 { return "Hafta içi" }
+        if d == 0b1100000 { return "Hafta sonu" }
+        return (0..<7).filter { d & (1 << $0) != 0 }.map { dayNames[$0] }.joined(separator: ", ")
+    }
     var lampText: String {
         let shown = LightID.allDevices.filter { effectiveLamps & $0.bit != 0 }
         if shown.isEmpty { return "Işık yok (kaldırılmış)" }
-        return shown.count == LightID.devices.count && shown.count > 1 ? "Tüm ışıklar" : shown.map(\.title).joined(separator: ", ")
+        return shown.count == LightID.controllable.count && shown.count > 1 ? "Tüm ışıklar" : shown.map(\.title).joined(separator: ", ")
+    }
+}
+
+/// Eski kayitli kurallarda `days` yok: her gun kabul edilir.
+extension AutomationRule {
+    enum CodingKeys: String, CodingKey { case id, name, enabled, action, lamps, start, end, cooldownMin, days }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(UUID.self, forKey: .id)
+        name = try c.decode(String.self, forKey: .name)
+        enabled = try c.decode(Bool.self, forKey: .enabled)
+        action = try c.decode(Action.self, forKey: .action)
+        lamps = try c.decode(Int.self, forKey: .lamps)
+        start = try c.decode(Int.self, forKey: .start)
+        end = try c.decode(Int.self, forKey: .end)
+        cooldownMin = try c.decode(Int.self, forKey: .cooldownMin)
+        days = (try c.decodeIfPresent(Int.self, forKey: .days)) ?? 127
     }
 }
 

@@ -1,5 +1,6 @@
 #include "HomeSpan.h"
 #include "now_proto.h"
+#include <Preferences.h>
 
 // Masa lambasi dugumu / hub (ESP32-S3 Super Mini): kapasitif dokunma bandi + role + ESP-NOW ile kumanda ile
 // iki yonlu haberlesme. WiFi'ye / router'a BAGLANMAZ. Uc cihaz NOW_CHANNEL kanalinda sabit bulusur.
@@ -19,8 +20,13 @@
   #define TOUCH_RISES_ON_TOUCH 0
 #endif
 
-#define RELAY_ON  (RELAY_ACTIVE_LOW ? LOW : HIGH)
-#define RELAY_OFF (RELAY_ACTIVE_LOW ? HIGH : LOW)
+// Role pini ve mantigi derleme degeridir (RELAY_PIN, RELAY_ACTIVE_LOW) ama telefon uygulamasindan degistirilebilir (NOW_CFG, kopruden gelir)
+// ve flash'ta (NVS "nlhub") saklanir. Degistirilmediyse derleme degeri gecerlidir.
+static uint8_t g_pin = RELAY_PIN;
+static bool g_inv = RELAY_ACTIVE_LOW;
+static Preferences prefs;
+#define RELAY_ON  (g_inv ? LOW : HIGH)
+#define RELAY_OFF (g_inv ? HIGH : LOW)
 #define PUSH_QUIET_MS 25000   // kumanda bu kadar sessizse (uykuda) kendiliginden bildirim atma
 
 static float g_baseline = 0;
@@ -34,7 +40,7 @@ static uint8_t g_virt_led = 0;   // LED: henuz gercek cihaz yok, sadece durum tu
 
 static void relaySet(bool on) {
   g_on = on;
-  digitalWrite(RELAY_PIN, on ? RELAY_ON : RELAY_OFF);
+  digitalWrite(g_pin, on ? RELAY_ON : RELAY_OFF);
 }
 
 static void touchCalibrate() {
@@ -68,6 +74,17 @@ static void sendState(uint16_t seq) {
   for (int i = 0; i < g_npeers; i++) sendStateTo(i, seq);
 }
 
+// Uygulamadan gelen role ayari: gecerli bir cikis pini olmali, dokunma pinine esit olamaz. Role kapali kalir, eski pin serbest birakilir.
+static void applyRelayCfg(uint8_t pin, bool inv) {
+  if (!GPIO_IS_VALID_OUTPUT_GPIO(pin) || pin == TOUCH_PIN) { Serial.printf("[now] CFG reddedildi: gecersiz pin %u\n", pin); return; }
+  const bool wasOn = g_on;
+  if (pin != g_pin) { relaySet(false); pinMode(g_pin, INPUT); g_pin = pin; digitalWrite(g_pin, inv ? HIGH : LOW); pinMode(g_pin, OUTPUT); }
+  g_inv = inv;
+  relaySet(wasOn && pin == g_pin ? wasOn : false);
+  prefs.begin("nlhub", false); prefs.putUChar("pin", g_pin); prefs.putUChar("inv", g_inv ? 1 : 0); prefs.end();
+  Serial.printf("[now] CFG role pini=%u ters=%d\n", g_pin, g_inv);
+}
+
 static void handleNow() {
   NowMsg m;
   for (int pi = 0; pi < g_npeers; pi++)   // her kumandadan gelen mesajlar
@@ -79,6 +96,9 @@ static void handleNow() {
       else if (m.dev == DEV_LED) g_virt_led = m.val ? 1 : 0;
       sendStateTo(pi, m.seq);
     } else if (m.type == NOW_QUERY) {
+      sendStateTo(pi, m.seq);
+    } else if (m.type == NOW_CFG && m.dev == DEV_MASA && g_npeers == 2 && pi == 1) {   // yalnizca telefon koprusunden
+      applyRelayCfg(m.val, m.st[0] & 1);
       sendStateTo(pi, m.seq);
     }
   }
@@ -122,9 +142,15 @@ static void touchLoop() {
 void setup() {
   Serial.begin(115200);
 
-  // Role acilista gitmesin: cikisi acmadan once seviyeyi HIGH (kapali) yap
-  gpio_set_level((gpio_num_t)RELAY_PIN, RELAY_OFF);
-  pinMode(RELAY_PIN, OUTPUT);
+  // Kayitli role ayari (uygulamadan degistirildiyse)
+  prefs.begin("nlhub", true);
+  const uint8_t savedPin = prefs.getUChar("pin", 255);
+  if (savedPin != 255 && GPIO_IS_VALID_OUTPUT_GPIO(savedPin) && savedPin != TOUCH_PIN) { g_pin = savedPin; g_inv = prefs.getUChar("inv", RELAY_ACTIVE_LOW) != 0; }
+  prefs.end();
+
+  // Role acilista gitmesin: cikisi acmadan once seviyeyi kapali yap
+  gpio_set_level((gpio_num_t)g_pin, RELAY_OFF);
+  pinMode(g_pin, OUTPUT);
   relaySet(false);
 
   touchCalibrate();

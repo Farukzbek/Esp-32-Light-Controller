@@ -7,6 +7,7 @@
 #include <Preferences.h>
 #include "HomeSpan.h"
 #include "now_proto.h"
+#include "role_logic.h"
 #include "pair_crypto.h"
 
 // Nowlight genel isik dugumu. Ilk acilista HICBIR ayari yok: kopruyle eslesme bekler.
@@ -14,6 +15,7 @@
 //     kopru ag parolasi + kanal + yuva numarasini X25519/AES-GCM ile sifreli yollar; dugum kaydeder ve yeniden baslar.
 //  2) CALISMA: HomeSpan SpanPoint ile kopruyle sifreli konusur; yuvasina gelen SET komutuyla role surer.
 // Role mantigi: ters (LOW = acik), elektrik gelince KAPALI baslar. BOOT dugmesine 5 sn basili tutmak eslesmeyi siler.
+// ROLLER (eslesmede uygulamadan secilir, flash'ta "role"): ISIK (role), SERVO (aci kontrollu, istenince BIRAKILIR: elle oynatilabilir), PIR (hareket sensoru).
 
 #ifndef NL_RELAY_PIN
 #define NL_RELAY_PIN 5
@@ -38,7 +40,77 @@ static bool g_on = false;
 static uint8_t g_pin = NL_RELAY_PIN;    // role pini (eslesirken uygulamadan gelir, sonradan da degistirilebilir)
 static bool g_inv = true;               // ters mantik: LOW = acik
 
+static uint8_t g_role = ROLE_LIGHT;     // eslesmede kopru secer (PairSecret.reserved[0])
+
 static void relaySet(bool on) { g_on = on; digitalWrite(g_pin, (on != g_inv) ? HIGH : LOW); }
+
+// ======================================================================= SERVO
+// 50 Hz PWM (LEDC). Darbe 544..2400 us = 0..180 derece. Servo yalnizca HAREKET EDERKEN surulur; hedefe varinca (birakma suresi sonra)
+// PWM kesilir ve pin asagi cekilir: servo artik karsi koymaz, elle oynatilabilir (perde, vana, mekanik anahtar...).
+// Konum geri bildirimi yok: bildirilen aci "son komut verilen aci"dir; servo birakilmisken elle oynatildiysa gercek konum farkli olabilir.
+struct ServoCfg { uint8_t offA = 0, onA = 90, speed = 0, releaseDs = 10, minA = 0, maxA = 180; bool inv = false; };   // speed: 10 derece/sn (0 = aninda); releaseDs: 100 ms (0 = asla birak)
+static ServoCfg g_sv;
+static float g_svCur = 0, g_svTarget = 0, g_svSpeed = 0;   // derece, derece/sn
+static bool g_svKnown = false, g_svAttached = false, g_svFree = true, g_svMoving = false;
+static uint32_t g_svDoneAt = 0, g_svLastTick = 0;
+static bool g_svReleasedEvent = false;      // birakildi: kopruye bildir
+
+static void servoWrite(float logical) {
+  ledcWrite(g_pin, (servo_pulse_us(logical, g_sv.inv) * 16384UL) / 20000UL);       // 14 bit, 20 ms periyot (darbe: role_logic.h)
+}
+static void servoAttach() {
+  if (g_svAttached) return;
+  ledcAttach(g_pin, 50, 14);
+  g_svAttached = true; g_svFree = false;
+}
+static void servoRelease() {                        // PWM'i kes, pini asagi cek: servo gevser
+  if (g_svAttached) { ledcDetach(g_pin); g_svAttached = false; }
+  pinMode(g_pin, INPUT_PULLDOWN);
+  g_svMoving = false; g_svFree = true;
+}
+static bool servoIsOn() { return fabsf(g_svTarget - g_sv.onA) <= fabsf(g_svTarget - g_sv.offA); }
+static void servoSaveLast() { prefs.begin("nlnode", false); prefs.putUChar("sv_last", (uint8_t)g_svTarget); prefs.end(); }
+// Hedefe git. speed: 10 derece/sn (0 = aninda, NOW_UNKNOWN = ayardaki hiz)
+static void servoGoto(int angle, int speed) {
+  angle = servo_clamp(angle, g_sv.minA, g_sv.maxA);
+  g_svTarget = angle;
+  g_on = servoIsOn();
+  const int sp = (speed == NOW_UNKNOWN) ? g_sv.speed : speed;
+  g_svSpeed = sp * 10.0f;
+  servoAttach();
+  if (!g_svKnown || sp == 0) { g_svCur = g_svTarget; g_svKnown = true; servoWrite(g_svCur); }   // konum bilinmiyor/aninda: dogrudan git
+  g_svMoving = (g_svCur != g_svTarget);
+  g_svDoneAt = g_svMoving ? 0 : millis();
+  g_svLastTick = millis();
+  Serial.printf("[servo] hedef %d derece (hiz %d)\n", angle, sp);
+}
+static void servoTick() {
+  const uint32_t now = millis();
+  if (g_svMoving && now - g_svLastTick >= 20) {
+    const float dt = (now - g_svLastTick) / 1000.0f; g_svLastTick = now;
+    g_svCur = servo_step(g_svCur, g_svTarget, g_svSpeed, dt);
+    if (g_svCur == g_svTarget) { g_svMoving = false; g_svDoneAt = now; servoSaveLast(); }
+    servoWrite(g_svCur);
+  } else if (!g_svMoving && g_svAttached && servo_should_release(g_sv.releaseDs, now, g_svDoneAt)) {
+    servoRelease();
+    Serial.println("[servo] birakildi (serbest)");
+    g_svReleasedEvent = true;
+  }
+}
+
+// ======================================================================= PIR
+// Yazilim filtresi: onay suresinden kisa darbeler yok sayilir, hareket bittikten sonra "tutma" suresi kadar hareket var kalir
+// (cihazin kendi potansiyometre sureleriyle ayri), temizlenince "bekleme" suresi boyunca yeniden tetiklenmez.
+// Algilama ACISI/MENZILI cihazin lensi ve potansiyometresidir: yazilimdan degismez.
+static PirCfg g_pir;                      // ayarlar ve filtre mantigi: role_logic.h
+static PirState g_pirSt;
+static bool g_pirEvent = false;           // durum degisti: kopruye bildir
+static void pirTick() {
+  if (pir_update(g_pir, g_pirSt, digitalRead(g_pin) == HIGH, millis())) {
+    g_pirEvent = true;
+    Serial.println(g_pirSt.motion ? "[pir] HAREKET" : "[pir] hareket bitti");
+  }
+}
 
 static String macStr(const uint8_t *m) {
   char b[18];
@@ -109,6 +181,7 @@ static bool handleAccept() {
   prefs.putUChar("slot", ps.slot);
   if (ps.pin != 255 && GPIO_IS_VALID_OUTPUT_GPIO(ps.pin)) { prefs.putUChar("pin", ps.pin); }
   prefs.putUChar("inv", ps.flags & 1);
+  prefs.putUChar("role", ps.reserved[0] <= ROLE_PIR ? ps.reserved[0] : ROLE_LIGHT);   // eski kopru 0 yollar = isik
   prefs.end();
   Serial.printf("[eslesme] tamam: kopru %s kanal %u yuva %u. Yeniden baslatiliyor\n", macStr(g_bridgeMac).c_str(), ps.channel, ps.slot);
   delay(300);
@@ -187,8 +260,17 @@ static uint8_t g_slot = 0;
 
 static void sendState(uint16_t seq) {
   NowMsg r = {};
-  r.type = NOW_STATE; r.dev = g_slot; r.val = g_on ? 1 : 0;
+  r.type = NOW_STATE; r.dev = g_slot; r.val = (g_role == ROLE_PIR ? g_pirSt.motion : g_on) ? 1 : 0;
   for (int i = 0; i < 4; i++) r.st[i] = NOW_UNKNOWN;     // yerlesik isiklarin durumuna dokunma; bu dugumun durumu dev/val'de
+  r.seq = seq;
+  g_bridge->send(&r);
+}
+
+// Servo: son komut verilen aci ve serbest/tutuyor bilgisi (seq: yanit verdigimiz komutun numarasi, kendiliginden ise 0)
+static void sendAngle(uint16_t seq) {
+  NowMsg r = {};
+  r.type = NOW_ANGLE; r.dev = g_slot; r.val = (uint8_t)g_svTarget;
+  r.st[0] = g_svFree ? 1 : 0; r.st[1] = r.st[2] = r.st[3] = NOW_UNKNOWN;
   r.seq = seq;
   g_bridge->send(&r);
 }
@@ -202,16 +284,67 @@ static void runSetup(const uint8_t *bmac, const String &pass, uint8_t ch, uint8_
   Serial.printf("\nNOWLIGHT DUGUMU  MAC = %s  kopru = %s  kanal = %u  yuva = %u\n", Network.macAddress().c_str(), macStr(bmac).c_str(), ch, slot);
 }
 
+static void saveServoCfg() {
+  prefs.begin("nlnode", false);
+  prefs.putUChar("pin", g_pin);
+  prefs.putUChar("sv_inv", g_sv.inv ? 1 : 0); prefs.putUChar("sv_off", g_sv.offA); prefs.putUChar("sv_on", g_sv.onA);
+  prefs.putUChar("sv_spd", g_sv.speed); prefs.putUChar("sv_rel", g_sv.releaseDs); prefs.putUChar("sv_min", g_sv.minA); prefs.putUChar("sv_max", g_sv.maxA);
+  prefs.end();
+}
+static void savePirCfg() {
+  prefs.begin("nlnode", false);
+  prefs.putUChar("pin", g_pin);
+  prefs.putUChar("pr_hold", g_pir.holdS); prefs.putUChar("pr_conf", g_pir.confirm10); prefs.putUChar("pr_cool", g_pir.cooldownS); prefs.putUChar("pr_inv", g_pir.inv ? 1 : 0);
+  prefs.end();
+}
+
 static void runLoop() {
   NowMsg m;
+  if (g_role == ROLE_SERVO) {
+    servoTick();
+    if (g_svReleasedEvent) { g_svReleasedEvent = false; sendAngle(0); }
+  } else if (g_role == ROLE_PIR) {
+    pirTick();
+    if (g_pirEvent) { g_pirEvent = false; sendState(0); }
+  }
   while (g_bridge->get(&m)) {
-    if (m.type == NOW_SET && m.dev == g_slot) {
+    if (g_role == ROLE_SERVO && m.dev == g_slot && m.type == NOW_SET) {           // acik/kapali = ayarli iki aci
+      servoGoto(m.val ? g_sv.onA : g_sv.offA, NOW_UNKNOWN);
+      sendState(m.seq); sendAngle(m.seq);
+    } else if (g_role == ROLE_SERVO && m.dev == g_slot && m.type == NOW_SERVO_GOTO) {   // serbest aci (kaydirici, otomasyon)
+      servoGoto(m.val, m.st[0]);
+      sendState(m.seq); sendAngle(m.seq);
+    } else if (g_role == ROLE_SERVO && m.dev == g_slot && m.type == NOW_SERVO_FREE) {   // hemen birak
+      servoRelease();
+      sendAngle(m.seq);
+    } else if (g_role == ROLE_SERVO && m.dev == g_slot && m.type == NOW_SERVO_CFG) {
+      if (GPIO_IS_VALID_OUTPUT_GPIO(m.val)) {
+        if (m.val != g_pin) { servoRelease(); pinMode(g_pin, INPUT); g_pin = m.val; pinMode(g_pin, INPUT_PULLDOWN); }
+        g_sv.inv = m.st[0] & 1; g_sv.offA = m.st[1] > 180 ? 180 : m.st[1]; g_sv.onA = m.st[2] > 180 ? 180 : m.st[2]; g_sv.speed = m.st[3];
+        saveServoCfg();
+        Serial.printf("[now] SERVO_CFG pin=%u kapali=%u acik=%u hiz=%u ters=%d\n", g_pin, g_sv.offA, g_sv.onA, g_sv.speed, g_sv.inv);
+      } else Serial.printf("[now] SERVO_CFG reddedildi: gecersiz pin %u\n", m.val);
+    } else if (g_role == ROLE_SERVO && m.dev == g_slot && m.type == NOW_SERVO_CFG2) {
+      g_sv.releaseDs = m.val;
+      g_sv.minA = m.st[0] > 180 ? 0 : m.st[0]; g_sv.maxA = m.st[1] > 180 ? 180 : m.st[1];
+      if (g_sv.minA > g_sv.maxA) { g_sv.minA = 0; g_sv.maxA = 180; }
+      saveServoCfg();
+      Serial.printf("[now] SERVO_CFG2 birakma=%u00ms sinir=%u..%u\n", g_sv.releaseDs, g_sv.minA, g_sv.maxA);
+    } else if (g_role == ROLE_PIR && m.dev == g_slot && m.type == NOW_PIR_CFG) {
+      if (GPIO_IS_VALID_GPIO(m.val)) {
+        if (m.val != g_pin) { g_pin = m.val; pinMode(g_pin, INPUT_PULLDOWN); }
+        g_pir.holdS = m.st[0]; g_pir.confirm10 = m.st[1]; g_pir.cooldownS = m.st[2]; g_pir.inv = m.st[3] & 1;
+        savePirCfg();
+        Serial.printf("[now] PIR_CFG pin=%u tutma=%us onay=%ums bekleme=%us ters=%d\n", g_pin, g_pir.holdS, g_pir.confirm10 * 10, g_pir.cooldownS, g_pir.inv);
+      }
+    } else if (g_role == ROLE_LIGHT && m.type == NOW_SET && m.dev == g_slot) {
       relaySet(m.val ? 1 : 0);
       Serial.printf("[now] SET %s seq=%u\n", g_on ? "ACIK" : "KAPALI", m.seq);
       sendState(m.seq);
     } else if (m.type == NOW_QUERY) {
       sendState(m.seq);
-    } else if (m.type == NOW_CFG && m.dev == g_slot) {
+      if (g_role == ROLE_SERVO) sendAngle(m.seq);
+    } else if (g_role == ROLE_LIGHT && m.type == NOW_CFG && m.dev == g_slot) {
       const uint8_t pin = m.val;
       const bool inv = m.st[0] & 1;
       if (GPIO_IS_VALID_OUTPUT_GPIO(pin)) {
@@ -239,7 +372,7 @@ static void serialCommands() {
     if (c != '\n' && c != '\r') { line += c; continue; }
     line.trim();
     if (line == "reset") forgetPairing();
-    else if (line == "status") Serial.printf("[durum] %s MAC=%s role=%s\n", g_paired ? "eslesmis" : "eslesme bekliyor", WiFi.macAddress().c_str(), g_on ? "ACIK" : "KAPALI");
+    else if (line == "status") Serial.printf("[durum] %s MAC=%s rol=%s durum=%s\n", g_paired ? "eslesmis" : "eslesme bekliyor", WiFi.macAddress().c_str(), g_role == ROLE_SERVO ? "servo" : g_role == ROLE_PIR ? "pir" : "isik", g_role == ROLE_PIR ? (g_pirSt.motion ? "HAREKET" : "yok") : (g_on ? "ACIK" : "KAPALI"));
     else if (line.length()) Serial.println("komutlar: status | reset (eslesmeyi sil)");
     line = "";
   }
@@ -253,10 +386,24 @@ void setup() {
   prefs.begin("nlnode", true);
   if (prefs.isKey("pin")) g_pin = prefs.getUChar("pin", NL_RELAY_PIN);
   if (prefs.isKey("inv")) g_inv = prefs.getUChar("inv", 1) != 0;
+  g_role = prefs.getUChar("role", ROLE_LIGHT);
+  if (g_role > ROLE_PIR) g_role = ROLE_LIGHT;
+  if (g_role == ROLE_SERVO) {
+    g_sv.inv = prefs.getUChar("sv_inv", 0) != 0; g_sv.offA = prefs.getUChar("sv_off", 0); g_sv.onA = prefs.getUChar("sv_on", 90);
+    g_sv.speed = prefs.getUChar("sv_spd", 0); g_sv.releaseDs = prefs.getUChar("sv_rel", 10); g_sv.minA = prefs.getUChar("sv_min", 0); g_sv.maxA = prefs.getUChar("sv_max", 180);
+    g_svTarget = g_svCur = prefs.getUChar("sv_last", g_sv.offA);
+    g_on = servoIsOn();
+  } else if (g_role == ROLE_PIR) {
+    g_pir.holdS = prefs.getUChar("pr_hold", 5); g_pir.confirm10 = prefs.getUChar("pr_conf", 5); g_pir.cooldownS = prefs.getUChar("pr_cool", 0); g_pir.inv = prefs.getUChar("pr_inv", 0) != 0;
+  }
   prefs.end();
-  gpio_set_level((gpio_num_t)g_pin, g_inv ? 1 : 0);   // once seviyeyi yaz, sonra cikis yap: role acilista tikirdamasin
-  pinMode(g_pin, OUTPUT);
-  relaySet(false);
+  if (g_role == ROLE_LIGHT) {
+    gpio_set_level((gpio_num_t)g_pin, g_inv ? 1 : 0);   // once seviyeyi yaz, sonra cikis yap: role acilista tikirdamasin
+    pinMode(g_pin, OUTPUT);
+    relaySet(false);
+  } else {
+    pinMode(g_pin, INPUT_PULLDOWN);                     // servo: ilk komuta kadar SURULMEZ (acilista sicramaz); PIR: giris
+  }
 
   // Acilista BOOT 3 sn basili = eslesmeyi sil
   pinMode(NL_BOOT_PIN, INPUT_PULLUP);

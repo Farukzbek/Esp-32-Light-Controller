@@ -140,7 +140,18 @@ static String stateJson() {
       if (lk.length()) lk += ',';
       lk += "\"d" + String(slot) + "\":" + String((down & (1 << (2 + slot - NOW_DYN_FIRST))) ? "false" : "true");
     }
-  o += "},\"links\":{" + lk + "},\"legacy\":" + String(NL_LEGACY ? "true" : "false") +
+  String roles, angles;
+  for (uint8_t slot = NOW_DYN_FIRST; slot < NOW_DYN_FIRST + NOW_DYN_MAX; slot++) {
+    if (!now_dyn_present(slot)) continue;
+    const uint8_t r = now_role(slot);
+    if (roles.length()) roles += ',';
+    roles += "\"d" + String(slot) + "\":\"" + (r == ROLE_SERVO ? "servo" : r == ROLE_PIR ? "pir" : "light") + "\"";
+    if (r == ROLE_SERVO) {
+      if (angles.length()) angles += ',';
+      angles += "\"d" + String(slot) + "\":{\"angle\":" + String(now_dyn_angle(slot)) + ",\"free\":" + String(now_dyn_free(slot) ? "true" : "false") + "}";
+    }
+  }
+  o += "},\"links\":{" + lk + "},\"roles\":{" + roles + "},\"servo\":{" + angles + "},\"legacy\":" + String(NL_LEGACY ? "true" : "false") +
        ",\"channel\":" + String(NL_CHANNEL) + ",\"wifiChannel\":" + String((int)WiFi.channel()) + "}";
   return o;
 }
@@ -188,10 +199,11 @@ static void handleSet() {
   const bool on = (val == "1");
   if (dev == "all") {
     for (int i = 0; i < 3; i++) now_send_set(i, on);
-    for (int s = NOW_DYN_FIRST; s < NOW_DYN_FIRST + NOW_DYN_MAX; s++) if (now_dyn_present(s)) now_send_set(s, on);
+    for (int s = NOW_DYN_FIRST; s < NOW_DYN_FIRST + NOW_DYN_MAX; s++) if (now_dyn_present(s) && now_role(s) == ROLE_LIGHT) now_send_set(s, on);   // servo ve PIR "tum isiklar"a katilmaz
   } else {
     const int d = devSlot(dev);
     if (d < 0) { server.send(400, "application/json", "{\"error\":\"dev\"}"); return; }
+    if (d >= NOW_DYN_FIRST && now_role(d) == ROLE_PIR) { server.send(400, "application/json", "{\"error\":\"rol: PIR sensoru ac/kapat yapilamaz\"}"); return; }
     now_send_set(d, on);
   }
   Serial.printf("[http] set %s=%d\n", dev.c_str(), on);
@@ -209,7 +221,9 @@ static void handlePairAccept() {
   String err;
   const int pin = server.hasArg("pin") ? server.arg("pin").toInt() : -1;
   const int inv = server.hasArg("inv") ? (server.arg("inv") == "1" ? 1 : 0) : -1;
-  if (!pair_accept(server.arg("mac"), id[1] - '0', pin, inv, err)) { server.send(400, "application/json", "{\"error\":\"" + err + "\"}"); return; }
+  const String roleArg = server.arg("role");
+  const uint8_t role = roleArg == "servo" ? ROLE_SERVO : roleArg == "pir" ? ROLE_PIR : ROLE_LIGHT;
+  if (!pair_accept(server.arg("mac"), id[1] - '0', pin, inv, role, err)) { server.send(400, "application/json", "{\"error\":\"" + err + "\"}"); return; }
   server.send(200, "application/json", "{\"ok\":true}");
 }
 
@@ -221,12 +235,63 @@ static int customSlot(const String &id) {     // "d3".."d6" -> yuva, yoksa -1
   const int s = id[1] - '0';
   return now_dyn_present(s) ? s : -1;
 }
+// Role ayari icin yuva: "d3".."d7" ya da (kisisel derlemede) "masa" = 0 / "yatak" = 1 (eski hub ve yatak dugumleri artik NOW_CFG anliyor)
+static int relaySlot(const String &id) {
+  if (NL_LEGACY) { if (id == "masa") return 0; if (id == "yatak") return 1; }
+  return customSlot(id);
+}
 static void handleNodeConfig() {
   if (!authorized()) return;
-  const int slot = customSlot(server.arg("id")), pin = server.arg("pin").toInt();
+  const int slot = relaySlot(server.arg("id")), pin = server.arg("pin").toInt();
   if (slot < 0) { server.send(400, "application/json", "{\"error\":\"id\"}"); return; }
   if (!server.hasArg("pin") || pin < 0 || pin > 60) { server.send(400, "application/json", "{\"error\":\"pin\"}"); return; }
   now_send_cfg(slot, pin, server.arg("inv") == "1");
+  server.send(200, "application/json", "{\"ok\":true}");
+}
+// ---- servo ve PIR (rol: eslesmede secilir)
+static int roleSlot(const String &id, uint8_t role) {
+  const int s = customSlot(id);
+  return (s >= 0 && now_role(s) == role) ? s : -1;
+}
+static int argInt(const char *name, int def, int lo, int hi) {
+  if (!server.hasArg(name)) return def;
+  const int v = server.arg(name).toInt();
+  return v < lo ? lo : v > hi ? hi : v;
+}
+// POST /api/node/servo?id=d3&pin=5&inv=0&off=0&on=90&speed=0&release=10&min=0&max=180
+static void handleServoConfig() {
+  if (!authorized()) return;
+  const int slot = roleSlot(server.arg("id"), ROLE_SERVO);
+  if (slot < 0) { server.send(400, "application/json", "{\"error\":\"id\"}"); return; }
+  if (!server.hasArg("pin")) { server.send(400, "application/json", "{\"error\":\"pin\"}"); return; }
+  const int pin = argInt("pin", 5, 0, 60), minA = argInt("min", 0, 0, 180), maxA = argInt("max", 180, 0, 180);
+  const int offA = argInt("off", 0, 0, 180), onA = argInt("on", 90, 0, 180);
+  if (minA > maxA) { server.send(400, "application/json", "{\"error\":\"aci siniri\"}"); return; }
+  now_send_servo_cfg(slot, pin, server.arg("inv") == "1", offA, onA, argInt("speed", 0, 0, 255), argInt("release", 10, 0, 255), minA, maxA);
+  server.send(200, "application/json", "{\"ok\":true}");
+}
+// POST /api/servo?id=d3&angle=45[&speed=20]   (elle kontrol: kaydirici)
+static void handleServoGoto() {
+  if (!authorized()) return;
+  const int slot = roleSlot(server.arg("id"), ROLE_SERVO);
+  if (slot < 0 || !server.hasArg("angle")) { server.send(400, "application/json", "{\"error\":\"id/angle\"}"); return; }
+  now_send_servo_goto(slot, argInt("angle", 0, 0, 180), server.hasArg("speed") ? argInt("speed", 0, 0, 255) : -1);
+  server.send(200, "application/json", "{\"ok\":true}");
+}
+// POST /api/servo/free?id=d3   (servoyu birak: elle oynatilabilir)
+static void handleServoFree() {
+  if (!authorized()) return;
+  const int slot = roleSlot(server.arg("id"), ROLE_SERVO);
+  if (slot < 0) { server.send(400, "application/json", "{\"error\":\"id\"}"); return; }
+  now_send_servo_free(slot);
+  server.send(200, "application/json", "{\"ok\":true}");
+}
+// POST /api/node/pir?id=d4&pin=4&hold=5&confirm=20&cooldown=0&inv=0
+static void handlePirConfig() {
+  if (!authorized()) return;
+  const int slot = roleSlot(server.arg("id"), ROLE_PIR);
+  if (slot < 0 || !server.hasArg("pin")) { server.send(400, "application/json", "{\"error\":\"id/pin\"}"); return; }
+  now_send_pir_cfg(slot, argInt("pin", 4, 0, 60), argInt("hold", 5, 0, 255), argInt("confirm", 5, 0, 255), argInt("cooldown", 0, 0, 255), server.arg("inv") == "1");
   server.send(200, "application/json", "{\"ok\":true}");
 }
 static void handleNodeForget() {
@@ -291,6 +356,10 @@ static void startHttp() {
   server.on("/api/pair/stop", HTTP_POST, handlePairStop);
   server.on("/api/node/config", HTTP_POST, handleNodeConfig);
   server.on("/api/node/forget", HTTP_POST, handleNodeForget);
+  server.on("/api/node/servo", HTTP_POST, handleServoConfig);
+  server.on("/api/servo", HTTP_POST, handleServoGoto);
+  server.on("/api/servo/free", HTTP_POST, handleServoFree);
+  server.on("/api/node/pir", HTTP_POST, handlePirConfig);
   server.onNotFound([]() { server.send(404, "application/json", "{\"error\":\"yok\"}"); });
   server.begin();
 }

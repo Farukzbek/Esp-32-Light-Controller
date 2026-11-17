@@ -142,7 +142,7 @@ private struct RuleEditor: View {
     let onTest: (AutomationRule) -> Void
 
     private var lampBits: [(String, String, Int)] {
-        LightID.devices.map { ($0.title, $0.symbol, $0.bit) }
+        LightID.controllable.map { ($0.title, $0.symbol, $0.bit) }
     }
 
     var body: some View {
@@ -157,13 +157,18 @@ private struct RuleEditor: View {
                         ForEach(AutomationRule.Action.allCases, id: \.self) { Text($0.title).tag($0) }
                     }.pickerStyle(.segmented)
                 } footer: { Text("Çevir: açıksa kapatır, kapalıysa açar. Aç ve Kapat: durumdan bağımsız.") }
-                Section("Hangi ışıklar") {
+                Section {
                     ForEach(lampBits, id: \.2) { name, icon, bit in
                         Toggle(isOn: Binding(get: { rule.lamps & bit != 0 }, set: { on in
                             let l = on ? rule.lamps | bit : rule.lamps & ~bit
                             if l & AutomationRule.visibleMask != 0 { rule.lamps = l }
                         })) { Label(name, systemImage: icon) }.tint(Color.lampOn)
                     }
+                } header: { Text("Hangi cihazlar") } footer: { Text("Servolarda Aç = açık açısına, Kapat = kapalı açısına gider (cihaz ayarlarından).") }
+                Section {
+                    DayPicker(days: $rule.days).padding(.vertical, 4)
+                } header: { Text("Hangi günler") } footer: {
+                    Text("Seçili günlerde çalışır. Gece yarısını geçen bir saat aralığında gün, aralığın başladığı gündür: Pazar seçiliyse 22:00 – 06:00 kuralı Pazar 22:00'de başlar, Pazartesi 06:00'da biter. Örneğin perdenin Pazar günleri açılmasını istemiyorsan Pazar'ı kapat.")
                 }
                 Section {
                     Toggle("Gün boyu", isOn: Binding(get: { rule.start == rule.end }, set: { on in

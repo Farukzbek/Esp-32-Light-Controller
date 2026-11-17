@@ -23,7 +23,7 @@ enum : uint8_t { CHIP_ESP32 = 1, CHIP_S2 = 2, CHIP_S3 = 3, CHIP_C3 = 4, CHIP_C6 
 
 struct __attribute__((packed)) PairBeacon { uint8_t magic[2]; uint8_t type; uint8_t ver; };
 struct __attribute__((packed)) PairHello  { uint8_t magic[2]; uint8_t type; uint8_t ver; uint8_t kind; uint8_t chip; uint8_t defPin; uint8_t defInv; char name[16]; uint8_t pub[32]; };
-struct __attribute__((packed)) PairSecret { char pass[32]; uint8_t channel; uint8_t slot; uint8_t pin; uint8_t flags; uint8_t reserved[4]; };   // flags bit0 = ters mantik (LOW = acik)
+struct __attribute__((packed)) PairSecret { char pass[32]; uint8_t channel; uint8_t slot; uint8_t pin; uint8_t flags; uint8_t reserved[4]; };   // flags bit0 = ters mantik (LOW = acik); reserved[0] = ROLE_* (now_proto.h): 0 isik, 1 servo, 2 PIR. Eski dugum 0 gorur = isik.
 struct __attribute__((packed)) PairAccept { uint8_t magic[2]; uint8_t type; uint8_t ver; uint8_t pub[32]; uint8_t iv[12]; uint8_t tag[16]; uint8_t ct[sizeof(PairSecret)]; };
 
 static inline bool pair_magic_ok(const uint8_t *d) { return d[0] == PAIR_MAGIC0 && d[1] == PAIR_MAGIC1; }

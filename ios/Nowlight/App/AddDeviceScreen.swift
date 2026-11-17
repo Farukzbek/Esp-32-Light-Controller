@@ -154,9 +154,15 @@ struct DeviceEditor: View {
     @State private var confirmDelete = false
     @State private var siriSheet: SiriSheetKind?
     @State private var siriMsg: String?
+    @State private var sv: ServoSettings
+    @State private var pr: PirSettings
+    @State private var roleMsg: String?
+    @State private var showServo = false
 
     init(light: LightID) {
         self.light = light
+        _sv = State(initialValue: ServoSettings(stored: BridgeConfig.roleSettings[light.rawValue]) ?? ServoSettings())
+        _pr = State(initialValue: PirSettings(stored: BridgeConfig.roleSettings[light.rawValue]) ?? PirSettings())
         _name = State(initialValue: light.customName ?? "")
         _symbol = State(initialValue: light.symbol)
         _relayPin = State(initialValue: light.relayConfig?.pin ?? 5)
@@ -193,6 +199,7 @@ struct DeviceEditor: View {
                     }.padding(.vertical, 4)
                 }
 
+                if light.role != .pir {
                 Section {
                     Button { siriSheet = .on } label: { Label("\"\(spoken) aç\" komutunu Siri'ye ekle", systemImage: "mic.badge.plus") }
                     Button { siriSheet = .off } label: { Label("\"\(spoken) kapat\" komutunu Siri'ye ekle", systemImage: "mic.badge.plus") }
@@ -200,8 +207,12 @@ struct DeviceEditor: View {
                 } header: { Text("Siri komutu") } footer: {
                     Text("Dokununca açılan sayfada komut hazır yazılı gelir, \"Siri'ye ekle\"ye basıp bir kez sesli söylersin. Sonra \"Hey Siri, \(spoken) kapat\" demen yeter, uygulama adını söylemene gerek kalmaz. Komut telefon kilitliyken de, uygulama açılmadan çalışır.")
                 }
+                }
 
-                if !light.isBuiltin {
+                if light.role == .servo { servoSections }
+                if light.role == .pir { pirSection }
+
+                if light.role == .light && (!light.isBuiltin || light == .masa || light == .yatak) {
                     Section {
                         Stepper(value: $relayPin, in: 0...48) { HStack { Text("Röle pini"); Spacer(); Text("GPIO\(relayPin)").foregroundStyle(.secondary) } }
                         Toggle("Ters mantık (LOW = açık)", isOn: $relayInv).tint(Color.lampOn)
@@ -213,17 +224,19 @@ struct DeviceEditor: View {
                             }
                         } label: { HStack { Text("Cihaza uygula"); if busy { Spacer(); ProgressView() } } }.disabled(busy)
                         if let relayMsg { Text(relayMsg).font(.footnote).foregroundStyle(relayMsg.hasPrefix("✓") ? .green : .orange) }
-                    } header: { Text("Röle") } footer: { Text("Işık ters çalışıyorsa mantığı değiştir. Pin değişince cihaz yeni pini kullanır; röleyi yeni pine taşıman gerekir.") }
+                    } header: { Text("Röle") } footer: { Text(light.isBuiltin ? "Işık ters çalışıyorsa mantığı değiştir. Pin değişince cihaz yeni pini kullanır; röleyi yeni pine taşıman gerekir. Bu ayar için masa/yatak düğümünde güncel yazılım olmalı (eski yazılım ayarı yok sayar)." : "Işık ters çalışıyorsa mantığı değiştir. Pin değişince cihaz yeni pini kullanır; röleyi yeni pine taşıman gerekir.") }
+                }
 
+                if !light.isBuiltin {
                     Section {
                         Button("Cihazı kalıcı sil", role: .destructive) { confirmDelete = true }
                     } footer: { Text("Eşleşmeyi köprüden ve cihazdan siler. Cihaz yeniden eşleşmeye hazır olur. Köprü birkaç saniye yeniden başlar.") }
                 }
 
-                if light.isBuiltin && light != .all {
+                if light == .led {
                     Section {
-                        Label("Röle pini ve mantığı", systemImage: "info.circle").foregroundStyle(.secondary)
-                    } footer: { Text("Röle ayarı yalnızca uygulamadan eşleştirilerek eklenen yeni ışıklarda görünür (Cihaz Ekle → Cihaz ekle). Masa, yatak ve LED düğümlerinin ayarı yazılımlarında sabittir.") }
+                        Label("LED şerit düğümü", systemImage: "info.circle").foregroundStyle(.secondary)
+                    } footer: { Text("LED için henüz ayrı bir düğüm yok; durum yalnızca masa düğümünde tutulur. Röle ayarı yok.") }
                 }
 
                 Section {
@@ -232,7 +245,7 @@ struct DeviceEditor: View {
                     }
                 }
             }
-            .navigationTitle(light.defaultTitle)
+            .navigationTitle(light.title)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Vazgeç") { dismiss() } }
@@ -242,6 +255,7 @@ struct DeviceEditor: View {
             }
         }
         .presentationDetents([.large])
+        .sheet(isPresented: $showServo) { ServoSheet(light: light) }
         .sheet(item: $siriSheet) { kind in
             AddToSiriSheet(light: light, on: kind == .on, phrase: "\(spoken) \(kind == .on ? "aç" : "kapat")") { siriMsg = $0; siriSheet = nil }.ignoresSafeArea()
         }
@@ -254,6 +268,56 @@ struct DeviceEditor: View {
             }
             Button("Vazgeç", role: .cancel) {}
         } message: { Text("Cihaz köprüyle bağlantısını kaybeder ve yeniden eşleşmesi gerekir. Otomasyonlardan da kalkar.") }
+    }
+}
+
+extension DeviceEditor {
+    private static let speeds: [(Int, String)] = [(0, "Anında"), (1, "Çok yavaş (10°/sn)"), (3, "Yavaş (30°/sn)"), (6, "Orta (60°/sn)"), (12, "Hızlı (120°/sn)")]
+    private static let releases: [(Int, String)] = [(3, "0,3 sn"), (10, "1 sn"), (30, "3 sn"), (100, "10 sn"), (0, "Asla (sürekli tut)")]
+
+    @ViewBuilder var servoSections: some View {
+        Section {
+            Button { showServo = true } label: { Label("Elle kontrol (açı kaydırıcısı)", systemImage: "slider.horizontal.3") }
+            Button { Task { await model.servoFree(light) } } label: { Label("Servoyu bırak (serbest)", systemImage: "hand.raised.fill") }
+        } header: { Text("Servo") } footer: { Text("Servo hedefe varınca ayarlı süre sonra bırakılır: PWM kesilir ve elle oynatılabilir, karşı koymaz. Perde gibi elle de açılan yerlerde bu şarttır.") }
+
+        Section {
+            Stepper(value: $sv.pin, in: 0...48) { HStack { Text("Sinyal pini"); Spacer(); Text("GPIO\(sv.pin)").foregroundStyle(.secondary) } }
+            Toggle("Ters yön", isOn: $sv.inv).tint(Color.lampOn)
+            Stepper(value: $sv.off, in: 0...180, step: 5) { HStack { Text("Kapalı açısı"); Spacer(); Text("\(sv.off)°").foregroundStyle(.secondary) } }
+            Stepper(value: $sv.on, in: 0...180, step: 5) { HStack { Text("Açık açısı"); Spacer(); Text("\(sv.on)°").foregroundStyle(.secondary) } }
+            Picker("Hız", selection: $sv.speed) { ForEach(Self.speeds, id: \.0) { Text($0.1).tag($0.0) } }
+            Picker("Bırakma süresi", selection: $sv.release) { ForEach(Self.releases, id: \.0) { Text($0.1).tag($0.0) } }
+            Stepper(value: $sv.min, in: 0...180, step: 5) { HStack { Text("En küçük açı"); Spacer(); Text("\(sv.min)°").foregroundStyle(.secondary) } }
+            Stepper(value: $sv.max, in: 0...180, step: 5) { HStack { Text("En büyük açı"); Spacer(); Text("\(sv.max)°").foregroundStyle(.secondary) } }
+            Button {
+                Task {
+                    busy = true; defer { busy = false }
+                    if sv.min > sv.max { roleMsg = "En küçük açı, en büyükten büyük olamaz."; return }
+                    do { try await model.setServo(light, sv); roleMsg = "✓ Cihaza gönderildi." }
+                    catch { roleMsg = (error as? LocalizedError)?.errorDescription ?? "Gönderilemedi." }
+                }
+            } label: { HStack { Text("Cihaza uygula"); if busy { Spacer(); ProgressView() } } }.disabled(busy)
+            if let roleMsg { Text(roleMsg).font(.footnote).foregroundStyle(roleMsg.hasPrefix("✓") ? .green : .orange) }
+        } header: { Text("Servo ayarı") } footer: { Text("Açık ve kapalı açıları otomasyonlar, Siri ve ana ekrandaki düğme kullanır. Servoyu kendi 5V kaynağından besle (kartın USB'sinden değil) ve GND'leri birleştir; yoksa servo kartı yeniden başlatabilir.") }
+    }
+
+    @ViewBuilder var pirSection: some View {
+        Section {
+            Stepper(value: $pr.pin, in: 0...48) { HStack { Text("Sensör pini"); Spacer(); Text("GPIO\(pr.pin)").foregroundStyle(.secondary) } }
+            Stepper(value: $pr.hold, in: 0...120) { HStack { Text("Tutma süresi"); Spacer(); Text("\(pr.hold) sn").foregroundStyle(.secondary) } }
+            Stepper(value: $pr.confirm, in: 0...100, step: 5) { HStack { Text("Onay süresi"); Spacer(); Text("\(pr.confirm * 10) ms").foregroundStyle(.secondary) } }
+            Stepper(value: $pr.cooldown, in: 0...120) { HStack { Text("Bekleme"); Spacer(); Text("\(pr.cooldown) sn").foregroundStyle(.secondary) } }
+            Toggle("Ters (LOW = hareket)", isOn: $pr.inv).tint(Color.lampOn)
+            Button {
+                Task {
+                    busy = true; defer { busy = false }
+                    do { try await model.setPir(light, pr); roleMsg = "✓ Cihaza gönderildi." }
+                    catch { roleMsg = (error as? LocalizedError)?.errorDescription ?? "Gönderilemedi." }
+                }
+            } label: { HStack { Text("Cihaza uygula"); if busy { Spacer(); ProgressView() } } }.disabled(busy)
+            if let roleMsg { Text(roleMsg).font(.footnote).foregroundStyle(roleMsg.hasPrefix("✓") ? .green : .orange) }
+        } header: { Text("Hareket sensörü") } footer: { Text("Tutma: hareket bittikten sonra \"hareket var\" kalma süresi. Onay: bundan kısa darbeler (parazit) yok sayılır. Bekleme: hareket bittikten sonra bu süre yeniden tetiklenmez. Algılama açısı ve menzili sensörün lensi ve üzerindeki ayar düğmeleridir, yazılımdan değişmez; açıyı daraltmak için lensin önünü borulu ya da bantla kapat.") }
     }
 }
 

@@ -131,7 +131,7 @@ String pair_json() {
   return o;
 }
 
-bool pair_accept(const String &macStr, uint8_t slot, int pin, int inv, String &err) {
+bool pair_accept(const String &macStr, uint8_t slot, int pin, int inv, uint8_t role, String &err) {
   uint8_t mac[6];
   if (!strToMac(macStr, mac)) { err = "mac"; return false; }
   if (slot < NOW_DYN_FIRST || slot >= NOW_DYN_FIRST + NOW_DYN_MAX) { err = "yuva"; return false; }
@@ -162,6 +162,7 @@ bool pair_accept(const String &macStr, uint8_t slot, int pin, int inv, String &e
   ps.slot = slot;
   ps.pin = (pin >= 0 && pin <= 60) ? (uint8_t)pin : cand.defPin;          // verilmediyse dugumun varsayilani
   ps.flags = ((inv >= 0 ? inv : cand.defInv) ? 1 : 0);
+  ps.reserved[0] = role;                                                  // ROLE_LIGHT / ROLE_SERVO / ROLE_PIR
 
   PairAccept pa = {};
   pa.magic[0] = PAIR_MAGIC0; pa.magic[1] = PAIR_MAGIC1; pa.type = PAIR_ACCEPT; pa.ver = PAIR_VERSION;
@@ -179,6 +180,7 @@ bool pair_accept(const String &macStr, uint8_t slot, int pin, int inv, String &e
   esp_now_del_peer(mac);                  // kalici baglanti SpanPoint ile (sifreli) kurulacak
 
   if (!now_dyn_add(slot, mac)) { err = "kayit"; return false; }
+  now_set_role(slot, role);
   // kullanilan aday listeden dussun
   portENTER_CRITICAL(&s_mux);
   for (int i = 0; i < MAX_CAND; i++) if (s_cand[i].used && memcmp(s_cand[i].mac, mac, 6) == 0) s_cand[i].used = false;

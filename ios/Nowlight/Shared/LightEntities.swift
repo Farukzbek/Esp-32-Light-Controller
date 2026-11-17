@@ -30,7 +30,7 @@ extension LightID {
 }
 
 struct LightEntityQuery: EntityQuery, EntityStringQuery {
-    private var choices: [LightID] { LightID.devices + (LightID.devices.count >= 2 ? [.all] : []) }
+    private var choices: [LightID] { LightID.controllable + (LightID.lights.count >= 2 ? [.all] : []) }
     func entities(for identifiers: [String]) async throws -> [LightEntity] {
         identifiers.compactMap { LightID(rawValue: $0) }.map(LightEntity.init)
     }
@@ -72,6 +72,6 @@ struct SlotEntityQuery: EntityQuery {
         identifiers.filter { LightID(rawValue: $0) != nil || $0 == SlotEntity.emptyID }.map { SlotEntity(id: $0) }
     }
     func suggestedEntities() async throws -> [SlotEntity] {
-        LightID.devices.map(SlotEntity.init) + (LightID.devices.count >= 2 ? [SlotEntity(.all)] : []) + [.empty]
+        LightID.controllable.map(SlotEntity.init) + (LightID.lights.count >= 2 ? [SlotEntity(.all)] : []) + [.empty]
     }
 }

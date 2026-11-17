@@ -83,7 +83,7 @@ struct SiriBatchSheet: View {
 
     private var choices: [LightID] {
         _ = (model.names, model.removed)
-        return LightID.devices + (LightID.devices.count >= 2 ? [.all] : [])
+        return LightID.controllable + (LightID.lights.count >= 2 ? [.all] : [])
     }
     private func has(_ l: LightID) -> Bool { existing.contains(Item(light: l, on: true).id) && existing.contains(Item(light: l, on: false).id) }
 

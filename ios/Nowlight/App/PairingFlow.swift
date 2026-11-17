@@ -13,6 +13,9 @@ struct PairingFlow: View {
     @State private var addingNew = false
     @State private var newName = ""
     @State private var newSymbol = "lightbulb.fill"
+    @State private var newRole: NodeRole = .light
+    @State private var svOff = 0
+    @State private var svOn = 90
     @State private var relayPin = 5
     @State private var relayInv = true
     @State private var error: String?
@@ -117,28 +120,35 @@ struct PairingFlow: View {
     private var roles: some View {
         VStack(alignment: .leading, spacing: 14) {
             header("slider.horizontal.3", "Bu cihaz ne olacak?")
-            Text("Cihazı yeni bir ışık olarak ekle.").foregroundStyle(.secondary)
+            Text("Cihazın görevini seç: ışık, servo (perde, mekanik anahtar...) ya da hareket sensörü.").foregroundStyle(.secondary)
 
-            // Yeni isik
-            Button { addingNew = true; role = nil } label: {
-                HStack(spacing: 12) {
-                    Image(systemName: "plus").font(.system(size: 18, weight: .bold)).foregroundStyle(.black).frame(width: 40, height: 40).background(Color.lampOn, in: RoundedRectangle(cornerRadius: 11, style: .continuous))
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("Yeni ışık olarak ekle").font(.body.weight(.semibold))
-                        Text(LightID.nextCustom() == nil ? "En fazla \(LightID.maxDevices) ışık eklenebilir" : "Örneğin salon lambası, mutfak, koridor").font(.caption).foregroundStyle(.secondary)
+            // Yeni cihaz: rol sec
+            ForEach(NodeRole.allCases, id: \.self) { r in
+                let selectedRole = addingNew && newRole == r
+                Button {
+                    addingNew = true; role = nil; newRole = r; newSymbol = r.symbol
+                    relayPin = (r == .pir ? 4 : 5)
+                } label: {
+                    HStack(spacing: 12) {
+                        Image(systemName: r.symbol).font(.system(size: 18, weight: .bold)).foregroundStyle(.black).frame(width: 40, height: 40).background(Color.lampOn, in: RoundedRectangle(cornerRadius: 11, style: .continuous))
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(r == .light ? "Yeni ışık olarak ekle" : r == .servo ? "Servo olarak ekle" : "Hareket sensörü olarak ekle").font(.body.weight(.semibold))
+                            Text(LightID.nextCustom() == nil ? "En fazla \(LightID.maxDevices) cihaz eklenebilir"
+                                 : r == .light ? "Örneğin salon lambası, mutfak, koridor" : r == .servo ? "Açı kontrollü; perde, kapak, mekanik anahtar" : "Hareket algılar, otomasyonlarda kullanılır").font(.caption).foregroundStyle(.secondary)
+                        }
+                        Spacer()
+                        Image(systemName: selectedRole ? "checkmark.circle.fill" : "circle").foregroundStyle(selectedRole ? Color.lampOn : .secondary).font(.title3)
                     }
-                    Spacer()
-                    Image(systemName: addingNew ? "checkmark.circle.fill" : "circle").foregroundStyle(addingNew ? Color.lampOn : .secondary).font(.title3)
-                }
-                .padding(12).background(Color.white.opacity(addingNew ? 0.14 : 0.08), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-            }.buttonStyle(.plain).disabled(LightID.nextCustom() == nil)
+                    .padding(12).background(Color.white.opacity(selectedRole ? 0.14 : 0.08), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                }.buttonStyle(.plain).disabled(LightID.nextCustom() == nil)
+            }
 
             if addingNew {
                 VStack(alignment: .leading, spacing: 12) {
                     HStack(spacing: 12) {
                         Image(systemName: newSymbol).font(.system(size: 22, weight: .semibold)).foregroundStyle(.black)
                             .frame(width: 48, height: 48).background(Color.lampOn, in: RoundedRectangle(cornerRadius: 13, style: .continuous))
-                        TextField("Işığın adı (örn. Salon)", text: $newName).font(.title3.weight(.semibold)).textFieldStyle(.roundedBorder)
+                        TextField(newRole == .light ? "Işığın adı (örn. Salon)" : newRole == .servo ? "Servonun adı (örn. Perde)" : "Sensörün adı (örn. Kapı)", text: $newName).font(.title3.weight(.semibold)).textFieldStyle(.roundedBorder)
                     }
                     ScrollView(.horizontal, showsIndicators: false) {
                         HStack(spacing: 8) {
@@ -154,11 +164,19 @@ struct PairingFlow: View {
                 }
                 .padding(12).background(Color.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
 
-                DisclosureGroup("Röle ayarı (gerekirse)") {
+                DisclosureGroup(newRole == .light ? "Röle ayarı (gerekirse)" : newRole == .servo ? "Servo ayarı (gerekirse)" : "Sensör ayarı (gerekirse)") {
                     VStack(alignment: .leading, spacing: 10) {
-                        Stepper(value: $relayPin, in: 0...48) { HStack { Text("Röle pini"); Spacer(); Text("GPIO\(relayPin)").foregroundStyle(.secondary) } }
-                        Toggle("Ters mantık (LOW = açık)", isOn: $relayInv).tint(Color.lampOn)
-                        Text("Çoğu 5V röle modülü ters mantıkla çalışır. Işık tam tersi davranırsa kapat. Pini kartına göre değiştir.").font(.footnote).foregroundStyle(.secondary)
+                        Stepper(value: $relayPin, in: 0...48) { HStack { Text(newRole == .light ? "Röle pini" : newRole == .servo ? "Servo sinyal pini" : "Sensör pini"); Spacer(); Text("GPIO\(relayPin)").foregroundStyle(.secondary) } }
+                        if newRole == .light {
+                            Toggle("Ters mantık (LOW = açık)", isOn: $relayInv).tint(Color.lampOn)
+                            Text("Çoğu 5V röle modülü ters mantıkla çalışır. Işık tam tersi davranırsa kapat. Pini kartına göre değiştir.").font(.footnote).foregroundStyle(.secondary)
+                        } else if newRole == .servo {
+                            Stepper(value: $svOff, in: 0...180, step: 5) { HStack { Text("Kapalı açısı"); Spacer(); Text("\(svOff)°").foregroundStyle(.secondary) } }
+                            Stepper(value: $svOn, in: 0...180, step: 5) { HStack { Text("Açık açısı"); Spacer(); Text("\(svOn)°").foregroundStyle(.secondary) } }
+                            Text("Servoyu kendi 5V kaynağından besle (kartın USB'sinden değil) ve GND'leri birleştir. Hız, bırakma süresi ve açı sınırları cihaz ayarlarından değişir.").font(.footnote).foregroundStyle(.secondary)
+                        } else {
+                            Text("Çoğu PIR modülü 3,3 V sinyal verir ve 5V ile beslenir. Tutma süresi ve hassasiyet cihaz ayarlarından değişir.").font(.footnote).foregroundStyle(.secondary)
+                        }
                     }.padding(.top, 6)
                 }
                 .padding(12).background(Color.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
@@ -196,12 +214,22 @@ struct PairingFlow: View {
     private var test: some View {
         VStack(alignment: .leading, spacing: 16) {
             header("play.circle.fill", "Deneyelim")
-            Text("Cihaz bağlandı. Işığı açıp kapatarak çalıştığını kontrol et.").foregroundStyle(.secondary)
-            HStack(spacing: 12) {
-                Button { Task { await toggleTest(true) } } label: { Label("Aç", systemImage: "lightbulb.fill").frame(maxWidth: .infinity) }.buttonStyle(.bordered)
-                Button { Task { await toggleTest(false) } } label: { Label("Kapat", systemImage: "lightbulb.slash").frame(maxWidth: .infinity) }.buttonStyle(.bordered)
-            }.tint(Color.lampOn).controlSize(.large)
-            Text("Işık açılıp kapandı mı?").font(.subheadline.weight(.semibold)).padding(.top, 6)
+            if role?.role == .pir {
+                Text("Cihaz bağlandı. Sensörün önünde hareket et: aşağıda \"Hareket var\" görünmeli.").foregroundStyle(.secondary)
+                let moving = (model.state?.value(role ?? .all) ?? 0) == 1
+                Label(moving ? "Hareket var" : "Hareket yok", systemImage: "figure.walk.motion")
+                    .font(.title3.weight(.semibold)).foregroundStyle(moving ? Color.lampOn : .secondary)
+                    .frame(maxWidth: .infinity).padding(16).background(Color.white.opacity(moving ? 0.14 : 0.07), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                Text("Hareket algılandı mı?").font(.subheadline.weight(.semibold)).padding(.top, 6)
+            } else {
+                let isServo = role?.role == .servo
+                Text(isServo ? "Cihaz bağlandı. Servoyu iki konuma gönderip çalıştığını kontrol et." : "Cihaz bağlandı. Işığı açıp kapatarak çalıştığını kontrol et.").foregroundStyle(.secondary)
+                HStack(spacing: 12) {
+                    Button { Task { await toggleTest(true) } } label: { Label(isServo ? "Açık konum" : "Aç", systemImage: isServo ? "arrow.up.right.circle.fill" : "lightbulb.fill").frame(maxWidth: .infinity) }.buttonStyle(.bordered)
+                    Button { Task { await toggleTest(false) } } label: { Label(isServo ? "Kapalı konum" : "Kapat", systemImage: isServo ? "arrow.down.left.circle" : "lightbulb.slash").frame(maxWidth: .infinity) }.buttonStyle(.bordered)
+                }.tint(Color.lampOn).controlSize(.large)
+                Text(isServo ? "Servo hareket etti mi?" : "Işık açılıp kapandı mı?").font(.subheadline.weight(.semibold)).padding(.top, 6)
+            }
             Button { step = .done } label: { Label("Evet, çalışıyor", systemImage: "checkmark").frame(maxWidth: .infinity) }
                 .buttonStyle(.borderedProminent).tint(Color.lampOn).foregroundStyle(.black).controlSize(.large)
             Text("Çalışmıyorsa: cihazın fişini çekip tak, röle ve kablo bağlantısını kontrol et. Rol seçimi sonradan Cihaz Ekle ekranından değişmez; cihazı kaldırıp yeniden eklemen gerekir.")
@@ -283,8 +311,12 @@ struct PairingFlow: View {
             target = id
         } else if let r = role { target = r } else { return }
         do {
-            try await BridgeClient.fromConfig().pairAccept(mac: sel.mac, id: target.rawValue, pin: addingNew ? relayPin : nil, inv: addingNew ? relayInv : nil)
-            if addingNew { model.addDevice(target, name: newName, symbol: newSymbol, pin: relayPin, inv: relayInv) }
+            try await BridgeClient.fromConfig().pairAccept(mac: sel.mac, id: target.rawValue, pin: addingNew ? relayPin : nil, inv: addingNew ? (newRole == .light ? relayInv : false) : nil, role: addingNew ? newRole : .light)
+            if addingNew {
+                model.addDevice(target, name: newName, symbol: newSymbol, pin: relayPin, inv: newRole == .light ? relayInv : false, role: newRole, servoOff: svOff, servoOn: svOn)
+                if newRole == .servo { try? await model.setServo(target, ServoSettings(pin: relayPin, inv: false, off: svOff, on: svOn)) }
+                if newRole == .pir { try? await model.setPir(target, PirSettings(pin: relayPin)) }
+            }
             else if model.removed.contains(target.rawValue) { model.restore(target) }
             role = target
             await model.refresh()

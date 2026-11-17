@@ -44,6 +44,18 @@ enum BridgeConfig {
         set { shared.set(newValue, forKey: "customDevices") }
     }
 
+    /// Eslesen cihazlarin rolu (LightID.rawValue -> "light" | "servo" | "pir"). Kopru bildirir; yoksa isik.
+    static var roles: [String: String] {
+        get { (shared.dictionary(forKey: "deviceRoles") as? [String: String]) ?? [:] }
+        set { shared.set(newValue, forKey: "deviceRoles") }
+    }
+
+    /// Servo cihazlarinin telefondaki ayar kopyasi (kimlik -> "pin:ters:kapali:acik:hiz:birakma:min:max"), PIR icin ("pin:tutma:onay:bekleme:ters").
+    static var roleSettings: [String: String] {
+        get { (shared.dictionary(forKey: "roleSettings") as? [String: String]) ?? [:] }
+        set { shared.set(newValue, forKey: "roleSettings") }
+    }
+
     /// Eklenen isiklarin role ayari (LightID.rawValue -> "pin:ters", ters 1/0). Dugumde saklanan degerin telefondaki kopyasi.
     static var relay: [String: String] {
         get { (shared.dictionary(forKey: "relayConfig") as? [String: String]) ?? [:] }

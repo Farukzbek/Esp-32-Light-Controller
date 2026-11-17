@@ -52,7 +52,7 @@ jobs:
       - run: c++ -std=c++17 -x c++ -Ifirmware/shared firmware/tools/test_x25519.c -o /tmp/tx && /tmp/tx
 
   ota-logic-test:
-    name: Dugum OTA aktarim mantigi ve araclari
+    name: Dugum OTA, rol ve kural mantigi testleri
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -63,3 +63,6 @@ jobs:
       - run: c++ -std=c++17 -x c++ -Wall -Ifirmware/shared firmware/tools/test_ota_xfer.c -o /tmp/tox && /tmp/tox
       # Bolum sigma denetimi ve OTA bilgi dosyasi araci
       - run: cd firmware/tools && python3 test_ota_tools.py
+      # Servo/PIR rol mantigi (PIR filtresi, servo hareketi) ve kural gunleri (Pzt..Paz, gece yarisini asan pencere)
+      - run: c++ -std=c++17 -x c++ -Wall -Ifirmware/shared firmware/tools/test_role_logic.c -o /tmp/trl && /tmp/trl
+      - run: c++ -std=c++17 -x c++ -Wall -Ifirmware/shared firmware/tools/test_rule_days.c -o /tmp/trd && /tmp/trd

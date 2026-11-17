@@ -7,6 +7,6 @@ void pair_start();                                   // pencereyi ac, adaylari t
 void pair_stop();
 bool pair_open();
 String pair_json();                                  // {"open":..,"secondsLeft":..,"found":[{"mac","name","rssi"}]}
-bool pair_accept(const String &mac, uint8_t slot, int pin, int inv, String &err);   // pin/inv < 0: dugumun varsayilani   // adayi yuvaya bagla (parolayi sifreli yollar)
+bool pair_accept(const String &mac, uint8_t slot, int pin, int inv, uint8_t role, String &err);   // pin/inv < 0: dugumun varsayilani   // adayi yuvaya bagla (parolayi sifreli yollar)
 void pair_loop();                                    // ana donguden: beacon yayini ve pencere zamanlayicisi
 void pair_sniff(const wifi_promiscuous_pkt_t *p);    // promiscuous geri cagrimindan: HELLO yakala
