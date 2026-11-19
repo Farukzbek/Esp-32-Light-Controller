@@ -20,6 +20,20 @@ int main() {
   { ReenterState s; reenter_arm(s, 1, 0xFFFFFF00u);                      // millis tasmasi: armedAt tasmadan once, simdi tasmis
     expect("millis tasmasi: 20 sn sonra ters", reenter_check(s, 0xFFFFFF00u + 20000u, 60, 8) == RE_REVERSE); }
   { ReenterState s; reenter_arm(s, 3, 5000); reenter_clear(s); expect("temizlenince normal", reenter_check(s, 30000, 60, 8) == RE_NONE); }
+  // sakinlesme: ters eylemden sonra art arda gelen hareketler yok sayilir (sure uzar ama ust sinir var)
+  { ReenterState s; reenter_lock(s, 100000, 5000);
+    expect("sakinlesme: 1 sn sonra hareket yok sayilir", reenter_locked(s, 101000, 5000, 10000));
+    expect("sakinlesme: sure uzar (5 sn sonra hala)", reenter_locked(s, 105000, 5000, 10000));
+    expect("sakinlesme: ust sinir (10 sn) icinde hala", reenter_locked(s, 109000, 5000, 10000));
+    expect("sakinlesme: ust sinirdan sonra uzamaz, biter", !reenter_locked(s, 110500, 5000, 10000));
+    expect("sakinlesme bitince kilit kalkar", !s.locked && !reenter_locked(s, 111000, 5000, 10000)); }
+  { ReenterState s; reenter_lock(s, 0, 5000);
+    expect("disarida oyalanma: surekli hareket olsa bile 10 sn'de biter", [&] { bool b = true; for (uint32_t t = 500; t < 9900; t += 500) b = b && reenter_locked(s, t, 5000, 10000); return b && !reenter_locked(s, 10100, 5000, 10000); }()); }
+  { ReenterState s; reenter_lock(s, 0, 5000);
+    expect("sessiz kalinca 5 sn'de biter", !reenter_locked(s, 5500, 5000, 10000)); }
+  { ReenterState s; expect("kilit hic konmadiysa hareket serbest", !reenter_locked(s, 5000, 5000, 10000)); }
+  { ReenterState s; reenter_lock(s, 0xFFFFFFF0u, 5000);
+    expect("sakinlesme millis tasmasi", reenter_locked(s, 1000, 5000, 10000)); }
   expect("ters: ac -> kapat", reenter_opposite(1) == 2);
   expect("ters: kapat -> ac", reenter_opposite(2) == 1);
   expect("ters: cevir -> cevir", reenter_opposite(0) == 0);

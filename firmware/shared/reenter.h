@@ -5,7 +5,7 @@
 // art arda hareketleri saymamak icin en az minGapSec sn sonra) ikinci bir hareket gelirse kuralin eyleminin TERSI uygulanir
 // (acildiysa kapat, kapandiysa ac, cevirdiyse tekrar cevir). Ornek: gece odaya girip bir sey alip 1 dakikadan kisa surede cikinca isiklar kapanir.
 // Platform bagimsiz mantik: kapi dugumu (firmware/door) kullanir, bilgisayarda test edilir (tools/test_reenter.c).
-struct ReenterState { bool armed = false; int8_t rule = -1; uint32_t armedAt = 0; };
+struct ReenterState { bool armed = false; int8_t rule = -1; uint32_t armedAt = 0; bool locked = false; uint32_t lockUntil = 0, lockStart = 0; };
 
 enum ReenterResult : uint8_t {
   RE_NONE = 0,      // pencere kapali ya da suresi doldu: kural normal calissin
@@ -27,3 +27,20 @@ inline ReenterResult reenter_check(ReenterState &s, uint32_t now, uint16_t revSe
 
 // Kural eyleminin tersi: 0 cevir -> 0, 1 ac -> 2 (kapat), 2 kapat -> 1 (ac)
 inline uint8_t reenter_opposite(uint8_t action) { return action == 1 ? 2 : action == 2 ? 1 : action; }
+
+// Sakinlesme: ters eylemden SONRA sensor cikan kisiyi gormeye devam eder (art arda hareketler). Bunlari yeni "giris" saymamak icin
+// hareketler yok sayilir; her yeni hareket sureyi lockMs kadar uzatir AMA toplam yok sayma maxMs'yi asmaz (kapinin disinda oyalanan kisi
+// sureyi sonsuza dek uzatip girisi geciktirmesin). Sonra kural normal calisir.
+inline void reenter_lock(ReenterState &s, uint32_t now, uint32_t lockMs) { s.locked = true; s.lockStart = now; s.lockUntil = now + lockMs; }
+
+// Yeni hareket geldi: sakinlesme suruyorsa true (hareket yok sayilmali) ve sure uzar (sinira kadar); bittiyse kilidi kaldirir ve false doner.
+inline bool reenter_locked(ReenterState &s, uint32_t now, uint32_t lockMs, uint32_t maxMs) {
+  if (!s.locked) return false;
+  if ((int32_t)(now - s.lockUntil) < 0) {
+    const uint32_t ext = now + lockMs, cap = s.lockStart + maxMs;
+    s.lockUntil = ((int32_t)(ext - cap) > 0) ? cap : ext;
+    return true;
+  }
+  s.locked = false;
+  return false;
+}

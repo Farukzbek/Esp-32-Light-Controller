@@ -36,6 +36,8 @@ static Rule g_rules[MAX_RULES];
 static uint8_t g_nRules = 0;
 static uint32_t g_ruleTrig[MAX_RULES];
 static ReenterState g_re;         // hizli gir-cik: son calisan kural ve zamani
+#define REV_LOCK_MAX_MS 10000     // ... ama toplam en fazla bu kadar (kapinin disinda oyalanan kisi girisi geciktirmesin)
+#define REV_LOCK_MS 5000          // ters eylemden sonra sensor bu kadar sessiz kalana kadar hareketler yok sayilir (her hareket sureyi uzatir)
 #define REV_MIN_GAP_S 8           // pencere acildiktan en az bu kadar sn sonra gelen hareket "cikis" sayilir (ayni ziyaretteki hareketler degil)
 static int g_active = -1;        // son harekette saati uyan kuralin sirasi (-1: yok)
 
@@ -177,11 +179,21 @@ static void act(const Rule &r, bool force, const char *tag = nullptr) {
   Serial.printf("[kural] %s\n", g_lastResult.c_str());
 }
 
+// Kuralin cihazlarindan en az biri su an ACIK mi? (kopruden sorar). Isik manuel acilmis olsa da gir-cik "cikis" sayilsin diye.
+static bool anyLampOn(const Rule &r) {
+  String state;
+  if (!bridgeReq("/api/state", false, &state)) return false;
+  for (int i = 0; i < 8; i++) if ((r.lamps & (1 << i)) && jget(state, LAMP_NAMES[i]) == 1) return true;
+  return false;
+}
+
 static void onMotion() {
   g_motions++;
   g_lastMotionMs = millis();
   if (!g.enabled) { g_lastResult = "hareket gorundu, otomasyon kapali"; return; }
   if (!g_nRules) { g_lastResult = "hareket gorundu, kural yok"; return; }
+  // Ters eylemden sonraki sakinlesme: sensor cikan kisiyi gormeye devam eder; bu hareketler yeni giris sayilmaz (isik tekrar yanmasin)
+  if (reenter_locked(g_re, millis(), REV_LOCK_MS, REV_LOCK_MAX_MS)) { g_lastResult = "gir-cik sonrasi: sensor sakinlesene kadar hareketler yok sayiliyor"; return; }
   // Hizli gir-cik: son calisan kuralin penceresi aciksa ve bu hareket "cikis" gibi geliyorsa kuralin TERSINI uygula (kural hala saatindeyse)
   if (g_re.armed && g_re.rule >= 0 && g_re.rule < g_nRules) {
     const Rule &pr = g_rules[g_re.rule];
@@ -190,6 +202,7 @@ static void onMotion() {
       Rule rev = pr; rev.action = reenter_opposite(pr.action);
       const int idx = g_re.rule;
       reenter_clear(g_re);
+      reenter_lock(g_re, millis(), REV_LOCK_MS);
       g_ruleTrig[idx] = 0;                              // sonraki gercek giris kurali bekleme suresine takilmasin
       g_lastTrigMs = millis();
       act(rev, false, "gir-cik, ters: ");
@@ -204,6 +217,17 @@ static void onMotion() {
     g_active = i;
     if (r.cool && g_ruleTrig[i] && millis() - g_ruleTrig[i] < (uint32_t)r.cool * 60000UL) {
       g_lastResult = "kural " + String(i + 1) + ": bekleme suresinde"; return;
+    }
+    // Gir-cik acik "ac" kurali: cihazlar ZATEN aciksa (kural yakmis olsun ya da telefondan acilmis) bu hareket CIKIS sayilir: kapat
+    if (r.rev && r.action == 1 && anyLampOn(r)) {
+      Rule off = r; off.action = 2;
+      reenter_clear(g_re);
+      reenter_lock(g_re, millis(), REV_LOCK_MS);
+      g_ruleTrig[i] = 0;
+      g_lastTrigMs = millis();
+      act(off, false, "cikis (isik acikti), kapat: ");
+      g_lastResult = "kural " + String(i + 1) + " " + g_lastResult;
+      return;
     }
     g_ruleTrig[i] = millis(); if (!g_ruleTrig[i]) g_ruleTrig[i] = 1;
     g_lastTrigMs = millis();
