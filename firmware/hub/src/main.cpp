@@ -7,10 +7,16 @@
 // (Yazarin kendi dugumu klasik ESP32'dir; ayni mantik orada donanimda test edildi. S3 surumu DONANIMDA TEST EDILMEDI.)
 
 // ---- Donanim ayarlari (kendi kablolamana gore degistir) ----
+#ifndef RELAY_PIN
 #define RELAY_PIN        5
+#endif
 #define RELAY_ACTIVE_LOW 1     // 1: IN=LOW iken role calisir (cogu 5V role modulu)
+#ifndef TOUCH_PIN
 #define TOUCH_PIN        4     // ESP32-S3'te GPIO1..14 dokunmatiktir (T1..T14)
+#endif
+#ifndef TOUCH_DELTA_PCT
 #define TOUCH_DELTA_PCT  20    // baseline'a gore % sapma = dokunma (bant boyutuna gore ayarla)
+#endif
 #define TOUCH_DEBUG      0     // 1: dokunma degerlerini seri porta yaz (esigi ayarlamak icin)
 
 // Dokununca okuma degeri ESP32-S3'te YUKSELIR, klasik ESP32'de DUSER.
