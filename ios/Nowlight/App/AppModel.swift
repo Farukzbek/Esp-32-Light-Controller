@@ -110,6 +110,7 @@ final class AppModel {
         roles.removeValue(forKey: light.rawValue); BridgeConfig.roles = roles
         var rs = BridgeConfig.roleSettings; rs.removeValue(forKey: light.rawValue); BridgeConfig.roleSettings = rs
         AutomationStore.clearBit(light.bit)
+        ScheduleStore.clearBit(light.bit)
         WidgetCenter.shared.reloadAllTimelines()
         NowlightShortcuts.updateAppShortcutParameters()
         AutomationStore.resyncStored()
@@ -129,6 +130,16 @@ final class AppModel {
         WidgetCenter.shared.reloadAllTimelines()
         NowlightShortcuts.updateAppShortcutParameters()
         AutomationStore.resyncStored()
+    }
+
+    /// Demo modu acilip kapaninca (ya da ayarlar baska yoldan degisince) telefondaki kopyalar BridgeConfig'ten yeniden okunur.
+    func reloadConfig() {
+        names = BridgeConfig.names; icons = BridgeConfig.icons; roles = BridgeConfig.roles; removed = BridgeConfig.removed
+        deletedAt = [:]; pendingUntil = [:]
+        state = nil; error = nil
+        WidgetCenter.shared.reloadAllTimelines()
+        NowlightShortcuts.updateAppShortcutParameters()
+        Task { await refresh() }
     }
 
     func startPolling() {

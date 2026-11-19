@@ -9,6 +9,8 @@
 #include "pairing.h"
 #include "improv.h"
 #include "ota.h"
+#include "schedule.h"
+#include <time.h>
 
 // Telefon koprusu: iOS uygulamasi/widget'lari yerel agdan HTTP ile komut verir, kopru ESP-NOW ile dugumlere iletir.
 //
@@ -16,6 +18,7 @@
 //   GET  /api/state                    {"masa":0|1|-1,"yatak":..,"led":..,"links":{"masa":true,"yatak":false},"channel":1,"wifiChannel":1}
 //   POST /api/set   dev=masa|yatak|led|d3..d6|all  val=0|1
 //   Eslesme: POST /api/pair/start | GET /api/pair | POST /api/pair/accept?mac=..&id=d3[&pin=5&inv=1] | POST /api/pair/stop
+//   Zamanli otomasyon: GET /api/schedules | POST /api/schedules?rules=en:eylem:cihazlar:dakika:gunler:aci;...&tz=180 (bkz. shared/schedule.h)
 //   Dugum: POST /api/node/config?id=d3&pin=5&inv=1 | POST /api/node/forget?id=d3 (eslesmeyi siler, kopru yeniden baslar)
 //   (durumda eslesen dugumler: "devices":{"d3":1}, links:{"d3":true})
 // Token: istek basligi "X-Token". Ilk acilista rastgele uretilir, seri porttan "token" ile gosterilir.
@@ -154,6 +157,81 @@ static String stateJson() {
   o += "},\"links\":{" + lk + "},\"roles\":{" + roles + "},\"servo\":{" + angles + "},\"legacy\":" + String(NL_LEGACY ? "true" : "false") +
        ",\"channel\":" + String(NL_CHANNEL) + ",\"wifiChannel\":" + String((int)WiFi.channel()) + "}";
   return o;
+}
+
+// ---------------------------------------------------------------- zamanli otomasyon
+// Kurallar telefonda yazilir, kopruye gonderilir (NVS "sched"). Kopru NTP ile saati alir ve her dakika kurallara bakar:
+// su saatte, su gunlerde su cihazlari ac / kapat / cevir / servoyu acaya getir. Kacirilan tetikler (elektrik kesintisi) atlanir.
+static bool authorized();
+static SchedRule g_sched[SCHED_MAX];
+static int g_nSched = 0;
+static SchedState g_schedSt;
+static int g_tzMin = 180;                    // yerel saat = UTC + bu kadar dakika (telefon gonderir; Turkiye +180)
+
+static void loadSched() {
+  prefs.begin("bridge", true);
+  g_tzMin = prefs.getInt("tz", 180);
+  String w = prefs.isKey("sched") ? prefs.getString("sched", "") : String();
+  prefs.end();
+  int n = 0;
+  if (sched_parse(w.c_str(), g_sched, SCHED_MAX, &n)) g_nSched = n;
+}
+
+static bool timeValid() { return time(nullptr) > 1600000000; }
+
+static void localNow(int32_t &epochDay, uint16_t &minute) {
+  const int64_t t = (int64_t)time(nullptr) + (int64_t)g_tzMin * 60;
+  epochDay = (int32_t)(t >= 0 ? t / 86400 : -((-t + 86399) / 86400));
+  minute = (uint16_t)((t - (int64_t)epochDay * 86400) / 60);
+}
+
+static String schedJson() {
+  char hhmm[8] = "--:--";
+  if (timeValid()) { int32_t d; uint16_t m; localNow(d, m); snprintf(hhmm, sizeof(hhmm), "%02u:%02u", m / 60, m % 60); }
+  char wire[SCHED_MAX * 28]; sched_to_string(g_sched, g_nSched, wire, sizeof(wire));
+  return String("{\"rules\":\"") + wire + "\",\"tz\":" + g_tzMin + ",\"synced\":" + (timeValid() ? "true" : "false") + ",\"time\":\"" + hhmm + "\",\"count\":" + g_nSched + "}";
+}
+
+static void runSchedRule(const SchedRule &r) {
+  for (uint8_t slot = 0; slot < 8; slot++) {
+    if (!((r.devices >> slot) & 1)) continue;
+    int8_t cur = -1; bool servo = false;
+    if (slot < 3) { if (!NL_LEGACY) continue; cur = g_st[slot]; }
+    else {
+      if (!now_dyn_present(slot) || now_role(slot) == ROLE_PIR) continue;
+      cur = now_dyn_state(slot); servo = now_role(slot) == ROLE_SERVO;
+    }
+    if (r.action == SCHED_ANGLE) { if (servo) now_send_servo_goto(slot, r.angle, -1); continue; }
+    bool on = r.action == SCHED_ON;
+    if (r.action == SCHED_TOGGLE) on = cur != 1;
+    now_send_set(slot, on);
+  }
+  Serial.printf("[program] kural calisti: eylem %u cihazlar 0x%02X\n", r.action, r.devices);
+}
+
+static void schedLoop() {
+  static uint32_t last = 0;
+  if (millis() - last < 1000) return;
+  last = millis();
+  if (!g_nSched || !timeValid()) return;
+  int32_t day; uint16_t minute; localNow(day, minute);
+  const uint32_t due = sched_poll(g_sched, g_nSched, g_schedSt, day, minute, 0);
+  for (int i = 0; i < g_nSched; i++) if ((due >> i) & 1) runSchedRule(g_sched[i]);
+}
+
+static void handleSchedulesGet() { if (!authorized()) return; server.send(200, "application/json", schedJson()); }
+static void handleSchedulesPost() {
+  if (!authorized()) return;
+  int n = 0; SchedRule tmp[SCHED_MAX];
+  const String w = server.arg("rules");
+  if (!sched_parse(w.c_str(), tmp, SCHED_MAX, &n)) { server.send(400, "application/json", "{\"error\":\"kurallar gecersiz\"}"); return; }
+  if (server.hasArg("tz")) { const int tz = server.arg("tz").toInt(); if (tz >= -840 && tz <= 840) g_tzMin = tz; }
+  for (int i = 0; i < n; i++) g_sched[i] = tmp[i];
+  g_nSched = n;
+  g_schedSt = SchedState();
+  prefs.begin("bridge", false); prefs.putString("sched", w); prefs.putInt("tz", g_tzMin); prefs.end();
+  Serial.printf("[program] %d kural kaydedildi (UTC%+d dk)\n", n, g_tzMin);
+  server.send(200, "application/json", schedJson());
 }
 
 // ---------------------------------------------------------------- HTTP
@@ -356,6 +434,8 @@ static void startHttp() {
   server.on("/api/pair/stop", HTTP_POST, handlePairStop);
   server.on("/api/node/config", HTTP_POST, handleNodeConfig);
   server.on("/api/node/forget", HTTP_POST, handleNodeForget);
+  server.on("/api/schedules", HTTP_GET, handleSchedulesGet);
+  server.on("/api/schedules", HTTP_POST, handleSchedulesPost);
   server.on("/api/node/servo", HTTP_POST, handleServoConfig);
   server.on("/api/servo", HTTP_POST, handleServoGoto);
   server.on("/api/servo/free", HTTP_POST, handleServoFree);
@@ -441,6 +521,8 @@ void setup() {
   Serial.begin(115200);
   delay(300);
   loadSettings();
+  loadSched();
+  configTime(0, 0, "pool.ntp.org", "time.google.com");   // saat: WiFi baglaninca kendiliginden alinir
   now_init();                          // ESP-NOW (sabit kanal); WiFi radyosunu da baslatir
   WiFi.setAutoReconnect(true);
   WiFi.setSleep(false);                // uyku modu ESP-NOW alimini kacirabilir
@@ -457,6 +539,7 @@ void loop() {
   server.handleClient();
   pollState();
   pair_loop();
+  schedLoop();
   if (g_restartAt && millis() > g_restartAt) ESP.restart();
 
   const bool up = WiFi.status() == WL_CONNECTED;

@@ -63,6 +63,7 @@ struct LightsScreen: View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: 14) {
+                    if DemoMode.isOn { DemoBanner() }
                     if let w = warning { WarningCard(message: w, retry: model.error != nil) }
                     if tiles.isEmpty {
                         ContentUnavailableView("Cihaz yok", systemImage: "lightbulb.slash",
@@ -109,6 +110,26 @@ struct WarningCard: View {
         }
         .padding(14)
         .background(Color.orange.opacity(0.14), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+    }
+}
+
+/// Demo modu acikken ustte durur: gercek cihaz yok, her sey ornek.
+struct DemoBanner: View {
+    @Environment(AppModel.self) private var model
+    @State private var off = false
+    var body: some View {
+        HStack(spacing: 12) {
+            Image(systemName: "play.rectangle.fill").foregroundStyle(Color.lampOn)
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Demo modu").font(.footnote.weight(.semibold))
+                Text("Örnek cihazlar. Her şeyi dene: cihaz ekle, servo, programlar, ayarlar.").font(.caption).foregroundStyle(.secondary)
+            }
+            Spacer()
+            Button("Kapat") { DemoMode.disable(); model.reloadConfig(); off.toggle() }
+                .font(.footnote.weight(.semibold)).buttonStyle(.bordered).tint(Color.lampOn)
+        }
+        .padding(12)
+        .background(Color.lampOn.opacity(0.12), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
     }
 }
 

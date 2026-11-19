@@ -1,6 +1,6 @@
 # Plan: zamanlı otomasyon (köprüde çalışır)
 
-Durum: **1. aşamanın çekirdek mantığı hazır ve testli** (`firmware/shared/schedule.h`, `firmware/tools/test_schedule.c`). Köprü ve uygulama bağlantısı, kararlar netleşince.
+Durum: **1. aşama kodlandı** (2026-11-19, kullanıcı dört öneriyi onayladı): çekirdek mantık testli (`firmware/shared/schedule.h`), köprüde NTP + motor + `/api/schedules` (6 kart türü derleniyor), uygulamada "Programlar" ekranı (demo modunda ve simülatörde denendi). **Donanımda henüz denenmedi** (köprüyü yeni yazılımla yükleyip kural kurunca saatinde tetiklenmeli). 2–4. aşamalar yok.
 
 ## 1. Hedef
 
@@ -37,7 +37,7 @@ Uygulama (kuralların asıl kaynağı) --HTTP--> Köprü: kuralları NVS'te sakl
 - **Servo:** zamanlı kural servoyu bırakılmışken hareket ettirir. Elle oynatılmış perdenin gerçek konumu bilinmediği için kural "açıya git" der, "çevir" servo için anlamlı olmaz (arayüzde servo için çevir sunulmaz).
 - **Yarım kalan eşleşme / silinen cihaz:** silinen cihazın biti kurallardan temizlenir (kapı kurallarındaki gibi).
 
-## 5. Kararlar (kullanıcıdan bekleniyor)
+## 5. Kararlar (onaylandı: dördü de öneri doğrultusunda)
 
 1. **Kural kaynağı telefon mu olsun?** Önerim evet (kapı kurallarıyla aynı). Köprü yalnızca saklar ve çalıştırır.
 2. **Kaçırılan tetikler:** elektrik kesintisinde atlansın mı (önerim), yoksa 10 dakikaya kadar yakalansın mı?

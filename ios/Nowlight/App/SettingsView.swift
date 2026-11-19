@@ -75,6 +75,18 @@ struct SettingsView: View {
                     }
                 }
 
+                Section {
+                    Toggle("Demo modu", isOn: Binding(get: { DemoMode.isOn }, set: { on in
+                        if on { DemoMode.enable() } else { DemoMode.disable() }
+                        host = BridgeConfig.host; token = BridgeConfig.token
+                        ver = nil; upd = nil
+                        model.reloadConfig()
+                        Task { await loadVersion() }
+                    })).tint(Color.lampOn)
+                } header: { Text("Demo") } footer: {
+                    Text("Köprü ve cihaz olmadan uygulamanın her yerini dene: örnek ışıklar, bir servo (perde) ve bir hareket sensörü gelir; cihaz ekleme, ayarlar, programlar, otomasyon ve köprü güncellemesi gerçekmiş gibi çalışır. Hiçbir şey ağa gitmez. Kapatınca gerçek ayarların (adres, adlar, programlar) aynen geri gelir. Widget ve Siri demo cihazlarını görmez.")
+                }
+
                 Section("Widget") {
                     Text("Ana ekranda boş bir yere uzun bas, + düğmesine dokun, \"Nowlight\" widget'ını ekle. Widget düğmeleri uygulamayı açmadan ışığı değiştirir.")
                         .font(.footnote).foregroundStyle(.secondary)

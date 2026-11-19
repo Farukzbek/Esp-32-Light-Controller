@@ -163,6 +163,21 @@ struct BridgeClient {
         ]))
     }
 
+    // MARK: Zamanli programlar
+    private func scheduleDecode(_ d: Data) throws -> ScheduleInfo {
+        guard let i = try? JSONDecoder().decode(ScheduleInfo.self, from: d) else { throw BridgeError.badResponse }
+        return i
+    }
+    /// Kopruda kayitli programlar ve koprunun saati. Eski kopru yazilimi bu adresi bilmez (badResponse).
+    func schedules() async throws -> ScheduleInfo { try scheduleDecode(await send(request("/api/schedules"))) }
+    /// Programlari kopruye gonderir. Saat dilimi telefondan alinir (UTC'den dakika farki).
+    func pushSchedules(_ rules: [ScheduleRule]) async throws -> ScheduleInfo {
+        try scheduleDecode(await send(request("/api/schedules", method: "POST", query: [
+            URLQueryItem(name: "rules", value: rules.map(\.wire).joined(separator: ";")),
+            URLQueryItem(name: "tz", value: String(TimeZone.current.secondsFromGMT() / 60)),
+        ])))
+    }
+
     // MARK: Servo ve PIR
     /// Servo ayarlari. hiz: 10 derece/sn biriminde (0 = aninda); birakma: 100 ms biriminde (0 = asla birakma, surekli tut).
     func servoConfig(id: String, pin: Int, inv: Bool, off: Int, on: Int, speed: Int, release: Int, min: Int, max: Int) async throws {

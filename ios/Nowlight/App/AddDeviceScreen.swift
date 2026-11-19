@@ -57,10 +57,13 @@ struct AddDeviceScreen: View {
                 }
 
                 Section {
+                    NavigationLink { ScheduleScreen() } label: {
+                        Label("Programlar (saat ve gün)", systemImage: "calendar.badge.clock")
+                    }
                     NavigationLink { AutomationScreen() } label: {
                         Label("Kapı otomasyonu", systemImage: "figure.walk.motion")
                     }
-                } header: { Text("Otomasyon") } footer: { Text("Kapının üstündeki sensör odaya girişi algılayınca seçtiğin ışıkları kendisi yakar.") }
+                } header: { Text("Otomasyon") } footer: { Text("Programlar: saate ve güne bağlı (örneğin her sabah perdeyi aç). Kapı otomasyonu: kapının üstündeki sensör odaya girişi algılayınca seçtiğin ışıkları yakar.") }
 
                 Section("Köprü") {
                     Button { showSettings = true } label: {

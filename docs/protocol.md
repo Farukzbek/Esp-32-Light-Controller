@@ -60,3 +60,8 @@ Eslesmede kopru, dugumun rolunu secer (`PairSecret.reserved[0]`: 0 isik, 1 servo
 ## Otomasyon kurali: gunler
 
 Kapi dugumu kural metni: `en:eylem:isiklar:bas:bit:bekleme[:gunler]`. `gunler`: bit0 Pazartesi ... bit6 Pazar (1..127); yoksa her gun. Gece yarisini asan aralikta gun, aralik **basladigi** gundur (`firmware/shared/rule_days.h`). Eski kapi yazilimi 7. alani reddeder; uygulama bu alani yalnizca her gun disindaysa gonderir.
+
+
+## Zamanlı programlar (köprü API'si)
+
+`GET /api/schedules` → `{"rules":"...","tz":180,"synced":true,"time":"09:41","count":1}`; `POST /api/schedules?rules=en:eylem:cihazlar:dakika:gunler:aci;...&tz=180` (UTC'den dakika farkı). Eylem: 0 çevir, 1 aç, 2 kapat, 3 servo açısı. Cihazlar: bit = 1 << yuva. Günler: bit0 Pzt ... bit6 Paz. En çok 16 kural, NVS'te saklanır, köprü NTP ile saati alır ve her dakika kurallara bakar; elektrik kesintisinde kaçırılanlar atlanır (`firmware/shared/schedule.h`).

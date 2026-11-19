@@ -12,6 +12,10 @@ enum StateCache {
         defaults.set(optimistic, forKey: "cachedOptimistic")
     }
 
+    static func clear() {
+        for k in ["cachedState", "cachedAt", "cachedOptimistic"] { defaults.removeObject(forKey: k) }
+    }
+
     static func load() -> (state: LightsState, at: Date, optimistic: Bool)? {
         guard let d = defaults.data(forKey: "cachedState"), let s = try? JSONDecoder().decode(LightsState.self, from: d),
               let at = defaults.object(forKey: "cachedAt") as? Date else { return nil }

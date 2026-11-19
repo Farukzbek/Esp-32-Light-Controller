@@ -50,3 +50,11 @@ Uygulamayı belirli bir sekmede açmak için `-tab 0|1|2` başlatma argümanı k
 Yeni cihaz eklerken rol seçilir: **Işık**, **Servo** (aç/kapat için iki ayarlı açı + elle açı kaydırıcısı + "Bırak") ya da **Hareket sensörü**. Servo ve PIR "Tüm ışıklar"a katılmaz. Servo, hedefe varınca ayarlı süre sonra bırakılır ve elle oynatılabilir (karşı koymaz). Otomasyon kurallarında servo "Aç" = açık açısına, "Kapat" = kapalı açısına gider. Kurallara **gün seçimi** eklendi (örneğin perde Pazar günleri açılmasın). Ayrıntı: [docs/protocol.md](../docs/protocol.md).
 
 Gelistirme: `tools/mock_bridge.py 8080 test --roles` (servo d3 + PIR d4 ile) ve `tools/mock_door.py` (Otomasyon ekranı için sahte kapı düğümü).
+
+## Demo modu
+
+**Ayarlar → Demo modu**: köprü ve cihaz olmadan uygulamanın her yerini dene. Uygulama içinde çalışan sahte bir köprü ve kapı düğümü (`App/DemoMode.swift`, URLProtocol) örnek ışıklar, bir servo (Perde) ve bir PIR (Kapı sensörü) sunar; cihaz ekleme (4 sn sonra yeni cihaz bulunur), cihaz/servo/PIR ayarları, programlar, kapı otomasyonu ve köprü güncellemesi gerçekmiş gibi çalışır. Ağa hiçbir şey gitmez. Açılırken gerçek ayarların yedeği alınır, kapatılınca geri yüklenir. Widget ve Siri demo cihazlarını görmez (ayrı süreçler).
+
+## Programlar (saat ve gün)
+
+**Cihaz Ekle → Programlar**: "her sabah 07:30'da perdeyi 90° konumuna getir, Pazar hariç" gibi saate ve güne bağlı kurallar. Kurallar telefonda yazılır, köprüye gönderilir (`POST /api/schedules`) ve köprüde çalışır (NTP saati, telefon kapalıyken de). Servolar için "açıya git", diğerleri için aç/kapat/çevir. Plan: [docs/plan-zamanli-otomasyon.md](../docs/plan-zamanli-otomasyon.md).
