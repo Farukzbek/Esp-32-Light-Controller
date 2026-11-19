@@ -170,10 +170,11 @@ static SchedState g_schedSt;
 static int g_tzMin = 180;                    // yerel saat = UTC + bu kadar dakika (telefon gonderir; Turkiye +180)
 
 static void loadSched() {
-  prefs.begin("bridge", true);
-  g_tzMin = prefs.getInt("tz", 180);
-  String w = prefs.isKey("sched") ? prefs.getString("sched", "") : String();
-  prefs.end();
+  Preferences sp;                      // AYRI nesne: genel `prefs` ayarlari (WiFi, token) acik tutar, onu kapatmak ayarlari okunamaz yapar
+  sp.begin("bridge", true);
+  g_tzMin = sp.getInt("tz", 180);
+  String w = sp.isKey("sched") ? sp.getString("sched", "") : String();
+  sp.end();
   int n = 0;
   if (sched_parse(w.c_str(), g_sched, SCHED_MAX, &n)) g_nSched = n;
 }
@@ -230,7 +231,7 @@ static void handleSchedulesPost() {
   for (int i = 0; i < n; i++) g_sched[i] = tmp[i];
   g_nSched = n;
   g_schedSt = SchedState();
-  prefs.begin("bridge", false); prefs.putString("sched", w); prefs.putInt("tz", g_tzMin); prefs.end();
+  { Preferences sp; sp.begin("bridge", false); sp.putString("sched", w); sp.putInt("tz", g_tzMin); sp.end(); }       // ayri nesne (bkz. loadSched)
   Serial.printf("[program] %d kural kaydedildi (UTC%+d dk)\n", n, g_tzMin);
   server.send(200, "application/json", schedJson());
 }
