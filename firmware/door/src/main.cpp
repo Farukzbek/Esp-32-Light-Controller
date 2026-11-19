@@ -6,6 +6,7 @@
 #include <time.h>
 #include "esp_random.h"
 #include "rule_days.h"
+#include "reenter.h"
 
 // Kapi dugumu: PIR sensoru odaya giris/hareket algilayinca KOPRUYE (firmware/bridge) komut atar.
 //  KURALLAR (en fazla 8, uygulamadan gelir): her kural = etkin mi, eylem (0 cevir, 1 ac, 2 kapat), isiklar (bit maskesi),
@@ -29,11 +30,13 @@ struct Cfg {
   uint16_t winStart = 18 * 60, winEnd = 7 * 60;   // dakika (gece yarisini asabilir)
 } g;
 
-struct Rule { bool en = true; uint8_t action = 1, lamps = 1; uint16_t start = 0, end = 0, cool = 0; uint8_t days = RULE_ALL_DAYS; };   // days: bit0 Pzt ... bit6 Paz (shared/rule_days.h)
+struct Rule { bool en = true; uint8_t action = 1, lamps = 1; uint16_t start = 0, end = 0, cool = 0; uint8_t days = RULE_ALL_DAYS; uint16_t rev = 0; };   // rev: hizli gir-cik penceresi (sn, 0 = kapali), shared/reenter.h   // days: bit0 Pzt ... bit6 Paz (shared/rule_days.h)
 #define MAX_RULES 8
 static Rule g_rules[MAX_RULES];
 static uint8_t g_nRules = 0;
 static uint32_t g_ruleTrig[MAX_RULES];
+static ReenterState g_re;         // hizli gir-cik: son calisan kural ve zamani
+#define REV_MIN_GAP_S 8           // pencere acildiktan en az bu kadar sn sonra gelen hareket "cikis" sayilir (ayni ziyaretteki hareketler degil)
 static int g_active = -1;        // son harekette saati uyan kuralin sirasi (-1: yok)
 
 static String g_token, g_bridgeHost, g_bridgeToken;
@@ -61,12 +64,13 @@ static String rulesToString() {
     const Rule &r = g_rules[i];
     if (i) o += ';';
     o += String(r.en ? 1 : 0) + ":" + r.action + ":" + r.lamps + ":" + r.start + ":" + r.end + ":" + r.cool;
-    if (r.days != RULE_ALL_DAYS) o += ":" + String(r.days);       // 7. alan yalnizca her gun disindaysa (eski uygulamalarla uyum)
+    if (r.days != RULE_ALL_DAYS || r.rev) o += ":" + String(r.days);       // 7. alan: gunler (yalnizca gerekliyse, eski uygulamalarla uyum)
+    if (r.rev) o += ":" + String(r.rev);                                  // 8. alan: hizli gir-cik penceresi (sn)
   }
   return o;
 }
 
-// "en:eylem:isiklar:bas:bit:bekleme[:gunler];..." -> kurallar (gunler: bit0 Pzt ... bit6 Paz, yoksa her gun). Gecersizse hicbir sey degismez.
+// "en:eylem:isiklar:bas:bit:bekleme[:gunler[:gircik_sn]];..." -> kurallar (gunler: bit0 Pzt ... bit6 Paz, yoksa her gun). Gecersizse hicbir sey degismez.
 static bool parseRules(const String &str) {
   Rule tmp[MAX_RULES]; int n = 0;
   int pos = 0;
@@ -75,20 +79,21 @@ static bool parseRules(const String &str) {
     const String item = str.substring(pos, e);
     pos = e + 1;
     if (!item.length()) continue;
-    long v[7]; int k = 0, q = 0;
-    while (k < 7) {
+    long v[8]; int k = 0, q = 0;
+    while (k < 8) {
       int c = item.indexOf(':', q); const String f = item.substring(q, c < 0 ? item.length() : c);
       if (!f.length()) return false;
       v[k++] = f.toInt();
       if (c < 0) break; q = c + 1;
     }
     if (k == 6) v[6] = RULE_ALL_DAYS;
-    if ((k != 6 && k != 7) || v[6] < 1 || v[6] > 127 || v[1] < 0 || v[1] > 2 || v[2] < 1 || v[2] > 255 || v[3] < 0 || v[3] > 1439 || v[4] < 0 || v[4] > 1439 || v[5] < 0 || v[5] > 60) return false;
-    tmp[n++] = {v[0] != 0, (uint8_t)v[1], (uint8_t)v[2], (uint16_t)v[3], (uint16_t)v[4], (uint16_t)v[5], (uint8_t)v[6]};
+    if (k < 8) v[7] = 0;                                    // 8. alan yoksa gir-cik kapali
+    if ((k != 6 && k != 7 && k != 8) || v[7] < 0 || v[7] > 600 || (v[7] > 0 && v[7] < 15) || v[6] < 1 || v[6] > 127 || v[1] < 0 || v[1] > 2 || v[2] < 1 || v[2] > 255 || v[3] < 0 || v[3] > 1439 || v[4] < 0 || v[4] > 1439 || v[5] < 0 || v[5] > 60) return false;
+    tmp[n++] = {v[0] != 0, (uint8_t)v[1], (uint8_t)v[2], (uint16_t)v[3], (uint16_t)v[4], (uint16_t)v[5], (uint8_t)v[6], (uint16_t)v[7]};
   }
   for (int i = 0; i < n; i++) g_rules[i] = tmp[i];
   g_nRules = n;
-  memset(g_ruleTrig, 0, sizeof(g_ruleTrig));
+  memset(g_ruleTrig, 0, sizeof(g_ruleTrig)); reenter_clear(g_re);
   return true;
 }
 
@@ -154,7 +159,7 @@ static bool bridgeReq(const String &path, bool post, String *out) {
   return true;
 }
 
-static void act(const Rule &r, bool force) {
+static void act(const Rule &r, bool force, const char *tag = nullptr) {
   String state;
   int cur[8] = {-1, -1, -1, -1, -1, -1, -1, -1};
   if (r.action == 0) {                            // cevir: mevcut durum lazim
@@ -168,7 +173,7 @@ static void act(const Rule &r, bool force) {
     if (!bridgeReq(String("/api/set?dev=") + LAMP_NAMES[i] + "&val=" + target, true, nullptr)) return;
     done += String(LAMP_NAMES[i]) + "=" + target + " ";
   }
-  g_lastResult = String(force ? "test: " : "ok: ") + done;
+  g_lastResult = String(force ? "test: " : tag ? tag : "ok: ") + done;
   Serial.printf("[kural] %s\n", g_lastResult.c_str());
 }
 
@@ -177,6 +182,22 @@ static void onMotion() {
   g_lastMotionMs = millis();
   if (!g.enabled) { g_lastResult = "hareket gorundu, otomasyon kapali"; return; }
   if (!g_nRules) { g_lastResult = "hareket gorundu, kural yok"; return; }
+  // Hizli gir-cik: son calisan kuralin penceresi aciksa ve bu hareket "cikis" gibi geliyorsa kuralin TERSINI uygula (kural hala saatindeyse)
+  if (g_re.armed && g_re.rule >= 0 && g_re.rule < g_nRules) {
+    const Rule &pr = g_rules[g_re.rule];
+    const ReenterResult rr = reenter_check(g_re, millis(), pr.rev, REV_MIN_GAP_S);
+    if (rr == RE_REVERSE && pr.en && g.enabled && inWindowR(pr)) {
+      Rule rev = pr; rev.action = reenter_opposite(pr.action);
+      const int idx = g_re.rule;
+      reenter_clear(g_re);
+      g_ruleTrig[idx] = 0;                              // sonraki gercek giris kurali bekleme suresine takilmasin
+      g_lastTrigMs = millis();
+      act(rev, false, "gir-cik, ters: ");
+      g_lastResult = "kural " + String(idx + 1) + " " + g_lastResult;
+      return;
+    }
+    if (rr == RE_SAME_VISIT) { g_lastResult = "ayni ziyaret (gir-cik penceresi acik)"; return; }
+  }
   for (int i = 0; i < g_nRules; i++) {
     const Rule &r = g_rules[i];
     if (!r.en || !inWindowR(r)) continue;
@@ -187,6 +208,7 @@ static void onMotion() {
     g_ruleTrig[i] = millis(); if (!g_ruleTrig[i]) g_ruleTrig[i] = 1;
     g_lastTrigMs = millis();
     act(r, false);
+    if (r.rev) reenter_arm(g_re, i, millis()); else reenter_clear(g_re);
     g_lastResult = "kural " + String(i + 1) + " " + g_lastResult;
     return;
   }

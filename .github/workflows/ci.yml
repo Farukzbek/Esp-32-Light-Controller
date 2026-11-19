@@ -66,5 +66,6 @@ jobs:
       # Servo/PIR rol mantigi (PIR filtresi, servo hareketi) ve kural gunleri (Pzt..Paz, gece yarisini asan pencere)
       - run: c++ -std=c++17 -x c++ -Wall -Ifirmware/shared firmware/tools/test_role_logic.c -o /tmp/trl && /tmp/trl
       - run: c++ -std=c++17 -x c++ -Wall -Ifirmware/shared firmware/tools/test_rule_days.c -o /tmp/trd && /tmp/trd
+      - run: c++ -std=c++17 -x c++ -Wall -Ifirmware/shared firmware/tools/test_reenter.c -o /tmp/tre && /tmp/tre
       # Zamanli otomasyon cekirdegi (kural metni, gun filtresi, tek seferlik tetik): docs/plan-zamanli-otomasyon.md
       - run: c++ -std=c++17 -x c++ -Wall -Ifirmware/shared firmware/tools/test_schedule.c -o /tmp/tsc && /tmp/tsc

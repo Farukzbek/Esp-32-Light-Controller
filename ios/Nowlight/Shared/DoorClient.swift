@@ -54,6 +54,7 @@ struct AutomationRule: Codable, Identifiable, Equatable {
     var start = 18 * 60           // dakika
     var end = 6 * 60              // bitis haric; gece yarisini asabilir; bas == bit: gun boyu
     var cooldownMin = 0           // 0...60
+    var reverseSec = 0            // hizli gir-cik: 0 = kapali; 15...180 sn. Kural calistiktan sonra bu surede ikinci hareket gelirse eylemin TERSI uygulanir.
     var days = 127                // calisma gunleri: bit0 Pazartesi ... bit6 Pazar; 127 = her gun. Gece yarisini asan aralikta gun, aralik BASLADIGI gundur.
 
     /// Uygulamada gorunen (kaldirilmamis) isiklarin bit maskesi: masa 1, yatak 2, led 4.
@@ -64,16 +65,18 @@ struct AutomationRule: Codable, Identifiable, Equatable {
     /// Dugume giden metin. 7. alan (gunler) yalnizca her gun disindaysa eklenir: eski kapi dugumu yazilimi 6 alan bekler.
     var wire: String {
         let base = "\(enabled && effectiveLamps != 0 ? 1 : 0):\(action.rawValue):\(effectiveLamps != 0 ? effectiveLamps : lamps):\(start):\(end):\(cooldownMin)"
+        if reverseSec > 0 { return base + ":\(days & 127):\(reverseSec)" }         // 8 alan: gunler ve gir-cik
         return days & 127 == 127 ? base : base + ":\(days & 127)"
     }
     /// Eski kapi dugumu (gun destegi yok) bu kurali reddeder: yalnizca gunu kisitli kural gonderilirken gerekir.
-    var needsDaySupport: Bool { days & 127 != 127 }
+    var needsDaySupport: Bool { days & 127 != 127 || reverseSec > 0 }
 
     static func parse(_ wire: String) -> [AutomationRule] {
         wire.split(separator: ";").enumerated().compactMap { i, item in
             let v = item.split(separator: ":").compactMap { Int($0) }
-            guard v.count == 6 || v.count == 7, let a = Action(rawValue: v[1]) else { return nil }
-            return AutomationRule(name: "Kural \(i + 1)", enabled: v[0] != 0, action: a, lamps: v[2], start: v[3], end: v[4], cooldownMin: v[5], days: v.count == 7 ? v[6] : 127)
+            guard (6...8).contains(v.count), let a = Action(rawValue: v[1]) else { return nil }
+            return AutomationRule(name: "Kural \(i + 1)", enabled: v[0] != 0, action: a, lamps: v[2], start: v[3], end: v[4], cooldownMin: v[5],
+                                  reverseSec: v.count == 8 ? v[7] : 0, days: v.count >= 7 ? v[6] : 127)
         }
     }
 
@@ -101,7 +104,7 @@ struct AutomationRule: Codable, Identifiable, Equatable {
 
 /// Eski kayitli kurallarda `days` yok: her gun kabul edilir.
 extension AutomationRule {
-    enum CodingKeys: String, CodingKey { case id, name, enabled, action, lamps, start, end, cooldownMin, days }
+    enum CodingKeys: String, CodingKey { case id, name, enabled, action, lamps, start, end, cooldownMin, days, reverseSec }
 
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
@@ -114,6 +117,7 @@ extension AutomationRule {
         end = try c.decode(Int.self, forKey: .end)
         cooldownMin = try c.decode(Int.self, forKey: .cooldownMin)
         days = (try c.decodeIfPresent(Int.self, forKey: .days)) ?? 127
+        reverseSec = (try c.decodeIfPresent(Int.self, forKey: .reverseSec)) ?? 0
     }
 }
 

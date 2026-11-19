@@ -17,9 +17,11 @@ def valid(text):
     for item in text.split(";"):
         if not item: continue
         v = item.split(":")
-        if len(v) not in (6, 7) or any(not f.lstrip("-").isdigit() for f in v): return False
+        if len(v) not in (6, 7, 8) or any(not f.lstrip("-").isdigit() for f in v): return False
         v = [int(f) for f in v]
-        days = v[6] if len(v) == 7 else 127
+        days = v[6] if len(v) >= 7 else 127
+        rev = v[7] if len(v) == 8 else 0
+        if rev != 0 and not (15 <= rev <= 600): return False
         if not (0 <= v[1] <= 2 and 1 <= v[2] <= 255 and 0 <= v[3] <= 1439 and 0 <= v[4] <= 1439 and 0 <= v[5] <= 60 and 1 <= days <= 127): return False
         n += 1
         if n > 8: return False

@@ -1,0 +1,29 @@
+#pragma once
+#include <stdint.h>
+
+// Kapi otomasyonu: "hizli gir-cik". Bir kural calistiktan sonra kisa bir pencere (revSec sn) acilir; bu pencerede (ve aynı ziyaretteki
+// art arda hareketleri saymamak icin en az minGapSec sn sonra) ikinci bir hareket gelirse kuralin eyleminin TERSI uygulanir
+// (acildiysa kapat, kapandiysa ac, cevirdiyse tekrar cevir). Ornek: gece odaya girip bir sey alip 1 dakikadan kisa surede cikinca isiklar kapanir.
+// Platform bagimsiz mantik: kapi dugumu (firmware/door) kullanir, bilgisayarda test edilir (tools/test_reenter.c).
+struct ReenterState { bool armed = false; int8_t rule = -1; uint32_t armedAt = 0; };
+
+enum ReenterResult : uint8_t {
+  RE_NONE = 0,      // pencere kapali ya da suresi doldu: kural normal calissin
+  RE_SAME_VISIT,    // pencere acik ama cok erken (ayni ziyaret): ters calistirma, kurali da yeniden calistirma
+  RE_REVERSE        // gir-cik algilandi: kuralin tersini uygula
+};
+
+inline void reenter_arm(ReenterState &s, int rule, uint32_t now) { s.armed = true; s.rule = (int8_t)rule; s.armedAt = now; }
+inline void reenter_clear(ReenterState &s) { s.armed = false; s.rule = -1; }
+
+// Yeni bir hareket geldi. revSec: pencere suresi (0 = ozellik kapali). Zaman asimini kendi temizler. s.rule, ters calistirilacak kuraldir.
+inline ReenterResult reenter_check(ReenterState &s, uint32_t now, uint16_t revSec, uint16_t minGapSec) {
+  if (!s.armed || revSec == 0) return RE_NONE;
+  const uint32_t dt = now - s.armedAt;                       // millis tasmasina dayanikli
+  if (dt > (uint32_t)revSec * 1000UL) { reenter_clear(s); return RE_NONE; }
+  if (dt < (uint32_t)minGapSec * 1000UL) return RE_SAME_VISIT;
+  return RE_REVERSE;
+}
+
+// Kural eyleminin tersi: 0 cevir -> 0, 1 ac -> 2 (kapat), 2 kapat -> 1 (ac)
+inline uint8_t reenter_opposite(uint8_t action) { return action == 1 ? 2 : action == 2 ? 1 : action; }
