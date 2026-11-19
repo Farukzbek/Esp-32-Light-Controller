@@ -28,6 +28,32 @@ final class AppModel {
     /// Cihaz rolleri (servo, PIR). Kopru bildirir; gorunumler bunu izler.
     var roles: [String: String] = BridgeConfig.roles
 
+    /// Ana ekran duzeni (sira ve gizli kartlar); gorunumler bunu izler.
+    var homeOrder: [String] = BridgeConfig.homeOrder
+    var homeHidden: Set<String> = BridgeConfig.homeHidden
+
+    /// Ana ekranda gorunecek cihazlar: kullanicinin sirasi, gizlenenler cikarilir, yeni cihazlar sonda.
+    func homeDevices() -> [LightID] {
+        let all = LightID.devices
+        let byID = Dictionary(uniqueKeysWithValues: all.map { ($0.rawValue, $0) })
+        var out = homeOrder.compactMap { byID[$0] }
+        for d in all where !out.contains(d) { out.append(d) }
+        return out.filter { !homeHidden.contains($0.rawValue) }
+    }
+    /// Duzenleme ekraninda gosterilecek TUM cihazlar (gizliler dahil), sirali.
+    func homeAllOrdered() -> [LightID] {
+        let all = LightID.devices
+        let byID = Dictionary(uniqueKeysWithValues: all.map { ($0.rawValue, $0) })
+        var out = homeOrder.compactMap { byID[$0] }
+        for d in all where !out.contains(d) { out.append(d) }
+        return out
+    }
+    func setHome(order: [LightID]? = nil, hidden: Set<String>? = nil) {
+        if let order { homeOrder = order.map(\.rawValue); BridgeConfig.homeOrder = homeOrder }
+        if let hidden { homeHidden = hidden; BridgeConfig.homeHidden = hidden }
+    }
+    func resetHome() { homeOrder = []; homeHidden = []; BridgeConfig.homeOrder = []; BridgeConfig.homeHidden = [] }
+
     /// Komut verilen servonun hedefe gidiş süresi boyunca ("Açılıyor…", "Kapanıyor…", "Çalışıyor…"). Dugum yazilimi eski olsa da calisir:
     /// sure, servonun ayarli hizindan ve aci farkindan tahmin edilir; yeni yazilimda dugumun gercek "hareket ediyor" bildirimi de sayilir.
     struct ServoMove: Equatable {
@@ -186,6 +212,7 @@ final class AppModel {
     func reloadConfig() {
         configEpoch += 1
         names = BridgeConfig.names; icons = BridgeConfig.icons; roles = BridgeConfig.roles; removed = BridgeConfig.removed
+        homeOrder = BridgeConfig.homeOrder; homeHidden = BridgeConfig.homeHidden
         deletedAt = [:]; pendingUntil = [:]
         state = nil; error = nil
         WidgetCenter.shared.reloadAllTimelines()

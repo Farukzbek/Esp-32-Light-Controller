@@ -39,15 +39,16 @@ struct RootView: View {
 struct LightsScreen: View {
     @Environment(AppModel.self) private var model
     @Binding var showSettings: Bool
+    @State private var showEditor = false
 
     private let columns = [GridItem(.flexible(), spacing: 14), GridItem(.flexible(), spacing: 14)]
 
-    private var showAll: Bool { _ = model.removed; return LightID.lights.count >= 2 }
+    private var showAll: Bool { _ = (model.removed, model.homeHidden); return LightID.lights.count >= 2 && !model.homeHidden.contains("all") }
+    private var showSiri: Bool { !model.homeHidden.contains("siri") }
 
     private var tiles: [LightID] {
-        let d = LightID.devices
-        _ = (model.removed, model.roles)                   // kaldirma/geri ekleme ve rol degisimi gorunumu tazeler
-        return d
+        _ = (model.removed, model.roles, model.homeOrder, model.homeHidden)     // kaldirma, rol, sira ve gizleme degisimi gorunumu tazeler
+        return model.homeDevices()
     }
 
     private var warning: String? {
@@ -67,10 +68,13 @@ struct LightsScreen: View {
                     if DemoMode.isOn { DemoBanner() }
                     if !BridgeConfig.isConfigured { BridgeConnectCard() }
                     if let w = warning { WarningCard(message: w, retry: model.error != nil) }
-                    if tiles.isEmpty {
-                        ContentUnavailableView("Cihaz yok", systemImage: "lightbulb.slash",
-                                               description: Text(LightID.allDevices.isEmpty ? "Cihaz Ekle sekmesinden ilk cihazını ekle: bir ışık, servo ya da hareket sensörü." : "Cihaz Ekle sekmesinden kaldırdığın cihazları geri ekleyebilirsin."))
+                    if tiles.isEmpty && !showAll {
+                        ContentUnavailableView(LightID.devices.isEmpty ? "Cihaz yok" : "Kartlar gizli", systemImage: "lightbulb.slash",
+                                               description: Text(LightID.allDevices.isEmpty ? "Cihaz Ekle sekmesinden ilk cihazını ekle: bir ışık, servo ya da hareket sensörü."
+                                                                 : LightID.devices.isEmpty ? "Cihaz Ekle sekmesinden kaldırdığın cihazları geri ekleyebilirsin."
+                                                                 : "Tüm kartları gizledin. Sol üstteki Düzenle ile geri aç."))
                             .padding(.top, 60)
+                        if showSiri { SiriPromoCard().padding(.top, 10) }
                     } else {
                         if showAll { LightTile(light: .all, wide: true) }      // "Tum isiklar": en ustte tam genislikte
                         LazyVGrid(columns: columns, spacing: 14) {
@@ -78,7 +82,7 @@ struct LightsScreen: View {
                                 if l.role == .pir { PirTile(light: l) } else { LightTile(light: l) }
                             }
                         }
-                        SiriPromoCard().padding(.top, 10)
+                        if showSiri { SiriPromoCard().padding(.top, 10) }
                     }
                 }
                 .padding(.horizontal, 18)
@@ -89,7 +93,12 @@ struct LightsScreen: View {
             .scrollIndicators(.hidden)
             .background(AmbientBackground().ignoresSafeArea())
             .navigationBarTitleDisplayMode(.inline)
+            .sheet(isPresented: $showEditor) { HomeEditorSheet() }
             .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button { showEditor = true } label: { Label("Düzenle", systemImage: "slider.horizontal.3").labelStyle(.titleAndIcon).font(.subheadline).foregroundStyle(.white.opacity(0.7)) }
+                        .accessibilityLabel("Ana ekranı düzenle")
+                }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button { showSettings = true } label: { Image(systemName: "gearshape.fill").foregroundStyle(.white.opacity(0.7)) }
                         .accessibilityLabel("Köprü ayarları")

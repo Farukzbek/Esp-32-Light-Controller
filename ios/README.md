@@ -58,3 +58,11 @@ Gelistirme: `tools/mock_bridge.py 8080 test --roles` (servo d3 + PIR d4 ile) ve 
 ## Programlar (saat ve gün)
 
 **Cihaz Ekle → Programlar**: "her sabah 07:30'da perdeyi 90° konumuna getir, Pazar hariç" gibi saate ve güne bağlı kurallar. Kurallar telefonda yazılır, köprüye gönderilir (`POST /api/schedules`) ve köprüde çalışır (NTP saati, telefon kapalıyken de). Servolar için "açıya git", diğerleri için aç/kapat/çevir. Plan: [docs/plan-zamanli-otomasyon.md](../docs/plan-zamanli-otomasyon.md).
+
+## Ana ekranı düzenle
+
+Işıklar ekranının sol üstündeki düğme: kartları sürükleyerek sırala, istemediğini gizle, "Tüm ışıklar" ve Siri kartını aç/kapat. Gizlemek cihazı silmez (widget, Siri ve otomasyonlar etkilenmez); silmek için Cihaz Ekle sekmesi. Düzen App Group'ta saklanır (`homeOrder`, `homeHidden`).
+
+## Hızlı gir-çık (kapı otomasyonu)
+
+Kural düzenlerken **Gir-çık**: kural çalıştıktan sonra 15–180 sn içinde (ilk 8 sn hariç) ikinci bir hareket gelirse seçili cihazlara kuralın tersi uygulanır (ışık yandıysa söner). Yalnızca kuralın saat ve gün aralığında geçerlidir. Kural metninin 8. alanıdır (`firmware/shared/reenter.h`, test: `firmware/tools/test_reenter.c`); eski kapı yazılımı bu alanı reddeder.

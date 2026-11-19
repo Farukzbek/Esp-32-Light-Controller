@@ -12,7 +12,7 @@ enum DemoMode {
     private static var shared: UserDefaults { UserDefaults(suiteName: BridgeConfig.group) ?? .standard }
     /// Gercek ayarlari tutan anahtarlar (App Group)
     private static let keys = ["host", "token", "deviceNames", "deviceIcons", "customDevices", "removedDevices", "deviceRoles", "roleSettings",
-                               "relayConfig", "bridgeLegacy", "doorHost", "doorToken", "doorRules", "scheduleRules", "deviceChips"]
+                               "relayConfig", "bridgeLegacy", "doorHost", "doorToken", "doorRules", "scheduleRules", "deviceChips", "homeOrder", "homeHidden"]
 
     static var isOn: Bool { UserDefaults.standard.bool(forKey: flag) }
     /// Bos demo: hic cihaz yok, kopru da henuz tanitilmamis (token bos): ilk kurulumu bastan dene.
@@ -33,7 +33,7 @@ enum DemoMode {
         UserDefaults.standard.set(backup, forKey: backupKey)
         UserDefaults.standard.set(absent, forKey: absentKey)
         if empty {          // ilk kurulum: genel kopru (yerlesik isik yok), cihaz yok, token bos
-            for k in ["deviceNames", "deviceIcons", "customDevices", "removedDevices", "deviceRoles", "roleSettings", "relayConfig", "doorRules", "scheduleRules", "deviceChips", "doorHost", "doorToken"] { shared.removeObject(forKey: k) }
+            for k in ["deviceNames", "deviceIcons", "customDevices", "removedDevices", "deviceRoles", "roleSettings", "relayConfig", "doorRules", "scheduleRules", "deviceChips", "doorHost", "doorToken", "homeOrder", "homeHidden"] { shared.removeObject(forKey: k) }
             shared.set(host, forKey: "host"); shared.removeObject(forKey: "token")
             shared.set(false, forKey: "bridgeLegacy")
             UserDefaults.standard.set(true, forKey: flag)
@@ -52,7 +52,7 @@ enum DemoMode {
         shared.removeObject(forKey: "removedDevices"); shared.removeObject(forKey: "relayConfig")
         shared.set(true, forKey: "bridgeLegacy")
         shared.set(host, forKey: "doorHost"); shared.set("demo", forKey: "doorToken")
-        shared.removeObject(forKey: "doorRules"); shared.removeObject(forKey: "scheduleRules")
+        shared.removeObject(forKey: "doorRules"); shared.removeObject(forKey: "scheduleRules"); shared.removeObject(forKey: "homeOrder"); shared.removeObject(forKey: "homeHidden")
         UserDefaults.standard.set(true, forKey: flag)
         DemoState.shared.reset(); DemoState.shared.start()
         WidgetCenter.shared.reloadAllTimelines()

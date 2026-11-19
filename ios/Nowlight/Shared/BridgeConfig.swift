@@ -50,6 +50,18 @@ enum BridgeConfig {
         set { shared.set(newValue, forKey: "deviceRoles") }
     }
 
+    /// Ana ekran duzeni: kart sirasi (cihaz kimlikleri). Listede olmayan (yeni) cihazlar sona eklenir. Yalnizca ana ekrani etkiler.
+    static var homeOrder: [String] {
+        get { shared.stringArray(forKey: "homeOrder") ?? [] }
+        set { shared.set(newValue, forKey: "homeOrder") }
+    }
+
+    /// Ana ekranda gizlenen kartlar (cihaz kimlikleri, "all" = Tum isiklar, "siri" = Siri karti). Cihaz silinmez: widget, Siri ve otomasyon etkilenmez.
+    static var homeHidden: Set<String> {
+        get { Set(shared.stringArray(forKey: "homeHidden") ?? []) }
+        set { shared.set(Array(newValue).sorted(), forKey: "homeHidden") }
+    }
+
     /// Eslesen cihazlarin islemci turu (kimlik -> 1 ESP32, 2 S2, 3 S3, 4 C3, 5 C6). Pin rehberi icin; eski cihazlarda yok.
     static var chips: [String: Int] {
         get { (shared.dictionary(forKey: "deviceChips") as? [String: Int]) ?? [:] }
