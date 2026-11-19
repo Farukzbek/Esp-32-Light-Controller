@@ -28,6 +28,34 @@ final class AppModel {
     /// Cihaz rolleri (servo, PIR). Kopru bildirir; gorunumler bunu izler.
     var roles: [String: String] = BridgeConfig.roles
 
+    /// Komut verilen servonun hedefe gidiş süresi boyunca ("Açılıyor…", "Kapanıyor…", "Çalışıyor…"). Dugum yazilimi eski olsa da calisir:
+    /// sure, servonun ayarli hizindan ve aci farkindan tahmin edilir; yeni yazilimda dugumun gercek "hareket ediyor" bildirimi de sayilir.
+    struct ServoMove: Equatable {
+        var until: Date; var label: String
+        var from = 0, to = 0, started = Date(), travel = 0.0      // aci ilerlemesi: dogrusal tahmin (hiz ayarindan)
+        /// Su anki tahmini aci
+        func angle(at now: Date = Date()) -> Int {
+            let e = now.timeIntervalSince(started)
+            if travel <= 0 || e >= travel { return to }
+            return from + Int(Double(to - from) * e / travel)
+        }
+    }
+    var servoMoves: [String: ServoMove] = [:]
+
+    func beginServoMove(_ light: LightID, to target: Int, label: String) {
+        let st = servoSettings(light)
+        let known = state?.servo[light.rawValue]?.angle ?? -1
+        let from = known >= 0 ? known : st.off
+        let travel = st.speed == 0 ? 0.0 : min(60, Double(abs(target - from)) / Double(st.speed * 10))
+        let secs = st.speed == 0 ? 1.0 : travel + 0.8
+        let until = Date().addingTimeInterval(max(1.0, secs)), id = light.rawValue
+        servoMoves[id] = ServoMove(until: until, label: label, from: from, to: target, started: Date(), travel: travel)
+        Task { [weak self] in
+            try? await Task.sleep(nanoseconds: UInt64(max(1.0, secs) * 1_000_000_000))
+            if self?.servoMoves[id]?.until == until { self?.servoMoves.removeValue(forKey: id) }
+        }
+    }
+
     func setIcon(_ light: LightID, _ symbol: String?) {
         if let symbol, symbol != light.defaultSymbol { icons[light.rawValue] = symbol } else { icons.removeValue(forKey: light.rawValue) }
         BridgeConfig.icons = icons
@@ -44,7 +72,8 @@ final class AppModel {
     }
 
     /// Yeni bir isik ekler (kopruyle eslestikten sonra). Ad ve simge uygulamada saklanir.
-    func addDevice(_ light: LightID, name: String, symbol: String, pin: Int? = nil, inv: Bool? = nil, role: NodeRole = .light, servoOff: Int = 0, servoOn: Int = 90) {
+    func addDevice(_ light: LightID, name: String, symbol: String, pin: Int? = nil, inv: Bool? = nil, role: NodeRole = .light, servoOff: Int = 0, servoOn: Int = 90, chip: Int? = nil) {
+        if let chip { var c = BridgeConfig.chips; c[light.rawValue] = chip; BridgeConfig.chips = c }
         if role != .light { roles[light.rawValue] = role.rawValue; BridgeConfig.roles = roles }
         var rs = BridgeConfig.roleSettings
         if role == .servo { rs[light.rawValue] = ServoSettings(pin: pin ?? 5, off: servoOff, on: servoOn).stored }
@@ -81,8 +110,26 @@ final class AppModel {
     }
     func pirSettings(_ light: LightID) -> PirSettings { PirSettings(stored: BridgeConfig.roleSettings[light.rawValue]) ?? PirSettings() }
 
+    /// Bir programi SAATINE BAKMADAN hemen uygular (deneme): cihazlara komutlari telefon dogrudan yollar.
+    func runSchedule(_ r: ScheduleRule) async {
+        for d in LightID.controllable where r.effectiveDevices & d.bit != 0 {
+            switch r.action {
+            case .angle: if d.role == .servo { await servoGoto(d, angle: r.angle) }
+            case .toggle: await toggle(d)
+            case .on, .off:
+                let on = r.action == .on
+                if d.role == .servo { let st = servoSettings(d); beginServoMove(d, to: on ? st.on : st.off, label: on ? "Açılıyor…" : "Kapanıyor…") }
+                do { try await BridgeClient.fromConfig().set(d, on: on); error = nil }
+                catch { self.error = (error as? LocalizedError)?.errorDescription ?? "Komut gönderilemedi" }
+            }
+        }
+        try? await Task.sleep(nanoseconds: 700_000_000)
+        await refresh()
+    }
+
     /// Servoyu bir acyi gonderir (kaydirici). Aciyi hemen gosterir; kopru onaylayinca gercek deger gelir.
     func servoGoto(_ light: LightID, angle: Int) async {
+        beginServoMove(light, to: angle, label: "Çalışıyor…")
         if var s = state { s.servo[light.rawValue] = LightsState.ServoInfo(angle: angle, free: false); state = s }
         do { try await BridgeClient.fromConfig().servoGoto(id: light.rawValue, angle: angle); error = nil }
         catch { self.error = (error as? LocalizedError)?.errorDescription ?? "Komut gönderilemedi" }
@@ -109,6 +156,7 @@ final class AppModel {
         var r = BridgeConfig.relay; r.removeValue(forKey: light.rawValue); BridgeConfig.relay = r
         roles.removeValue(forKey: light.rawValue); BridgeConfig.roles = roles
         var rs = BridgeConfig.roleSettings; rs.removeValue(forKey: light.rawValue); BridgeConfig.roleSettings = rs
+        var ch = BridgeConfig.chips; ch.removeValue(forKey: light.rawValue); BridgeConfig.chips = ch
         AutomationStore.clearBit(light.bit)
         ScheduleStore.clearBit(light.bit)
         WidgetCenter.shared.reloadAllTimelines()
@@ -133,7 +181,10 @@ final class AppModel {
     }
 
     /// Demo modu acilip kapaninca (ya da ayarlar baska yoldan degisince) telefondaki kopyalar BridgeConfig'ten yeniden okunur.
+    private var configEpoch = 0       // ayar degisince artar: yoldaki eski yoklama yanitlari (eski cihazlari geri eklemesin) atilir
+
     func reloadConfig() {
+        configEpoch += 1
         names = BridgeConfig.names; icons = BridgeConfig.icons; roles = BridgeConfig.roles; removed = BridgeConfig.removed
         deletedAt = [:]; pendingUntil = [:]
         state = nil; error = nil
@@ -155,9 +206,11 @@ final class AppModel {
     func stopPolling() { polling?.cancel(); polling = nil }
 
     func refresh() async {
+        let epoch = configEpoch
         do {
             let client = try BridgeClient.fromConfig()
             var s = try await client.state()
+            guard epoch == configEpoch else { return }          // bu arada ayar degisti (demo/gercek gecisi): bu yaniti kullanma
             // Kisa sure once dokunulan isigin ekranda zipliyor gibi gorunmemesi icin: komut onaylanana kadar iyimser deger kalir.
             if let cur = state {
                 for l in LightID.devices where (pendingUntil[l] ?? .distantPast) > Date() { s = s.setting(l, on: cur.isOn(l)) }
@@ -211,6 +264,10 @@ final class AppModel {
             guard let s = state else { return true }
             return light == .all ? s.onCount == 0 : !s.isOn(light)
         }()
+        if light.role == .servo {
+            let st = servoSettings(light)
+            beginServoMove(light, to: wantOn ? st.on : st.off, label: wantOn ? "Açılıyor…" : "Kapanıyor…")
+        }
         if let s = state {
             state = s.setting(light, on: wantOn)
             let until = Date().addingTimeInterval(1.5)

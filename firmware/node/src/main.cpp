@@ -54,6 +54,8 @@ static float g_svCur = 0, g_svTarget = 0, g_svSpeed = 0;   // derece, derece/sn
 static bool g_svKnown = false, g_svAttached = false, g_svFree = true, g_svMoving = false;
 static uint32_t g_svDoneAt = 0, g_svLastTick = 0;
 static bool g_svReleasedEvent = false;      // birakildi: kopruye bildir
+static bool g_svArrivedEvent = false;       // hedefe varildi (hareket bitti): kopruye bildir
+static uint32_t g_svSettleUntil = 0;         // aninda hareketlerde servo mekanik olarak yerine oturana kadar (800 ms) "hareket ediyor" say
 
 static void servoWrite(float logical) {
   ledcWrite(g_pin, (servo_pulse_us(logical, g_sv.inv) * 16384UL) / 20000UL);       // 14 bit, 20 ms periyot (darbe: role_logic.h)
@@ -81,6 +83,7 @@ static void servoGoto(int angle, int speed) {
   if (!g_svKnown || sp == 0) { g_svCur = g_svTarget; g_svKnown = true; servoWrite(g_svCur); }   // konum bilinmiyor/aninda: dogrudan git
   g_svMoving = (g_svCur != g_svTarget);
   g_svDoneAt = g_svMoving ? 0 : millis();
+  if (!g_svMoving) g_svSettleUntil = millis() + 800;                       // aninda: servo yine de yerine gidene kadar sure ver
   g_svLastTick = millis();
   Serial.printf("[servo] hedef %d derece (hiz %d)\n", angle, sp);
 }
@@ -89,8 +92,10 @@ static void servoTick() {
   if (g_svMoving && now - g_svLastTick >= 20) {
     const float dt = (now - g_svLastTick) / 1000.0f; g_svLastTick = now;
     g_svCur = servo_step(g_svCur, g_svTarget, g_svSpeed, dt);
-    if (g_svCur == g_svTarget) { g_svMoving = false; g_svDoneAt = now; servoSaveLast(); }
+    if (g_svCur == g_svTarget) { g_svMoving = false; g_svDoneAt = now; servoSaveLast(); g_svArrivedEvent = true; }
     servoWrite(g_svCur);
+  } else if (g_svSettleUntil && !g_svMoving && now >= g_svSettleUntil) {
+    g_svSettleUntil = 0; g_svArrivedEvent = true;
   } else if (!g_svMoving && g_svAttached && servo_should_release(g_sv.releaseDs, now, g_svDoneAt)) {
     servoRelease();
     Serial.println("[servo] birakildi (serbest)");
@@ -270,7 +275,8 @@ static void sendState(uint16_t seq) {
 static void sendAngle(uint16_t seq) {
   NowMsg r = {};
   r.type = NOW_ANGLE; r.dev = g_slot; r.val = (uint8_t)g_svTarget;
-  r.st[0] = g_svFree ? 1 : 0; r.st[1] = r.st[2] = r.st[3] = NOW_UNKNOWN;
+  r.st[0] = (g_svFree ? 1 : 0) | ((g_svMoving || g_svSettleUntil) ? 2 : 0);   // bit0 serbest, bit1 hareket ediyor
+  r.st[1] = (uint8_t)g_svCur; r.st[2] = r.st[3] = NOW_UNKNOWN;                 // st[1]: su anki aci
   r.seq = seq;
   g_bridge->send(&r);
 }
@@ -303,6 +309,7 @@ static void runLoop() {
   if (g_role == ROLE_SERVO) {
     servoTick();
     if (g_svReleasedEvent) { g_svReleasedEvent = false; sendAngle(0); }
+    if (g_svArrivedEvent) { g_svArrivedEvent = false; sendAngle(0); }
   } else if (g_role == ROLE_PIR) {
     pirTick();
     if (g_pirEvent) { g_pirEvent = false; sendState(0); }

@@ -49,7 +49,7 @@ Eslesmede kopru, dugumun rolunu secer (`PairSecret.reserved[0]`: 0 isik, 1 servo
 | `NOW_SERVO_GOTO` (8) | kopru -> dugum | `val` hedef aci (0..180), `st[0]` hiz (`NOW_UNKNOWN` = ayardaki) |
 | `NOW_SERVO_FREE` (9) | kopru -> dugum | servoyu hemen birak (PWM kesilir, elle oynatilabilir) |
 | `NOW_PIR_CFG` (10) | kopru -> dugum | `val` pin, `st[0]` tutma (sn), `st[1]` onay (10 ms), `st[2]` bekleme (sn), `st[3]` bit0 ters |
-| `NOW_ANGLE` (12) | dugum -> kopru | `val` son komut verilen aci, `st[0]` bit0 serbest, `seq` ilgili komutun numarasi |
+| `NOW_ANGLE` (12) | dugum -> kopru | `val` HEDEF aci (son komut), `st[0]` bit0 serbest, **bit1 hareket ediyor**, `st[1]` su anki aci, `seq` ilgili komutun numarasi. Dugum komutta ve hedefe varinca (ya da aninda harekette 800 ms sonra) bildirir; kopru `moving` bildirimi 2 dk gelmezse artik hareket saymaz |
 
 - **Servo:** `NOW_SET` (ac/kapat) ayarli iki aciya gider; boylece otomasyon, Siri ve widget servoyu olduklari gibi kullanir. Hedefe varinca birakma suresi sonra PWM kesilir ve pin asagi cekilir: servo karsi koymaz. Konum geri bildirimi yoktur; bildirilen aci son komut verilen acidir.
 - **PIR:** hareket `NOW_STATE` mesajinin `val` alaninda gelir (1 hareket, 0 yok). Filtre (onay, tutma, bekleme) dugumdedir (`firmware/shared/role_logic.h`). Algilama acisi/menzili cihazin kendisidir, yazilimdan degismez.

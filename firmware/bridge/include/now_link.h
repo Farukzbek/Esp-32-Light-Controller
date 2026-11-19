@@ -46,6 +46,8 @@ uint8_t now_role(uint8_t slot);                         // ROLE_LIGHT / ROLE_SER
 void now_set_role(uint8_t slot, uint8_t role);          // eslesmede kopru rolu belirler (NVS'e yazar)
 int16_t now_dyn_angle(uint8_t slot);                    // servonun son bildirilen acisi, -1 bilinmiyor
 bool now_dyn_free(uint8_t slot);                        // servo birakilmis mi (elle oynatilabilir)
+bool now_dyn_moving(uint8_t slot);                      // servo su an hedefe gidiyor mu (dugum bildirir; 2 dk bildirim gelmezse artik hareket sayilmaz)
+int16_t now_dyn_cur(uint8_t slot);                      // servonun su anki acisi, -1 bilinmiyor
 // pin, ters yon, kapali acisi, acik acisi, hiz (10 derece/sn; 0 = aninda), birakma suresi (100 ms; 0 = asla), alt ve ust aci siniri
 void now_send_servo_cfg(uint8_t slot, uint8_t pin, bool inv, uint8_t offAngle, uint8_t onAngle, uint8_t speed, uint8_t releaseDs, uint8_t minAngle, uint8_t maxAngle);
 void now_send_servo_goto(uint8_t slot, uint8_t angle, int speed);   // speed < 0: ayardaki hiz

@@ -47,6 +47,9 @@ static volatile uint32_t s_rssiMs[LINKS] = {};
 static volatile int8_t s_dyn[NOW_DYN_MAX] = {-1, -1, -1, -1};   // eslesen dugumlerin durumu
 static volatile int16_t s_angle[NOW_DYN_MAX] = {-1, -1, -1, -1};  // servo dugumlerinin son bildirilen acisi
 static volatile uint8_t s_free[NOW_DYN_MAX] = {};                // servo birakilmis mi
+static volatile uint8_t s_moving[NOW_DYN_MAX] = {};              // servo hareket ediyor mu
+static volatile uint32_t s_movingAt[NOW_DYN_MAX] = {};           // son hareket bildirimi
+static volatile int16_t s_cur[NOW_DYN_MAX] = {-1, -1, -1, -1};   // servonun su anki acisi
 static uint8_t s_role[NOW_DYN_MAX] = {};                          // eslesen dugumun rolu (ROLE_*)
 
 static void promiscCb(void *buf, wifi_promiscuous_pkt_type_t type) {
@@ -102,7 +105,11 @@ static void pollIncoming() {
     NowMsg in;
     while (L.sp->get(&in)) {
       if (in.type == NOW_ANGLE) {                  // servo dugumu: son aci ve serbest/tutuyor bilgisi
-        if (k >= 2) { s_angle[k - 2] = in.val; s_free[k - 2] = in.st[0] & 1; }
+        if (k >= 2) {
+          s_angle[k - 2] = in.val; s_free[k - 2] = in.st[0] & 1;
+          s_moving[k - 2] = (in.st[0] >> 1) & 1; s_movingAt[k - 2] = millis();
+          s_cur[k - 2] = in.st[1] != NOW_UNKNOWN ? in.st[1] : -1;
+        }
         L.everSeen = true;
         L.lastRxMs = millis();
         if (L.havePending && in.seq == L.pending.seq) L.havePending = false;
@@ -188,7 +195,7 @@ bool now_dyn_add(uint8_t slot, const uint8_t mac[6]) {
   memcpy(s_mac[k], mac, 6);
   n.sp = new SpanPoint(macToStr(mac).c_str(), sizeof(NowMsg), sizeof(NowMsg), 4);
   s_dyn[k - 2] = -1;
-  s_angle[k - 2] = -1; s_free[k - 2] = 0;
+  s_angle[k - 2] = -1; s_free[k - 2] = 0; s_moving[k - 2] = 0; s_cur[k - 2] = -1;
   s_link[k] = n;
   Preferences p;
   if (p.begin("nodes", false)) { char key[4]; snprintf(key, sizeof(key), "m%u", slot); p.putBytes(key, mac, 6); p.end(); }
@@ -276,6 +283,12 @@ void now_set_role(uint8_t slot, uint8_t role) {
 }
 int16_t now_dyn_angle(uint8_t slot) { return now_dyn_present(slot) ? s_angle[slot - NOW_DYN_FIRST] : -1; }
 bool now_dyn_free(uint8_t slot) { return now_dyn_present(slot) && s_free[slot - NOW_DYN_FIRST]; }
+bool now_dyn_moving(uint8_t slot) {
+  if (!now_dyn_present(slot)) return false;
+  const int i = slot - NOW_DYN_FIRST;
+  return s_moving[i] && millis() - s_movingAt[i] < 120000;      // bitis bildirimi kaybolursa takili kalmasin
+}
+int16_t now_dyn_cur(uint8_t slot) { return now_dyn_present(slot) ? s_cur[slot - NOW_DYN_FIRST] : -1; }
 
 void now_send_servo_cfg(uint8_t slot, uint8_t pin, bool inv, uint8_t offAngle, uint8_t onAngle, uint8_t speed, uint8_t releaseDs, uint8_t minAngle, uint8_t maxAngle) {
   NowMsg a = {};

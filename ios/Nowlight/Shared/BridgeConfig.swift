@@ -50,6 +50,12 @@ enum BridgeConfig {
         set { shared.set(newValue, forKey: "deviceRoles") }
     }
 
+    /// Eslesen cihazlarin islemci turu (kimlik -> 1 ESP32, 2 S2, 3 S3, 4 C3, 5 C6). Pin rehberi icin; eski cihazlarda yok.
+    static var chips: [String: Int] {
+        get { (shared.dictionary(forKey: "deviceChips") as? [String: Int]) ?? [:] }
+        set { shared.set(newValue, forKey: "deviceChips") }
+    }
+
     /// Servo cihazlarinin telefondaki ayar kopyasi (kimlik -> "pin:ters:kapali:acik:hiz:birakma:min:max"), PIR icin ("pin:tutma:onay:bekleme:ters").
     static var roleSettings: [String: String] {
         get { (shared.dictionary(forKey: "roleSettings") as? [String: String]) ?? [:] }

@@ -15,9 +15,14 @@ struct ServoSheet: View {
         NavigationStack {
             VStack(spacing: 22) {
                 VStack(spacing: 4) {
-                    Text("\(Int(angle))°").font(.system(size: 64, weight: .bold, design: .rounded)).monospacedDigit()
-                    Text(info?.free == true ? "Serbest: elle oynatılabilir" : "Tutuyor").font(.subheadline)
-                        .foregroundStyle(info?.free == true ? Color.lampOn : .secondary)
+                    TimelineView(.animation(minimumInterval: 0.1, paused: !(model.servoMoves[light.rawValue].map { $0.until > Date() } ?? false))) { _ in
+                        let m = model.servoMoves[light.rawValue]
+                        let live = (m.map { $0.until > Date() } ?? false) ? m!.angle() : Int(angle)       // hareket sirasinda canli aci, aksi halde kaydirici
+                        Text("\(live)°").font(.system(size: 64, weight: .bold, design: .rounded)).monospacedDigit()
+                    }
+                    let moving = (model.servoMoves[light.rawValue]?.until ?? .distantPast) > Date() || info?.moving == true
+                    Text(moving ? "Hareket ediyor…" : info?.free == true ? "Serbest: elle oynatılabilir" : "Tutuyor").font(.subheadline)
+                        .foregroundStyle(moving || info?.free == true ? Color.lampOn : .secondary)
                 }.padding(.top, 8)
 
                 Slider(value: $angle, in: Double(settings.min)...Double(settings.max), step: 1) { editing in

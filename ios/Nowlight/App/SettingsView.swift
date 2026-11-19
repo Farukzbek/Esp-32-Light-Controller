@@ -83,8 +83,19 @@ struct SettingsView: View {
                         model.reloadConfig()
                         Task { await loadVersion() }
                     })).tint(Color.lampOn)
+                    if DemoMode.isOn {
+                        Button {
+                            let empty = !DemoMode.isEmpty
+                            DemoMode.disable(); DemoMode.enable(empty: empty)
+                            host = BridgeConfig.host; token = BridgeConfig.token
+                            ver = nil; upd = nil
+                            model.reloadConfig()
+                        } label: {
+                            Label(DemoMode.isEmpty ? "Örnek cihazlarla başla" : "Boş başla (ilk kurulumu dene)", systemImage: DemoMode.isEmpty ? "lightbulb.fill" : "sparkles")
+                        }
+                    }
                 } header: { Text("Demo") } footer: {
-                    Text("Köprü ve cihaz olmadan uygulamanın her yerini dene: örnek ışıklar, bir servo (perde) ve bir hareket sensörü gelir; cihaz ekleme, ayarlar, programlar, otomasyon ve köprü güncellemesi gerçekmiş gibi çalışır. Hiçbir şey ağa gitmez. Kapatınca gerçek ayarların (adres, adlar, programlar) aynen geri gelir. Widget ve Siri demo cihazlarını görmez.")
+                    Text("Köprü ve cihaz olmadan uygulamanın her yerini dene: örnek ışıklar, bir servo (perde) ve bir hareket sensörü gelir; cihaz ekleme, ayarlar, programlar, otomasyon ve köprü güncellemesi gerçekmiş gibi çalışır. Hiçbir şey ağa gitmez. Kapatınca gerçek ayarların (adres, adlar, programlar) aynen geri gelir. \"Boş başla\": hiç cihaz yok ve köprü tanıtılmamış; köprüyü otomatik bul, sonra Cihaz Ekle ile ilk cihazlarını kur. Her eşleşmede farklı bir işlemci (S3, C3, ESP32, C6, S2) çıkar: pin rehberini görmek için. Widget ve Siri demo cihazlarını görmez.")
                 }
 
                 Section("Widget") {

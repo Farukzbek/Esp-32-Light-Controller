@@ -160,7 +160,21 @@ struct LightsState: Codable, Equatable {
     var roles: [String: String] = [:]          // cihaz -> "light" | "servo" | "pir" (eski kopruler yollamaz: hepsi isik)
     var servo: [String: ServoInfo] = [:]       // servo -> son komut verilen aci ve serbest mi
 
-    struct ServoInfo: Codable, Equatable { var angle: Int; var free: Bool }
+    struct ServoInfo: Codable, Equatable {
+        var angle: Int            // HEDEF aci (son komut)
+        var free: Bool            // birakilmis: elle oynatilabilir
+        var moving = false        // su an hedefe gidiyor (dugum bildirir; eski yazilimda yok)
+        var cur = -1              // su anki aci (-1: bilinmiyor)
+
+        init(angle: Int, free: Bool, moving: Bool = false, cur: Int = -1) { self.angle = angle; self.free = free; self.moving = moving; self.cur = cur }
+        init(from decoder: Decoder) throws {
+            let c = try decoder.container(keyedBy: CodingKeys.self)
+            angle = try c.decode(Int.self, forKey: .angle)
+            free = try c.decode(Bool.self, forKey: .free)
+            moving = (try c.decodeIfPresent(Bool.self, forKey: .moving)) ?? false
+            cur = (try c.decodeIfPresent(Int.self, forKey: .cur)) ?? -1
+        }
+    }
 
     init(values: [String: Int], links: [String: Bool], channel: Int, wifiChannel: Int, legacy: Bool = true, roles: [String: String] = [:], servo: [String: ServoInfo] = [:]) {
         self.values = values; self.links = links; self.channel = channel; self.wifiChannel = wifiChannel; self.legacy = legacy

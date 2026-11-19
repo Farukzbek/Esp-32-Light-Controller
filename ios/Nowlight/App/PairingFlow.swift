@@ -24,6 +24,7 @@ struct PairingFlow: View {
     @State private var editing: LightID?
     @State private var searchStart = Date()
     @State private var foundAfter: Int?
+    @State private var connectedNow = false        // kopru bu ekrandan baglandi: karta basarili mesaji gostermeye devam et
 
     private var stepIndex: Int { [Step.intro, .searching, .pick, .role, .test, .done].firstIndex(of: step) ?? 0 }
 
@@ -65,6 +66,7 @@ struct PairingFlow: View {
     private var intro: some View {
         VStack(alignment: .leading, spacing: 16) {
             header("antenna.radiowaves.left.and.right", "Yeni cihazı hazırla")
+            if connectedNow || !BridgeConfig.isConfigured { BridgeConnectCard { connectedNow = true } }       // connectedNow ONCE okunur: SwiftUI bu durumu izlesin (kisa devre olmasin)
             numbered(1, "ESP32'de Nowlight yazılımı olmalı", "Boş bir ESP32'ye önce yazılımı yüklemek gerekir. Bilgisayardaki ya da Android'deki Chrome ile flash.matestudios.online sayfasını aç, kartını seç ve Yükle'ye bas.")
             numbered(2, "Cihaza güç ver", "USB adaptörüne ya da powerbank'e tak. Cihaz hiçbir köprüye bağlı değilse kendiliğinden eşleşme modunda bekler.")
             numbered(3, "Telefonu ev WiFi'sine bağla", "Köprü ile aynı ağda olman gerekiyor.")
@@ -72,7 +74,8 @@ struct PairingFlow: View {
             Button { Task { await start() } } label: {
                 HStack { if busy { ProgressView().tint(.black) }; Text("Cihaz ara") }.frame(maxWidth: .infinity)
             }
-            .buttonStyle(.borderedProminent).tint(Color.lampOn).foregroundStyle(.black).controlSize(.large).disabled(busy)
+            .buttonStyle(.borderedProminent).tint(Color.lampOn).foregroundStyle(.black).controlSize(.large).disabled(busy || !(connectedNow || BridgeConfig.isConfigured))
+            if !(connectedNow || BridgeConfig.isConfigured) { Text("Cihaz aramak için önce köprüyü bağla (yukarıdaki kart).").font(.footnote).foregroundStyle(.secondary) }
         }
     }
 
@@ -127,7 +130,7 @@ struct PairingFlow: View {
                 let selectedRole = addingNew && newRole == r
                 Button {
                     addingNew = true; role = nil; newRole = r; newSymbol = r.symbol
-                    relayPin = (r == .pir ? 4 : 5)
+                    relayPin = PinGuide.defaultPin(for: r, chip: selected?.chip, reported: selected?.pin)
                 } label: {
                     HStack(spacing: 12) {
                         Image(systemName: r.symbol).font(.system(size: 18, weight: .bold)).foregroundStyle(.black).frame(width: 40, height: 40).background(Color.lampOn, in: RoundedRectangle(cornerRadius: 11, style: .continuous))
@@ -164,9 +167,15 @@ struct PairingFlow: View {
                 }
                 .padding(12).background(Color.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
 
+                DisclosureGroup("Pin rehberi (\(PinGuide.chipName(selected?.chip)))") {
+                    PinGuideView(chip: selected?.chip, role: newRole).padding(.top, 6)
+                }
+                .padding(12).background(Color.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+
                 DisclosureGroup(newRole == .light ? "Röle ayarı (gerekirse)" : newRole == .servo ? "Servo ayarı (gerekirse)" : "Sensör ayarı (gerekirse)") {
                     VStack(alignment: .leading, spacing: 10) {
                         Stepper(value: $relayPin, in: 0...48) { HStack { Text(newRole == .light ? "Röle pini" : newRole == .servo ? "Servo sinyal pini" : "Sensör pini"); Spacer(); Text("GPIO\(relayPin)").foregroundStyle(.secondary) } }
+                        PinHint(chip: selected?.chip, role: newRole, pin: relayPin)
                         if newRole == .light {
                             Toggle("Ters mantık (LOW = açık)", isOn: $relayInv).tint(Color.lampOn)
                             Text("Çoğu 5V röle modülü ters mantıkla çalışır. Işık tam tersi davranırsa kapat. Pini kartına göre değiştir.").font(.footnote).foregroundStyle(.secondary)
@@ -313,7 +322,7 @@ struct PairingFlow: View {
         do {
             try await BridgeClient.fromConfig().pairAccept(mac: sel.mac, id: target.rawValue, pin: addingNew ? relayPin : nil, inv: addingNew ? (newRole == .light ? relayInv : false) : nil, role: addingNew ? newRole : .light)
             if addingNew {
-                model.addDevice(target, name: newName, symbol: newSymbol, pin: relayPin, inv: newRole == .light ? relayInv : false, role: newRole, servoOff: svOff, servoOn: svOn)
+                model.addDevice(target, name: newName, symbol: newSymbol, pin: relayPin, inv: newRole == .light ? relayInv : false, role: newRole, servoOff: svOff, servoOn: svOn, chip: sel.chip)
                 if newRole == .servo { try? await model.setServo(target, ServoSettings(pin: relayPin, inv: false, off: svOff, on: svOn)) }
                 if newRole == .pir { try? await model.setPir(target, PirSettings(pin: relayPin)) }
             }

@@ -28,6 +28,7 @@ struct ScheduleScreen: View {
                 }
                 ForEach(store.rules) { r in
                     Button { isNew = false; editing = r } label: { ScheduleRow(rule: r) }.buttonStyle(.plain)
+                        .contextMenu { Button { Task { await model.runSchedule(r) } } label: { Label("Şimdi çalıştır", systemImage: "play.fill") } }
                 }
                 .onDelete { store.delete(at: $0) }
                 Button { isNew = true; editing = ScheduleRule() } label: { Label("Program ekle", systemImage: "plus.circle.fill") }
@@ -41,7 +42,7 @@ struct ScheduleScreen: View {
         .toolbar { EditButton() }
         .task { await store.refresh() }
         .sheet(item: $editing) { r in
-            ScheduleEditor(rule: r, isNew: isNew) { store.upsert($0) }
+            ScheduleEditor(rule: r, isNew: isNew, onSave: { store.upsert($0) }, onRun: { saved in Task { await model.runSchedule(saved) } })
         }
     }
 }
@@ -84,6 +85,7 @@ private struct ScheduleEditor: View {
     @State var rule: ScheduleRule
     let isNew: Bool
     var onSave: (ScheduleRule) -> Void
+    var onRun: (ScheduleRule) -> Void
 
     private var devices: [LightID] { LightID.controllable }
     private var hasServo: Bool { devices.contains { $0.role == .servo && rule.devices & $0.bit != 0 } }
@@ -118,6 +120,12 @@ private struct ScheduleEditor: View {
                     }
                 } header: { Text("Ne yapsın") } footer: {
                     Text(rule.action == .angle ? "\"Açıya git\" yalnızca servolar için; ışıklara uygulanmaz." : rule.action == .toggle ? "Çevir: açıksa kapatır, kapalıysa açar. Servolarda çevir anlamlı değildir." : "Servolarda Aç = açık açısına, Kapat = kapalı açısına gider (cihaz ayarlarından).")
+                }
+                if !isNew {
+                    Section {
+                        Button { onSave(rule); onRun(rule) } label: { Label("Şimdi dene (saatine bakmaz)", systemImage: "play.fill") }
+                            .disabled(rule.effectiveDevices == 0 || (rule.action == .angle && !hasServo))
+                    } footer: { Text("Programı kaydeder ve cihazlara hemen uygular. Gerçek saatinde köprü çalıştırır.") }
                 }
                 Section("Hangi cihazlar") {
                     ForEach(devices, id: \.self) { d in

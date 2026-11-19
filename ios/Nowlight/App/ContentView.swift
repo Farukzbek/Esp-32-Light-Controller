@@ -51,6 +51,7 @@ struct LightsScreen: View {
     }
 
     private var warning: String? {
+        if !BridgeConfig.isConfigured { return nil }          // yerine "Once koprüyü bagla" karti gosterilir
         if let e = model.error { return e }
         guard let s = model.state else { return nil }
         _ = (model.names, model.removed)
@@ -64,10 +65,11 @@ struct LightsScreen: View {
             ScrollView {
                 VStack(spacing: 14) {
                     if DemoMode.isOn { DemoBanner() }
+                    if !BridgeConfig.isConfigured { BridgeConnectCard() }
                     if let w = warning { WarningCard(message: w, retry: model.error != nil) }
                     if tiles.isEmpty {
                         ContentUnavailableView("Cihaz yok", systemImage: "lightbulb.slash",
-                                               description: Text("Cihaz Ekle sekmesinden kaldırdığın cihazları geri ekleyebilirsin."))
+                                               description: Text(LightID.allDevices.isEmpty ? "Cihaz Ekle sekmesinden ilk cihazını ekle: bir ışık, servo ya da hareket sensörü." : "Cihaz Ekle sekmesinden kaldırdığın cihazları geri ekleyebilirsin."))
                             .padding(.top, 60)
                     } else {
                         if showAll { LightTile(light: .all, wide: true) }      // "Tum isiklar": en ustte tam genislikte
@@ -164,15 +166,23 @@ struct LightTile: View {
     @State private var showServo = false
 
     private var isServo: Bool { _ = model.roles; return light.role == .servo }
+    /// Servo hedefe giderken: sari yanar ve "Aciliyor / Kapaniyor / Calisiyor" yazar; varinca "Acik · 90°".
+    private var busyLabel: String? {
+        guard isServo else { return nil }
+        if let m = model.servoMoves[light.rawValue], m.until > Date() { return "\(m.label) \(m.angle())°" }       // canli aci (tahmin)
+        if let s = model.state?.servo[light.rawValue], s.moving { return (value == 1 ? "Açılıyor…" : "Kapanıyor…") + (s.cur >= 0 ? " \(s.cur)°" : "") }
+        return nil
+    }
     private var value: Int { model.state?.value(light) ?? -1 }
     /// Kart yanik: tek isik acikken o isik; "Tum isiklar" icin yalnizca HEPSI aciksa (kismi durumda yanmaz, sadece 1/3 yazar).
-    private var on: Bool { _ = model.removed; return light == .all ? (model.state?.allOn ?? false) : value == 1 }
+    private var on: Bool { _ = model.removed; return busyLabel != nil || (light == .all ? (model.state?.allOn ?? false) : value == 1) }
     private var partial: Bool { _ = model.removed; return light == .all && (model.state?.partial ?? false) }
     private var loading: Bool { model.state == nil && model.error == nil }
 
     private var status: String {
         _ = model.removed                                  // cihaz kaldirilinca/geri eklenince sayim (1/2, 1/3) tazelensin
         guard let s = model.state else { return "—" }
+        if let busy = busyLabel { return busy }
         if light == .all { return s.onCount == 0 ? "Kapalı" : "\(s.onCount)/\(LightID.lights.count)" + (s.allOn ? " açık" : "") }
         if isServo, let a = s.servo[light.rawValue], a.angle >= 0, value != -1 {
             return (on ? "Açık" : "Kapalı") + " · \(a.angle)°" + (a.free ? " · serbest" : "")
@@ -191,6 +201,11 @@ struct LightTile: View {
     }
 
     var body: some View {
+        // Servo hareket ederken karo saniyede ~4 kez yenilenir (canli aci); aksi halde durur.
+        TimelineView(.animation(minimumInterval: 0.25, paused: busyLabel == nil)) { _ in tile }
+    }
+
+    @ViewBuilder private var tile: some View {
         let _ = (model.names, model.icons)
         Button {
             taps += 1
@@ -218,6 +233,7 @@ struct LightTile: View {
                             Image(systemName: light.symbol)
                                 .font(.system(size: 26, weight: .semibold))
                                 .symbolEffect(.bounce, value: on)
+                                .symbolEffect(.pulse, isActive: busyLabel != nil)
                             Spacer()
                             switchView
                         }

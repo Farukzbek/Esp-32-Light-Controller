@@ -151,7 +151,8 @@ static String stateJson() {
     roles += "\"d" + String(slot) + "\":\"" + (r == ROLE_SERVO ? "servo" : r == ROLE_PIR ? "pir" : "light") + "\"";
     if (r == ROLE_SERVO) {
       if (angles.length()) angles += ',';
-      angles += "\"d" + String(slot) + "\":{\"angle\":" + String(now_dyn_angle(slot)) + ",\"free\":" + String(now_dyn_free(slot) ? "true" : "false") + "}";
+      angles += "\"d" + String(slot) + "\":{\"angle\":" + String(now_dyn_angle(slot)) + ",\"free\":" + String(now_dyn_free(slot) ? "true" : "false") +
+                ",\"moving\":" + String(now_dyn_moving(slot) ? "true" : "false") + ",\"cur\":" + String(now_dyn_cur(slot)) + "}";
     }
   }
   o += "},\"links\":{" + lk + "},\"roles\":{" + roles + "},\"servo\":{" + angles + "},\"legacy\":" + String(NL_LEGACY ? "true" : "false") +

@@ -12,9 +12,11 @@ enum DemoMode {
     private static var shared: UserDefaults { UserDefaults(suiteName: BridgeConfig.group) ?? .standard }
     /// Gercek ayarlari tutan anahtarlar (App Group)
     private static let keys = ["host", "token", "deviceNames", "deviceIcons", "customDevices", "removedDevices", "deviceRoles", "roleSettings",
-                               "relayConfig", "bridgeLegacy", "doorHost", "doorToken", "doorRules", "scheduleRules"]
+                               "relayConfig", "bridgeLegacy", "doorHost", "doorToken", "doorRules", "scheduleRules", "deviceChips"]
 
     static var isOn: Bool { UserDefaults.standard.bool(forKey: flag) }
+    /// Bos demo: hic cihaz yok, kopru da henuz tanitilmamis (token bos): ilk kurulumu bastan dene.
+    static var isEmpty: Bool { UserDefaults.standard.bool(forKey: "demoEmpty") }
 
     /// Uygulama acilirken: sahte sunucuyu etkinlestir (demo aciksa).
     static func register() {
@@ -22,14 +24,26 @@ enum DemoMode {
         if isOn { DemoState.shared.start() }
     }
 
-    static func enable() {
+    /// empty: true -> cihaz yok, token bos (ilk kurulum akisi: "Koprüyü otomatik bul" -> Cihaz ekle); false -> ornek cihazlarla.
+    static func enable(empty: Bool = false) {
         guard !isOn else { return }
+        UserDefaults.standard.set(empty, forKey: "demoEmpty")
         var backup: [String: Any] = [:], absent: [String] = []
         for k in keys { if let v = shared.object(forKey: k) { backup[k] = v } else { absent.append(k) } }
         UserDefaults.standard.set(backup, forKey: backupKey)
         UserDefaults.standard.set(absent, forKey: absentKey)
+        if empty {          // ilk kurulum: genel kopru (yerlesik isik yok), cihaz yok, token bos
+            for k in ["deviceNames", "deviceIcons", "customDevices", "removedDevices", "deviceRoles", "roleSettings", "relayConfig", "doorRules", "scheduleRules", "deviceChips", "doorHost", "doorToken"] { shared.removeObject(forKey: k) }
+            shared.set(host, forKey: "host"); shared.removeObject(forKey: "token")
+            shared.set(false, forKey: "bridgeLegacy")
+            UserDefaults.standard.set(true, forKey: flag)
+            DemoState.shared.reset(empty: true); DemoState.shared.start()
+            WidgetCenter.shared.reloadAllTimelines()
+            return
+        }
         // Ornek cihazlar (kisisel kopru gibi: masa, yatak, led + servo + PIR)
         shared.set(host, forKey: "host"); shared.set("demo", forKey: "token")
+        shared.set(["d3": 3, "d4": 4], forKey: "deviceChips")
         shared.set(["masa": "Salon", "yatak": "Yatak odası", "led": "Mutfak", "d3": "Perde", "d4": "Kapı sensörü"], forKey: "deviceNames")
         shared.set(["masa": "lamp.floor.fill", "yatak": "bed.double.fill", "led": "fork.knife", "d3": "window.shade.closed", "d4": "figure.walk.motion"], forKey: "deviceIcons")
         shared.set(["d3", "d4"], forKey: "customDevices")
@@ -51,6 +65,7 @@ enum DemoMode {
         for k in keys { if let v = backup[k] { shared.set(v, forKey: k) } else if absent.contains(k) { shared.removeObject(forKey: k) } }
         UserDefaults.standard.removeObject(forKey: backupKey); UserDefaults.standard.removeObject(forKey: absentKey)
         UserDefaults.standard.set(false, forKey: flag)
+        UserDefaults.standard.set(false, forKey: "demoEmpty")
         DemoState.shared.stop()
         StateCache.clear()
         WidgetCenter.shared.reloadAllTimelines()
@@ -63,7 +78,16 @@ final class DemoState: @unchecked Sendable {
     private let lock = NSLock()
     private var values: [String: Int] = [:]
     private var roles: [String: String] = [:]
-    private var servo: [String: (angle: Int, free: Bool, off: Int, on: Int, release: Int)] = [:]
+    struct ServoSim { var angle: Int; var free: Bool; var off: Int; var on: Int; var release: Int; var speed = 3; var from = 0; var started = Date.distantPast; var dur = 0.0
+        /// Su anki aci ve hareket ediyor mu (zamana gore dogrusal)
+        func now() -> (cur: Int, moving: Bool) {
+            let e = Date().timeIntervalSince(started)
+            if dur <= 0 || e >= dur { return (angle, false) }
+            return (from + Int(Double(angle - from) * e / dur), true)
+        }
+        mutating func go(to a: Int) { from = now().cur; angle = a; free = false; started = Date(); dur = speed == 0 ? 0.8 : Double(abs(a - from)) / Double(speed * 10) }
+    }
+    private var servo: [String: ServoSim] = [:]
     private var schedules = ""
     private var tz = 180
     private var doorRules = ""
@@ -72,20 +96,29 @@ final class DemoState: @unchecked Sendable {
     private var pairedID: String?
     private var version = "0.6.0", latest = "0.6.0", updState = "idle", updProgress = 0
     private var motionTimer: Timer?
+    private var initialized = false               // reset() en az bir kez calisti mi (bos demoda values bos kalir, bu yuzden ayri bayrak)
+    private var legacy = true                      // bos demoda genel kopru: yerlesik isik yok
+    private var pairRound = 0                      // her eslesme turunda farkli islemci (rehberi gormek icin)
+    private var schedTimer: Timer?
+    private var schedFired: [Int: Int64] = [:]       // kural sirasi -> en son tetiklendigi dakika (ayni dakikada iki kez calismasin)
 
-    func reset() {
+    func reset(empty: Bool = false) {
         lock.lock(); defer { lock.unlock() }
-        values = ["masa": 1, "yatak": 0, "led": 0, "d3": 0, "d4": 0]
-        roles = ["d3": "servo", "d4": "pir"]
-        servo = ["d3": (angle: 0, free: true, off: 0, on: 90, release: 10)]
+        legacy = !empty; initialized = true
+        values = empty ? [:] : ["masa": 1, "yatak": 0, "led": 0, "d3": 0, "d4": 0]
+        roles = empty ? [:] : ["d3": "servo", "d4": "pir"]
+        servo = empty ? [:] : ["d3": ServoSim(angle: 0, free: true, off: 0, on: 90, release: 10)]
+        pairRound = 0
         schedules = ""; tz = 180; doorRules = ""; doorEnabled = true; pairStarted = nil; pairedID = nil
         version = "0.6.0"; latest = "0.6.0"; updState = "idle"; updProgress = 0
     }
 
     /// PIR hareketini taklit eder: ~20 sn'de bir 6 sn hareket var.
     func start() {
-        if values.isEmpty { reset() }
+        if !initialized { reset(empty: DemoMode.isEmpty) }      // uygulama yeniden acilinca bos demo bos kalsin
         DispatchQueue.main.async { [self] in
+            schedTimer?.invalidate()
+            schedTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in self?.tickSchedules() }
             motionTimer?.invalidate()
             motionTimer = Timer.scheduledTimer(withTimeInterval: 20, repeats: true) { [weak self] _ in
                 guard let self else { return }
@@ -94,7 +127,7 @@ final class DemoState: @unchecked Sendable {
             }
         }
     }
-    func stop() { DispatchQueue.main.async { [self] in motionTimer?.invalidate(); motionTimer = nil } }
+    func stop() { DispatchQueue.main.async { [self] in motionTimer?.invalidate(); motionTimer = nil; schedTimer?.invalidate(); schedTimer = nil } }
 
     // MARK: yonlendirme
     /// (durum kodu, govde)
@@ -104,7 +137,7 @@ final class DemoState: @unchecked Sendable {
         let post = method == "POST"
         switch path {
         case "/api/ping": return (200, ["name": "nowlight-bridge"])
-        case "/api/setup": return (200, ["name": "nowlight-bridge", "ip": "192.168.1.50", "token": "demo"])
+        case "/api/setup": return (200, ["name": "nowlight-bridge", "ip": DemoMode.host, "token": "demo"])      // ip: demo adresi kalsin
         case "/api/state": return (200, stateBody())
         case "/api/set" where post:
             let dev = q["dev"] ?? "", on = q["val"] == "1"
@@ -112,25 +145,25 @@ final class DemoState: @unchecked Sendable {
                 if dev == "all", let r = roles[d], r != "light" { continue }
                 if roles[d] == "pir" { return (400, ["error": "rol"]) }
                 values[d] = on ? 1 : 0
-                if var s = servo[d] { s.angle = on ? s.on : s.off; s.free = false; servo[d] = s; scheduleRelease(d) }
+                if var s = servo[d] { s.go(to: on ? s.on : s.off); servo[d] = s; scheduleRelease(d) }
             }
             return (200, ["ok": true])
         case "/api/servo" where post:
             let id = q["id"] ?? "", a = Int(q["angle"] ?? "0") ?? 0
-            if var s = servo[id] { s.angle = a; s.free = false; servo[id] = s; values[id] = abs(a - s.on) <= abs(a - s.off) ? 1 : 0; scheduleRelease(id) }
+            if var s = servo[id] { s.go(to: a); servo[id] = s; values[id] = abs(a - s.on) <= abs(a - s.off) ? 1 : 0; scheduleRelease(id) }
             return (200, ["ok": true])
         case "/api/servo/free" where post:
             if let id = q["id"], var s = servo[id] { s.free = true; servo[id] = s }
             return (200, ["ok": true])
         case "/api/node/servo" where post:
             let id = q["id"] ?? ""
-            if var s = servo[id] { s.off = Int(q["off"] ?? "") ?? s.off; s.on = Int(q["on"] ?? "") ?? s.on; s.release = Int(q["release"] ?? "") ?? s.release; servo[id] = s }
+            if var s = servo[id] { s.off = Int(q["off"] ?? "") ?? s.off; s.on = Int(q["on"] ?? "") ?? s.on; s.release = Int(q["release"] ?? "") ?? s.release; s.speed = Int(q["speed"] ?? "") ?? s.speed; servo[id] = s }
             return (200, ["ok": true])
         case "/api/node/pir", "/api/node/config": return (200, ["ok": true])
         case "/api/node/forget" where post:
             if let id = q["id"] { values.removeValue(forKey: id); roles.removeValue(forKey: id); servo.removeValue(forKey: id) }
             return (200, ["ok": true, "restarting": true])
-        case "/api/pair/start" where post: pairStarted = Date(); return (200, pairBody())
+        case "/api/pair/start" where post: pairStarted = Date(); pairRound += 1; pairedID = nil; return (200, pairBody())
         case "/api/pair": return (200, pairBody())
         case "/api/pair/stop" where post: pairStarted = nil; return (200, ["ok": true])
         case "/api/pair/accept" where post:
@@ -138,12 +171,12 @@ final class DemoState: @unchecked Sendable {
             values[id] = 0; pairedID = id
             let r = q["role"] ?? "light"
             if r != "light" { roles[id] = r }
-            if r == "servo" { servo[id] = (angle: 0, free: true, off: 0, on: 90, release: 10) }
+            if r == "servo" { servo[id] = ServoSim(angle: 0, free: true, off: 0, on: 90, release: 10) }
             return (200, ["ok": true])
         case "/api/schedules" where post:
             let w = q["rules"] ?? ""
             if !validSchedules(w) { return (400, ["error": "kurallar gecersiz"]) }
-            schedules = w; tz = Int(q["tz"] ?? "") ?? tz
+            schedules = w; tz = Int(q["tz"] ?? "") ?? tz; schedFired = [:]
             return (200, schedBody())
         case "/api/schedules": return (200, schedBody())
         case "/api/version": return (200, ["version": version, "chip": "ESP32-S3", "ota": true, "generic": true])
@@ -163,19 +196,45 @@ final class DemoState: @unchecked Sendable {
         }
     }
 
+    // MARK: programlar (gercek koprudeki motorun taklidi: saat, gun, dakika)
+    private func tickSchedules() {
+        lock.lock(); defer { lock.unlock() }
+        guard !schedules.isEmpty else { return }
+        let now = Date(), c = Calendar.current.dateComponents([.hour, .minute, .weekday], from: now)
+        let minute = (c.hour ?? 0) * 60 + (c.minute ?? 0)
+        let wday = ((c.weekday ?? 2) + 5) % 7                       // Pazartesi = 0 ... Pazar = 6
+        let key = Int64(now.timeIntervalSince1970 / 60)
+        for (i, item) in schedules.split(separator: ";").enumerated() {
+            let v = item.split(separator: ":").compactMap { Int($0) }
+            guard v.count == 6, v[0] != 0, v[3] == minute, (v[4] >> wday) & 1 == 1, schedFired[i] != key else { continue }
+            schedFired[i] = key
+            let ids = ["masa", "yatak", "led", "d3", "d4", "d5", "d6", "d7"]
+            for slot in 0..<8 where (v[2] >> slot) & 1 == 1 {
+                let id = ids[slot]
+                guard values[id] != nil, roles[id] != "pir" else { continue }
+                if v[1] == 3 { if var s = servo[id] { s.go(to: v[5]); servo[id] = s; values[id] = abs(v[5] - s.on) <= abs(v[5] - s.off) ? 1 : 0; scheduleRelease(id) }; continue }
+                let on = v[1] == 1 ? true : v[1] == 2 ? false : values[id] != 1
+                values[id] = on ? 1 : 0
+                if var s = servo[id] { s.go(to: on ? s.on : s.off); servo[id] = s; scheduleRelease(id) }
+            }
+        }
+    }
+
     // MARK: govdeler
     private func stateBody() -> [String: Any] {
         var devices: [String: Int] = [:], allRoles: [String: String] = [:], sv: [String: Any] = [:]
         for (k, v) in values where !["masa", "yatak", "led"].contains(k) { devices[k] = v; allRoles[k] = roles[k] ?? "light" }
-        for (k, s) in servo { sv[k] = ["angle": s.angle, "free": s.free] }
-        return ["masa": values["masa"] ?? 0, "yatak": values["yatak"] ?? 0, "led": values["led"] ?? 0, "devices": devices,
+        for (k, s) in servo { let n = s.now(); sv[k] = ["angle": s.angle, "free": s.free && !n.moving, "moving": n.moving, "cur": n.cur] }
+        return ["masa": values["masa"] ?? (legacy ? 0 : -1), "yatak": values["yatak"] ?? (legacy ? 0 : -1), "led": values["led"] ?? (legacy ? 0 : -1), "devices": devices,
                 "links": Dictionary(uniqueKeysWithValues: values.keys.map { ($0, true) }), "roles": allRoles, "servo": sv,
-                "legacy": true, "channel": 6, "wifiChannel": 6]
+                "legacy": legacy, "channel": 6, "wifiChannel": 6]
     }
     private func pairBody() -> [String: Any] {
         guard let t = pairStarted else { return ["open": false, "secondsLeft": 0, "found": []] }
         let el = Date().timeIntervalSince(t)
-        let found: [[String: Any]] = el > 4 && pairedID == nil ? [["mac": "AA:BB:CC:11:22:33", "name": "Nowlight-1122", "rssi": -52, "chip": 3, "pin": 5, "inv": 1]] : []
+        // Her eslesme turunda farkli islemci: S3, C3, klasik ESP32, C6, S2 (pin rehberini gormek icin)
+        let chips = [3, 4, 1, 5, 2], chip = chips[(pairRound - 1 + chips.count) % chips.count]
+        let found: [[String: Any]] = el > 4 && pairedID == nil ? [["mac": "AA:BB:CC:11:22:\(String(format: "%02X", 0x30 + chip))", "name": "Nowlight-11\(chip)\(chip)", "rssi": -52, "chip": chip, "pin": chip == 1 ? 23 : 5, "inv": 1]] : []
         return ["open": el < 120, "secondsLeft": max(0, 120 - Int(el)), "found": found]
     }
     private func schedBody() -> [String: Any] {
@@ -200,7 +259,7 @@ final class DemoState: @unchecked Sendable {
     private func scheduleRelease(_ id: String) {
         guard let s = servo[id], s.release > 0 else { return }
         let target = s.angle
-        DispatchQueue.global().asyncAfter(deadline: .now() + Double(s.release) / 10.0 + 1.5) { [self] in
+        DispatchQueue.global().asyncAfter(deadline: .now() + s.dur + Double(s.release) / 10.0 + 0.3) { [self] in
             lock.lock(); if var c = servo[id], c.angle == target { c.free = true; servo[id] = c }; lock.unlock()
         }
     }

@@ -218,6 +218,7 @@ struct DeviceEditor: View {
                 if light.role == .light && (!light.isBuiltin || light == .masa || light == .yatak) {
                     Section {
                         Stepper(value: $relayPin, in: 0...48) { HStack { Text("Röle pini"); Spacer(); Text("GPIO\(relayPin)").foregroundStyle(.secondary) } }
+                        PinHint(chip: BridgeConfig.chips[light.rawValue], role: .light, pin: relayPin)
                         Toggle("Ters mantık (LOW = açık)", isOn: $relayInv).tint(Color.lampOn)
                         Button {
                             Task {
@@ -286,6 +287,7 @@ extension DeviceEditor {
 
         Section {
             Stepper(value: $sv.pin, in: 0...48) { HStack { Text("Sinyal pini"); Spacer(); Text("GPIO\(sv.pin)").foregroundStyle(.secondary) } }
+            PinHint(chip: BridgeConfig.chips[light.rawValue], role: .servo, pin: sv.pin)
             Toggle("Ters yön", isOn: $sv.inv).tint(Color.lampOn)
             Stepper(value: $sv.off, in: 0...180, step: 5) { HStack { Text("Kapalı açısı"); Spacer(); Text("\(sv.off)°").foregroundStyle(.secondary) } }
             Stepper(value: $sv.on, in: 0...180, step: 5) { HStack { Text("Açık açısı"); Spacer(); Text("\(sv.on)°").foregroundStyle(.secondary) } }
@@ -308,6 +310,7 @@ extension DeviceEditor {
     @ViewBuilder var pirSection: some View {
         Section {
             Stepper(value: $pr.pin, in: 0...48) { HStack { Text("Sensör pini"); Spacer(); Text("GPIO\(pr.pin)").foregroundStyle(.secondary) } }
+            PinHint(chip: BridgeConfig.chips[light.rawValue], role: .pir, pin: pr.pin)
             Stepper(value: $pr.hold, in: 0...120) { HStack { Text("Tutma süresi"); Spacer(); Text("\(pr.hold) sn").foregroundStyle(.secondary) } }
             Stepper(value: $pr.confirm, in: 0...100, step: 5) { HStack { Text("Onay süresi"); Spacer(); Text("\(pr.confirm * 10) ms").foregroundStyle(.secondary) } }
             Stepper(value: $pr.cooldown, in: 0...120) { HStack { Text("Bekleme"); Spacer(); Text("\(pr.cooldown) sn").foregroundStyle(.secondary) } }
