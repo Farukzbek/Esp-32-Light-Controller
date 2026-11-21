@@ -12,6 +12,7 @@ struct HomeEditorSheet: View {
             List {
                 Section {
                     if LightID.lights.count >= 2 { fixedRow("Tüm ışıklar", "lightswitch.on.fill", id: "all") }
+                    fixedRow("Sahne düğmeleri", "sparkles", id: "scenes")
                     fixedRow("Siri'ye ekle kartı", "mic.badge.plus", id: "siri")
                 } header: { Text("Sabit kartlar") } footer: { Text("\"Tüm ışıklar\" en üstte, Siri kartı en altta durur.") }
 

@@ -57,6 +57,9 @@ struct AddDeviceScreen: View {
                 }
 
                 Section {
+                    NavigationLink { ScenesScreen() } label: {
+                        Label("Sahneler", systemImage: "sparkles")
+                    }
                     NavigationLink { ScheduleScreen() } label: {
                         Label("Programlar (saat ve gün)", systemImage: "calendar.badge.clock")
                     }

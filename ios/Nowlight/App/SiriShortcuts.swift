@@ -53,6 +53,9 @@ struct NowlightShortcuts: AppShortcutsProvider {
         AppShortcut(intent: AllLightsOffIntent(),
                     phrases: ["\(.applicationName) tüm ışıkları kapat", "\(.applicationName) ile tüm ışıkları kapat"],
                     shortTitle: "Tüm ışıkları kapat", systemImageName: "lightbulb.slash.fill")
+        AppShortcut(intent: RunSceneIntent(),
+                    phrases: ["\(.applicationName) \(\.$scene) sahnesini çalıştır", "\(.applicationName) \(\.$scene) sahnesi"],
+                    shortTitle: "Sahneyi çalıştır", systemImageName: "sparkles")
         AppShortcut(intent: TurnLightOnIntent(),
                     phrases: ["\(.applicationName) \(\.$light) aç", "\(.applicationName) ile \(\.$light) aç"],
                     shortTitle: "Işığı aç", systemImageName: "lightbulb.fill")

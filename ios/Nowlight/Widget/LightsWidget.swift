@@ -57,6 +57,7 @@ struct NowlightWidgets: WidgetBundle {
         if #available(iOS 18.0, *) {
             LightControl()
             AllLightsControl()
+            SceneControl()
         }
     }
 }

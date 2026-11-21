@@ -80,3 +80,31 @@ struct AllLightsControl: ControlWidget {
         .description("Tüm ışıkları tek dokunuşla aç/kapat.")
     }
 }
+
+/// Sahne dugmesi: Denetim Merkezi'nden ya da Action Button'dan bir sahneyi calistirir.
+@available(iOS 18.0, *)
+struct SceneControlConfiguration: ControlConfigurationIntent {
+    static var title: LocalizedStringResource = "Sahne"
+    static var description = IntentDescription("Denetim Merkezi'nden çalıştıracağın sahne.")
+    @Parameter(title: "Sahne") var scene: SceneEntity?
+}
+
+@available(iOS 18.0, *)
+struct SceneControl: ControlWidget {
+    static let kind = "online.matestudios.nowlight.control.scene"
+
+    struct Provider: AppIntentControlValueProvider {
+        func previewValue(configuration: SceneControlConfiguration) -> SceneDef? { configuration.scene?.scene }
+        func currentValue(configuration: SceneControlConfiguration) async throws -> SceneDef? { configuration.scene?.scene ?? SceneStore.load().first }
+    }
+
+    var body: some ControlWidgetConfiguration {
+        AppIntentControlConfiguration(kind: Self.kind, provider: Provider()) { scene in
+            ControlWidgetButton(action: RunSceneIntent(scene: scene.map(SceneEntity.init) ?? SceneEntity(SceneDef()))) {
+                Label(scene?.name ?? "Sahne seç", systemImage: scene?.symbol ?? "sparkles")
+            }
+        }
+        .displayName("Nowlight Sahne")
+        .description("Seçtiğin sahneyi tek dokunuşla çalıştır.")
+    }
+}

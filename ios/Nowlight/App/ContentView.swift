@@ -76,6 +76,7 @@ struct LightsScreen: View {
                             .padding(.top, 60)
                         if showSiri { SiriPromoCard().padding(.top, 10) }
                     } else {
+                        if !model.scenes.isEmpty && !model.homeHidden.contains("scenes") { SceneChips() }
                         if showAll { LightTile(light: .all, wide: true) }      // "Tum isiklar": en ustte tam genislikte
                         LazyVGrid(columns: columns, spacing: 14) {
                             ForEach(tiles, id: \.self) { l in

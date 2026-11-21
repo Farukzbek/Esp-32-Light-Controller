@@ -28,6 +28,24 @@ final class AppModel {
     /// Cihaz rolleri (servo, PIR). Kopru bildirir; gorunumler bunu izler.
     var roles: [String: String] = BridgeConfig.roles
 
+    /// Sahneler (telefonda saklanir); gorunumler bunu izler.
+    var scenes: [SceneDef] = SceneStore.load()
+    var sceneMessage: String?
+    var sceneRuns = 0
+
+    func upsertScene(_ s: SceneDef) {
+        if let i = scenes.firstIndex(where: { $0.id == s.id }) { scenes[i] = s } else { scenes.append(s) }
+        SceneStore.save(scenes); NowlightShortcuts.updateAppShortcutParameters()
+    }
+    func deleteScenes(at o: IndexSet) { scenes.remove(atOffsets: o); SceneStore.save(scenes); NowlightShortcuts.updateAppShortcutParameters() }
+    func runScene(_ s: SceneDef) async {
+        sceneRuns += 1; sceneMessage = nil
+        do { try await SceneRunner.run(s); sceneMessage = "✓ \(s.name) uygulandı"; error = nil }
+        catch { sceneMessage = (error as? LocalizedError)?.errorDescription ?? "Sahne uygulanamadı" }
+        try? await Task.sleep(nanoseconds: 800_000_000); await refresh()
+        Task { try? await Task.sleep(nanoseconds: 3_000_000_000); sceneMessage = nil }
+    }
+
     /// Ana ekran duzeni (sira ve gizli kartlar); gorunumler bunu izler.
     var homeOrder: [String] = BridgeConfig.homeOrder
     var homeHidden: Set<String> = BridgeConfig.homeHidden
@@ -212,7 +230,7 @@ final class AppModel {
     func reloadConfig() {
         configEpoch += 1
         names = BridgeConfig.names; icons = BridgeConfig.icons; roles = BridgeConfig.roles; removed = BridgeConfig.removed
-        homeOrder = BridgeConfig.homeOrder; homeHidden = BridgeConfig.homeHidden
+        homeOrder = BridgeConfig.homeOrder; homeHidden = BridgeConfig.homeHidden; scenes = SceneStore.load()
         deletedAt = [:]; pendingUntil = [:]
         state = nil; error = nil
         WidgetCenter.shared.reloadAllTimelines()
