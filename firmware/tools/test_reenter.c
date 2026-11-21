@@ -34,6 +34,18 @@ int main() {
   { ReenterState s; expect("kilit hic konmadiysa hareket serbest", !reenter_locked(s, 5000, 5000, 10000)); }
   { ReenterState s; reenter_lock(s, 0xFFFFFFF0u, 5000);
     expect("sakinlesme millis tasmasi", reenter_locked(s, 1000, 5000, 10000)); }
+  // geri yukleme maskesi
+  { RestoreState r; restore_set(r, 0b010, 1000);                                // yalniz yatak (yuva 1) aciktiydi
+    expect("yalniz yatak hatirlanir", restore_take(r, 0b111, 5000, 1200000) == 0b010);
+    expect("kullanilinca silinir", restore_take(r, 0b111, 6000, 1200000) == 0); }
+  { RestoreState r; restore_set(r, 0b011, 1000);
+    expect("masa+yatak: kural isiklariyla kesisim", restore_take(r, 0b110, 2000, 1200000) == 0b010); }
+  { RestoreState r; restore_set(r, 0b001, 1000);
+    expect("eski (20 dk+): yok sayilir, kural normal", restore_take(r, 0b111, 1000 + 1200001u, 1200000) == 0); }
+  { RestoreState r; restore_set(r, 0b101, 0xFFFFFF00u);
+    expect("millis tasmasi: hala taze", restore_take(r, 0b111, 100, 1200000) == 0b101); }
+  { RestoreState r; restore_set(r, 0, 1000); expect("bos mask hatirlanmaz", !r.valid && restore_take(r, 0b111, 2000, 1200000) == 0); }
+  { RestoreState r; expect("hic hatirlanmadiysa 0", restore_take(r, 0b111, 2000, 1200000) == 0); }
   expect("ters: ac -> kapat", reenter_opposite(1) == 2);
   expect("ters: kapat -> ac", reenter_opposite(2) == 1);
   expect("ters: cevir -> cevir", reenter_opposite(0) == 0);

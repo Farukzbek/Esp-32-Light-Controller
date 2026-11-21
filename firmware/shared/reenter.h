@@ -44,3 +44,20 @@ inline bool reenter_locked(ReenterState &s, uint32_t now, uint32_t lockMs, uint3
   s.locked = false;
   return false;
 }
+
+// Geri yukleme: cikista (isiklar kapatilirken) HANGI ISIKLARIN acik oldugu hatirlanir; geri girisle yalniz onlar yanar
+// (ornek: yalnizca yatak aciksa cikinca yatak soner, girince yalniz yatak yanar; hepsi acikken hepsi). mask: bit = 1 << isik yuvasi.
+struct RestoreState { bool valid = false; uint8_t mask = 0; uint32_t at = 0; };
+
+inline void restore_set(RestoreState &s, uint8_t mask, uint32_t now) { s.valid = mask != 0; s.mask = mask; s.at = now; }
+inline void restore_clear(RestoreState &s) { s.valid = false; s.mask = 0; }
+
+// Giriste yakilacak isiklar: hatirlanan mask ile kuralin isiklarinin kesisimi. Hatirlanan yoksa ya da maxMs'den eskiyse 0 doner
+// (cagiran kuralin tum isiklarini yakar: ornegin sabah cikip aksam donunce kural normal calissin). Kullanilinca hatirlanan silinir.
+inline uint8_t restore_take(RestoreState &s, uint8_t ruleLamps, uint32_t now, uint32_t maxMs) {
+  if (!s.valid) return 0;
+  const bool fresh = (now - s.at) <= maxMs;
+  const uint8_t m = fresh ? (uint8_t)(s.mask & ruleLamps) : 0;
+  restore_clear(s);
+  return m;
+}

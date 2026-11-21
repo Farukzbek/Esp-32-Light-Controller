@@ -35,6 +35,8 @@ struct Rule { bool en = true; uint8_t action = 1, lamps = 1; uint16_t start = 0,
 static Rule g_rules[MAX_RULES];
 static uint8_t g_nRules = 0;
 static uint32_t g_ruleTrig[MAX_RULES];
+static RestoreState g_restore;     // cikista acik olan isiklar: geri girince yalniz onlar yanar (REV_RESTORE_MAX_MS icinde)
+#define REV_RESTORE_MAX_MS 1200000UL   // 20 dk: daha uzun suren cikistan sonra kural normal calisir (hepsini yakar)
 static ReenterState g_re;         // hizli gir-cik: son calisan kural ve zamani
 #define REV_LOCK_MAX_MS 10000     // ... ama toplam en fazla bu kadar (kapinin disinda oyalanan kisi girisi geciktirmesin)
 #define REV_LOCK_MS 5000          // ters eylemden sonra sensor bu kadar sessiz kalana kadar hareketler yok sayilir (her hareket sureyi uzatir)
@@ -180,12 +182,15 @@ static void act(const Rule &r, bool force, const char *tag = nullptr) {
 }
 
 // Kuralin cihazlarindan en az biri su an ACIK mi? (kopruden sorar). Isik manuel acilmis olsa da gir-cik "cikis" sayilsin diye.
-static bool anyLampOn(const Rule &r) {
+// Kuralin cihazlarindan su an ACIK olanlarin maskesi (kopruden sorar). Sorgu basarisizsa ok = false.
+static uint8_t onLampMask(const Rule &r, bool &ok) {
   String state;
-  if (!bridgeReq("/api/state", false, &state)) return false;
-  for (int i = 0; i < 8; i++) if ((r.lamps & (1 << i)) && jget(state, LAMP_NAMES[i]) == 1) return true;
-  return false;
+  ok = bridgeReq("/api/state", false, &state);
+  uint8_t m = 0;
+  if (ok) for (int i = 0; i < 8; i++) if ((r.lamps & (1 << i)) && jget(state, LAMP_NAMES[i]) == 1) m |= (1 << i);
+  return m;
 }
+static bool anyLampOn(const Rule &r) { bool ok; return onLampMask(r, ok) != 0; }
 
 static void onMotion() {
   g_motions++;
@@ -201,6 +206,10 @@ static void onMotion() {
     if (rr == RE_REVERSE && pr.en && g.enabled && inWindowR(pr)) {
       Rule rev = pr; rev.action = reenter_opposite(pr.action);
       const int idx = g_re.rule;
+      if (pr.action == 1) {                                // "ac" kurali: yalniz SU AN ACIK olan isiklari kapat ve hatirla
+        bool ok; const uint8_t m = onLampMask(pr, ok);
+        if (ok) { rev.lamps = m; restore_set(g_restore, m, millis()); }
+      }
       reenter_clear(g_re);
       reenter_lock(g_re, millis(), REV_LOCK_MS);
       g_ruleTrig[idx] = 0;                              // sonraki gercek giris kurali bekleme suresine takilmasin
@@ -219,8 +228,10 @@ static void onMotion() {
       g_lastResult = "kural " + String(i + 1) + ": bekleme suresinde"; return;
     }
     // Gir-cik acik "ac" kurali: cihazlar ZATEN aciksa (kural yakmis olsun ya da telefondan acilmis) bu hareket CIKIS sayilir: kapat
-    if (r.rev && r.action == 1 && anyLampOn(r)) {
-      Rule off = r; off.action = 2;
+    bool qok = false; const uint8_t onNow = (r.rev && r.action == 1) ? onLampMask(r, qok) : 0;
+    if (r.rev && r.action == 1 && onNow) {
+      Rule off = r; off.action = 2; off.lamps = onNow;       // yalniz acik olanlari kapat
+      restore_set(g_restore, onNow, millis());               // girince yalniz bunlar yansin
       reenter_clear(g_re);
       reenter_lock(g_re, millis(), REV_LOCK_MS);
       g_ruleTrig[i] = 0;
@@ -231,7 +242,12 @@ static void onMotion() {
     }
     g_ruleTrig[i] = millis(); if (!g_ruleTrig[i]) g_ruleTrig[i] = 1;
     g_lastTrigMs = millis();
-    act(r, false);
+    Rule fire = r;
+    if (r.rev && r.action == 1) {                            // gir-cik "ac" kurali: cikista acik olanlar hatirlandiysa yalniz onlari yak
+      const uint8_t back = restore_take(g_restore, r.lamps, millis(), REV_RESTORE_MAX_MS);
+      if (back) fire.lamps = back;
+    }
+    act(fire, false);
     if (r.rev) reenter_arm(g_re, i, millis()); else reenter_clear(g_re);
     g_lastResult = "kural " + String(i + 1) + " " + g_lastResult;
     return;
