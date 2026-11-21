@@ -68,6 +68,11 @@ struct AutomationRule: Codable, Identifiable, Equatable {
         if reverseSec > 0 { return base + ":\(days & 127):\(reverseSec)" }         // 8 alan: gunler ve gir-cik
         return days & 127 == 127 ? base : base + ":\(days & 127)"
     }
+    /// Gir-cik suresi secenekleri (sn): 15 sn ... 20 dk. Eski bir deger (listede yoksa) korunur.
+    static let revBase = [15, 30, 45, 60, 90, 120, 180, 300, 600, 900, 1200]
+    static func revOptions(including v: Int) -> [Int] { Array(Set(revBase + (v > 0 ? [v] : []))).sorted() }
+    static func revLabel(_ s: Int) -> String { s < 60 ? "\(s) sn" : s % 60 == 0 ? "\(s / 60) dk" : "\(s / 60) dk \(s % 60) sn" }
+
     /// Eski kapi dugumu (gun destegi yok) bu kurali reddeder: yalnizca gunu kisitli kural gonderilirken gerekir.
     var needsDaySupport: Bool { days & 127 != 127 || reverseSec > 0 }
 

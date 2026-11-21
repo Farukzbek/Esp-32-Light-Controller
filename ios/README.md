@@ -65,6 +65,6 @@ Işıklar ekranının sol üstündeki düğme: kartları sürükleyerek sırala,
 
 ## Hızlı gir-çık (kapı otomasyonu)
 
-Kural düzenlerken **Gir-çık**: kural çalıştıktan sonra 15–180 sn içinde (ilk 8 sn hariç) ikinci bir hareket gelirse seçili cihazlara kuralın tersi uygulanır (ışık yandıysa söner). Yalnızca kuralın saat ve gün aralığında geçerlidir. Kural metninin 8. alanıdır (`firmware/shared/reenter.h`, test: `firmware/tools/test_reenter.c`); eski kapı yazılımı bu alanı reddeder.
+Kural düzenlerken **Gir-çık**: kural çalıştıktan sonra 15 sn – 20 dk içinde (ilk 8 sn hariç) ikinci bir hareket gelirse seçili cihazlara kuralın tersi uygulanır (ışık yandıysa söner). Yalnızca kuralın saat ve gün aralığında geçerlidir. Kural metninin 8. alanıdır (`firmware/shared/reenter.h`, test: `firmware/tools/test_reenter.c`); eski kapı yazılımı bu alanı reddeder.
 
 Işıklar tek tek hatırlanır: çıkışta yalnızca **o an açık olan** ışıklar kapanır (örneğin yalnızca yatak açıksa yatak), geri girişte yalnızca onlar yanar; hepsi açıksa hepsi. Hatırlanan durum 20 dakika geçerlidir, daha uzun süren çıkıştan sonra kural normal çalışıp seçili tüm ışıkları yakar. Telefondan manuel açılmış ışıklar da çıkış sayılır.

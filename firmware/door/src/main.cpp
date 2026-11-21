@@ -92,7 +92,7 @@ static bool parseRules(const String &str) {
     }
     if (k == 6) v[6] = RULE_ALL_DAYS;
     if (k < 8) v[7] = 0;                                    // 8. alan yoksa gir-cik kapali
-    if ((k != 6 && k != 7 && k != 8) || v[7] < 0 || v[7] > 600 || (v[7] > 0 && v[7] < 15) || v[6] < 1 || v[6] > 127 || v[1] < 0 || v[1] > 2 || v[2] < 1 || v[2] > 255 || v[3] < 0 || v[3] > 1439 || v[4] < 0 || v[4] > 1439 || v[5] < 0 || v[5] > 60) return false;
+    if ((k != 6 && k != 7 && k != 8) || v[7] < 0 || v[7] > 1200 || (v[7] > 0 && v[7] < 15) || v[6] < 1 || v[6] > 127 || v[1] < 0 || v[1] > 2 || v[2] < 1 || v[2] > 255 || v[3] < 0 || v[3] > 1439 || v[4] < 0 || v[4] > 1439 || v[5] < 0 || v[5] > 60) return false;
     tmp[n++] = {v[0] != 0, (uint8_t)v[1], (uint8_t)v[2], (uint16_t)v[3], (uint16_t)v[4], (uint16_t)v[5], (uint8_t)v[6], (uint16_t)v[7]};
   }
   for (int i = 0; i < n; i++) g_rules[i] = tmp[i];

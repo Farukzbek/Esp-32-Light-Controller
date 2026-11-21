@@ -123,7 +123,7 @@ private struct RuleRow: View {
                     if active { Text("şu an geçerli").font(.caption2.weight(.semibold)).padding(.horizontal, 6).padding(.vertical, 1).background(Color.green.opacity(0.25), in: Capsule()) }
                 }
                 Text("\(rule.action.title) · \(rule.lampText)").font(.subheadline).foregroundStyle(.secondary)
-                Text("\(rule.windowText)\(rule.cooldownMin > 0 ? " · bekleme \(rule.cooldownMin) dk" : "")\(rule.reverseSec > 0 ? " · gir-çık \(rule.reverseSec) sn" : "")").font(.caption).foregroundStyle(.secondary)
+                Text("\(rule.windowText)\(rule.cooldownMin > 0 ? " · bekleme \(rule.cooldownMin) dk" : "")\(rule.reverseSec > 0 ? " · gir-çık \(AutomationRule.revLabel(rule.reverseSec))" : "")").font(.caption).foregroundStyle(.secondary)
             }
             Spacer()
             Image(systemName: "chevron.right").font(.footnote.weight(.semibold)).foregroundStyle(.tertiary)
@@ -189,13 +189,13 @@ private struct RuleEditor: View {
                 Section {
                     Toggle("Hızlı gir-çık: tersini yap", isOn: Binding(get: { rule.reverseSec > 0 }, set: { on in rule.reverseSec = on ? 60 : 0 })).tint(Color.lampOn)
                     if rule.reverseSec > 0 {
-                        Stepper(value: $rule.reverseSec, in: 15...180, step: 15) {
-                            HStack { Text("Süre"); Spacer(); Text("\(rule.reverseSec) sn").foregroundStyle(.secondary) }
+                        Picker("Süre", selection: $rule.reverseSec) {
+                            ForEach(AutomationRule.revOptions(including: rule.reverseSec), id: \.self) { Text(AutomationRule.revLabel($0)).tag($0) }
                         }
                     }
                 } header: { Text("Gir-çık") } footer: {
                     Text(rule.reverseSec > 0
-                         ? "Bu kural çalıştıktan sonra \(rule.reverseSec) saniye içinde (ilk 8 saniye hariç: aynı ziyaretteki hareketler sayılmaz) ikinci bir hareket gelirse, seçili cihazlara kuralın TERSİ uygulanır: ışıklar yanmışsa söner. Yalnızca bu kuralın saat ve gün aralığında geçerlidir. Örneğin geceleri odaya girip bir şey alıp hemen çıkınca ışık açık kalmaz."
+                         ? "Bu kural çalıştıktan sonra \(AutomationRule.revLabel(rule.reverseSec)) içinde (ilk 8 saniye hariç: aynı ziyaretteki hareketler sayılmaz) ikinci bir hareket gelirse, seçili cihazlara kuralın TERSİ uygulanır: ışıklar yanmışsa söner. Yalnızca bu kuralın saat ve gün aralığında geçerlidir. Örneğin geceleri odaya girip bir şey alıp hemen çıkınca ışık açık kalmaz."
                          : "Açarsan: kural çalıştıktan kısa süre sonra gelen ikinci hareket, yapılan işlemin tersini uygular (ışık yandıysa söner). Odaya girip hemen çıktığında ışığı telefondan kapatmana gerek kalmaz.")
                 }
                 if testEnabled && !isNew {

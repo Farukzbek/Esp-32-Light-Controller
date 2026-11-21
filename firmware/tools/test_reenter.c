@@ -34,6 +34,10 @@ int main() {
   { ReenterState s; expect("kilit hic konmadiysa hareket serbest", !reenter_locked(s, 5000, 5000, 10000)); }
   { ReenterState s; reenter_lock(s, 0xFFFFFFF0u, 5000);
     expect("sakinlesme millis tasmasi", reenter_locked(s, 1000, 5000, 10000)); }
+  { ReenterState s; reenter_arm(s, 0, 10000);
+    expect("20 dk pencere: 19 dk sonra hala ters", reenter_check(s, 10000 + 19 * 60000u, 1200, 8) == RE_REVERSE);
+    ReenterState t; reenter_arm(t, 0, 10000);
+    expect("20 dk pencere: 20 dk 1 sn sonra normal", reenter_check(t, 10000 + 1201000u, 1200, 8) == RE_NONE); }
   // geri yukleme maskesi
   { RestoreState r; restore_set(r, 0b010, 1000);                                // yalniz yatak (yuva 1) aciktiydi
     expect("yalniz yatak hatirlanir", restore_take(r, 0b111, 5000, 1200000) == 0b010);
