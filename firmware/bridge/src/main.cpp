@@ -33,7 +33,7 @@ static WebServer server(80);
 static String g_token;
 static int8_t g_st[3] = {-1, -1, -1};      // son bilinen durum (-1 = henuz bildirilmedi)
 #ifndef FW_VERSION
-#define FW_VERSION "0.5.0-dev"
+#define FW_VERSION "0.7.0-dev"
 #endif
 #ifdef NOW_GENERIC
 #define NL_CHANNEL ((int)WiFi.channel())          // genel kopru: ESP-NOW kanali router'in kanali
@@ -160,6 +160,34 @@ static String stateJson() {
   return o;
 }
 
+// ---------------------------------------------------------------- olay gunlugu ve zamanlayicilar
+// Gunluk: son 30 olay (program/zamanlayici/komut), RAM'de (yeniden baslayinca silinir). GET /api/log -> yeniden eskiye.
+struct Ev { uint32_t t; char s[72]; };
+static Ev g_ev[30];
+static uint8_t g_evN = 0, g_evHead = 0;
+static bool timeValid();
+static void logEv(const String &text) {
+  Ev &e = g_ev[g_evHead];
+  e.t = timeValid() ? (uint32_t)time(nullptr) : 0;
+  strncpy(e.s, text.c_str(), sizeof(e.s) - 1); e.s[sizeof(e.s) - 1] = 0;
+  g_evHead = (g_evHead + 1) % 30; if (g_evN < 30) g_evN++;
+}
+static String logJson() {
+  String o = "{\"events\":[";
+  for (uint8_t i = 0; i < g_evN; i++) {
+    const Ev &e = g_ev[(g_evHead + 30 - 1 - i) % 30];
+    String t = e.s; t.replace("\\", "\\\\"); t.replace("\"", "'");
+    if (i) o += ',';
+    o += "{\"t\":" + String(e.t) + ",\"s\":\"" + t + "\"}";
+  }
+  return o + "]}";
+}
+
+// Zamanlayicilar (uyku zamanlayicisi): "N dk sonra su cihazlari ac/kapat". En fazla 4, RAM'de; telefon kapaliyken de calisir.
+struct Timer { bool on = false; uint32_t deadline = 0; uint8_t devices = 0; uint8_t action = 2; };
+static Timer g_timer[4];
+static bool g_timerRunning = false;
+
 // ---------------------------------------------------------------- zamanli otomasyon
 // Kurallar telefonda yazilir, kopruye gonderilir (NVS "sched"). Kopru NTP ile saati alir ve her dakika kurallara bakar:
 // su saatte, su gunlerde su cihazlari ac / kapat / cevir / servoyu acaya getir. Kacirilan tetikler (elektrik kesintisi) atlanir.
@@ -194,6 +222,51 @@ static String schedJson() {
   return String("{\"rules\":\"") + wire + "\",\"tz\":" + g_tzMin + ",\"synced\":" + (timeValid() ? "true" : "false") + ",\"time\":\"" + hhmm + "\",\"count\":" + g_nSched + "}";
 }
 
+static void runSchedRule(const SchedRule &r);
+static void timerLoop() {
+  static uint32_t last = 0;
+  if (millis() - last < 500) return;
+  last = millis();
+  for (auto &t : g_timer) {
+    if (!t.on || (int32_t)(millis() - t.deadline) < 0) continue;
+    t.on = false;
+    SchedRule r; r.en = true; r.action = t.action; r.devices = t.devices; r.days = 127;
+    g_timerRunning = true; runSchedRule(r); g_timerRunning = false;
+    logEv(String("zamanlayici: ") + (t.action == SCHED_ON ? "acildi" : "kapatildi") + " (cihazlar 0x" + String(t.devices, HEX) + ")");
+  }
+}
+static String timersJson() {
+  String o = "{\"timers\":[";
+  bool first = true;
+  for (int i = 0; i < 4; i++) {
+    if (!g_timer[i].on) continue;
+    if (!first) o += ','; first = false;
+    const int32_t left = (int32_t)(g_timer[i].deadline - millis()) / 1000;
+    o += "{\"id\":" + String(i) + ",\"left\":" + String(left < 0 ? 0 : left) + ",\"devs\":" + String(g_timer[i].devices) + ",\"action\":" + String(g_timer[i].action) + "}";
+  }
+  return o + "]}";
+}
+static void handleLog() { if (!authorized()) return; server.send(200, "application/json", logJson()); }
+static void handleTimers() { if (!authorized()) return; server.send(200, "application/json", timersJson()); }
+// POST /api/timer?minutes=30&devs=<maske>&action=1|2
+static void handleTimerAdd() {
+  if (!authorized()) return;
+  const int mins = server.arg("minutes").toInt(), devs = server.arg("devs").toInt(), act = server.arg("action").toInt();
+  if (mins < 1 || mins > 720 || devs < 1 || devs > 255 || (act != 1 && act != 2)) { server.send(400, "application/json", "{\"error\":\"parametre\"}"); return; }
+  for (auto &t : g_timer) if (!t.on) {
+    t.on = true; t.deadline = millis() + (uint32_t)mins * 60000UL; t.devices = devs; t.action = act;
+    logEv(String("zamanlayici kuruldu: ") + mins + " dk sonra " + (act == 1 ? "ac" : "kapat"));
+    server.send(200, "application/json", timersJson()); return;
+  }
+  server.send(400, "application/json", "{\"error\":\"en fazla 4 zamanlayici\"}");
+}
+static void handleTimerCancel() {
+  if (!authorized()) return;
+  const int id = server.arg("id").toInt();
+  if (id >= 0 && id < 4) g_timer[id].on = false;
+  server.send(200, "application/json", timersJson());
+}
+
 static void runSchedRule(const SchedRule &r) {
   for (uint8_t slot = 0; slot < 8; slot++) {
     if (!((r.devices >> slot) & 1)) continue;
@@ -209,6 +282,7 @@ static void runSchedRule(const SchedRule &r) {
     now_send_set(slot, on);
   }
   Serial.printf("[program] kural calisti: eylem %u cihazlar 0x%02X\n", r.action, r.devices);
+  if (!g_timerRunning) logEv(String("program: ") + (r.action == SCHED_ON ? "ac" : r.action == SCHED_OFF ? "kapat" : r.action == SCHED_ANGLE ? "aci " + String(r.angle) : "cevir") + " (cihazlar 0x" + String(r.devices, HEX) + ")");
 }
 
 static void schedLoop() {
@@ -287,6 +361,7 @@ static void handleSet() {
     now_send_set(d, on);
   }
   Serial.printf("[http] set %s=%d\n", dev.c_str(), on);
+  logEv(String("komut: ") + dev + (on ? " acildi" : " kapatildi"));
   server.send(200, "application/json", "{\"ok\":true}");   // gercek onay: sonraki /api/state'te dugumun bildirdigi deger
 }
 
@@ -436,6 +511,10 @@ static void startHttp() {
   server.on("/api/pair/stop", HTTP_POST, handlePairStop);
   server.on("/api/node/config", HTTP_POST, handleNodeConfig);
   server.on("/api/node/forget", HTTP_POST, handleNodeForget);
+  server.on("/api/log", HTTP_GET, handleLog);
+  server.on("/api/timers", HTTP_GET, handleTimers);
+  server.on("/api/timer", HTTP_POST, handleTimerAdd);
+  server.on("/api/timer/cancel", HTTP_POST, handleTimerCancel);
   server.on("/api/schedules", HTTP_GET, handleSchedulesGet);
   server.on("/api/schedules", HTTP_POST, handleSchedulesPost);
   server.on("/api/node/servo", HTTP_POST, handleServoConfig);
@@ -542,6 +621,7 @@ void loop() {
   pollState();
   pair_loop();
   schedLoop();
+  timerLoop();
   if (g_restartAt && millis() > g_restartAt) ESP.restart();
 
   const bool up = WiFi.status() == WL_CONNECTED;

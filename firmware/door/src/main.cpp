@@ -8,6 +8,8 @@
 #include "rule_days.h"
 #include "reenter.h"
 
+#define DOOR_FW "1.2"        // uygulama bu surumle karsilastirip "yazilim guncel degil" rozeti gosterir
+
 // Kapi dugumu: PIR sensoru odaya giris/hareket algilayinca KOPRUYE (firmware/bridge) komut atar.
 //  KURALLAR (en fazla 8, uygulamadan gelir): her kural = etkin mi, eylem (0 cevir, 1 ac, 2 kapat), isiklar (bit maskesi),
 //  saat araligi (baslangic dahil, bitis haric; gece yarisini asabilir), bekleme (dk, 0 = her harekette).
@@ -51,6 +53,26 @@ static uint32_t g_wifiTry = 0;
 static volatile uint8_t g_pir = 0;
 static uint32_t g_motions = 0, g_lastMotionMs = 0, g_lastTrigMs = 0;
 static String g_lastResult = "henuz tetiklenmedi";
+// Olay gunlugu (son 20 eylem), RAM'de. GET /api/log -> yeniden eskiye.
+struct Ev { uint32_t t; char s[72]; };
+static Ev g_ev[20];
+static uint8_t g_evN = 0, g_evHead = 0;
+static void logEv(const String &text) {
+  Ev &e = g_ev[g_evHead];
+  e.t = time(nullptr) > 1600000000 ? (uint32_t)time(nullptr) : 0;
+  strncpy(e.s, text.c_str(), sizeof(e.s) - 1); e.s[sizeof(e.s) - 1] = 0;
+  g_evHead = (g_evHead + 1) % 20; if (g_evN < 20) g_evN++;
+}
+static String logJson() {
+  String o = "{\"events\":[";
+  for (uint8_t i = 0; i < g_evN; i++) {
+    const Ev &e = g_ev[(g_evHead + 20 - 1 - i) % 20];
+    String t = e.s; t.replace("\\", "\\\\"); t.replace("\"", "'");
+    if (i) o += ',';
+    o += "{\"t\":" + String(e.t) + ",\"s\":\"" + t + "\"}";
+  }
+  return o + "]}";
+}
 static bool g_timeSynced = false;
 
 // ---------------------------------------------------------------- yardimcilar
@@ -179,6 +201,7 @@ static void act(const Rule &r, bool force, const char *tag = nullptr) {
   }
   g_lastResult = String(force ? "test: " : tag ? tag : "ok: ") + done;
   Serial.printf("[kural] %s\n", g_lastResult.c_str());
+  if (!force) logEv(g_lastResult);
 }
 
 // Kuralin cihazlarindan en az biri su an ACIK mi? (kopruden sorar). Isik manuel acilmis olsa da gir-cik "cikis" sayilsin diye.
@@ -278,10 +301,10 @@ static String statusJson() {
   char b[420];
   snprintf(b, sizeof(b),
            "{\"enabled\":%d,\"pir\":%u,\"motions\":%u,\"motionAge\":%ld,\"trigAge\":%ld,\"timeSynced\":%d,\"time\":\"%s\","
-           "\"bridgeSet\":%d,\"rules\":%u,\"activeRule\":%d,\"lastResult\":\"%s\"}",
+           "\"bridgeSet\":%d,\"rules\":%u,\"activeRule\":%d,\"fw\":\"%s\",\"lastResult\":\"%s\"}",
            g.enabled, (unsigned)g_pir, (unsigned)g_motions, g_motions ? (long)((millis() - g_lastMotionMs) / 1000) : -1L,
            g_lastTrigMs ? (long)((millis() - g_lastTrigMs) / 1000) : -1L, ok, hhmm,
-           (g_bridgeHost.length() && g_bridgeToken.length()) ? 1 : 0, (unsigned)g_nRules, active, lr.c_str());
+           (g_bridgeHost.length() && g_bridgeToken.length()) ? 1 : 0, (unsigned)g_nRules, active, DOOR_FW, lr.c_str());
   return String(b);
 }
 
@@ -301,6 +324,7 @@ static void startHttp() {
     char b[100]; snprintf(b, sizeof(b), "{\"name\":\"nowlight-door\",\"ip\":\"%s\"}", WiFi.localIP().toString().c_str());
     server.send(200, "application/json", b);
   });
+  server.on("/api/log", HTTP_GET, []() { if (authorized()) server.send(200, "application/json", logJson()); });
   server.on("/api/status", HTTP_GET, []() { if (authorized()) server.send(200, "application/json", statusJson()); });
   server.on("/api/config", HTTP_POST, handleConfig);
   server.on("/api/rules", HTTP_GET, []() {
