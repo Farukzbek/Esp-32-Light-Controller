@@ -1,6 +1,6 @@
 # Kapı paneli (CYD, ESP32-2432S028R)
 
-2.8" 320x240 dokunmatik ekranlı CYD kartı, odanın girişinde sabit bir ışık paneli olarak çalışır. Aynı ESP-NOW protokolüyle (sabit kanal, WiFi/router yok) masa ve yatak düğümlerini yönetir. Waveshare AMOLED kumandanın yerine geçer ya da yanında ikinci kumanda olarak kullanılabilir.
+2.8" 320x240 dokunmatik ekranlı CYD kartı, odanın girişinde sabit bir ışık paneli olarak çalışır. Aynı ESP-NOW protokolüyle (sabit kanal, WiFi/router yok) masa ve yatak düğümlerini yönetir. Sistemin kumandasıdır; istenirse birden fazla panel kullanılabilir (her panelin MAC'i ayrı tanıtılmalıdır).
 
 - **Ana ekran:** 4'lü, 3'lü, 2'li ya da 1'li düzen; karo sırası ve gizleme ayarlanabilir.
 - **Ayarlar (sağ üst dişli):** DÜZEN, EKRAN (parlaklık, otomatik parlaklık, ekranı çevir, ekran kapanma süresi), DURUM (sinyal gücü, kanal, dokunmatik kalibrasyonu).

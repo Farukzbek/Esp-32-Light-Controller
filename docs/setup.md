@@ -10,12 +10,11 @@ Tahmini süre: 1–2 saat (ilk derleme araç zincirini indirdiği için birkaç 
 |---|---|---|
 | 0 | Araçları kur, projeyi indir | Bilgisayar |
 | 1 | MAC adreslerini oku, `now_config.h` oluştur | 3 kart |
-| 2 | Waveshare kartının **V1** olduğunu doğrula | Waveshare kart |
-| 3 | Yatak düğümü masa üstünde (röle tık testi) | S3 Super Mini + röle |
-| 4 | Masa düğümü (hub): dokunma bandı + röle | S3 Super Mini + röle + folyo bant |
-| 5 | Kumanda (Waveshare) | Waveshare + LiPo |
-| 6 | Uçtan uca test (hala 220V yok) | hepsi |
-| 7 | Lambaları bağla (220V) | [hardware.md](hardware.md#220v-tarafı-güvenlik), önce güvenlik bölümünü oku |
+| 2 | Yatak düğümü masa üstünde (röle tık testi) | S3 Super Mini + röle |
+| 3 | Masa düğümü (hub): dokunma bandı + röle | S3 Super Mini + röle + folyo bant |
+| 4 | Kumanda paneli (CYD) | CYD kartı |
+| 5 | Uçtan uca test (hala 220V yok) | hepsi |
+| 6 | Lambaları bağla (220V) | [hardware.md](hardware.md#220v-tarafı-güvenlik), önce güvenlik bölümünü oku |
 
 ---
 
@@ -55,7 +54,7 @@ Kartları **tek tek** tak, hangisinin hangi MAC olduğunu not et:
 
 | Kart | Rol | MAC (örnek) |
 |---|---|---|
-| Waveshare AMOLED | Kumanda (`NOW_CONTROLLER_MAC`) | `A0:B1:C2:D3:E4:F5` |
+| CYD (ESP32-2432S028R) | Kumanda paneli (`NOW_CONTROLLER_MAC`) | `A0:B1:C2:D3:E4:F5` |
 | S3 Super Mini #1 | Hub (`NOW_HUB_MAC`) | … |
 | S3 Super Mini #2 | Yatak düğümü (`NOW_BED_MAC`) | … |
 
@@ -72,27 +71,7 @@ cp firmware/shared/now_config.example.h firmware/shared/now_config.h
 
 ✅ Bu dosya yokken derlersen `#error "now_config.h yok…"` mesajı görürsün. Dosya varken `pio run` çalışır.
 
-## Aşama 2: Waveshare kartın V1 mi?
-
-Waveshare iki donanım revizyonu çıkardı, pinleri farklı. Bu proje **V1** pinleri içindir. Kendi kartını bir dakikada test et:
-
-```bash
-cd firmware/tools/board-check
-pio run -t upload --upload-port <WAVESHARE_PORTU>
-pio device monitor -b 115200 -p <WAVESHARE_PORTU>
-```
-
-V1 kartta beklenen çıktı:
-```
-  cihaz bulundu: 0x38  <- FT3168 dokunmatik
-  cihaz bulundu: 0x6B  <- QMI8658 IMU
-SONUC: OK. Kartin V1 pinout'una uyuyor ...
-```
-Dokunmatik **bulunamadı** derse kartın büyük ihtimalle V2'dir: `firmware/controller/include/lcd_config.h` içindeki pinleri Waveshare'in V2 örneğine göre değiştirmen gerekir ([notlar](waveshare-amoled-notes.md)). Yükleme olmazsa USB'yi **BOOT** düğmesine basılı tutarak tak. Monitörden `Ctrl+C` ile çık.
-
-✅ `SONUC: OK`.
-
-## Aşama 3: Yatak düğümü masa üstünde
+## Aşama 2: Yatak düğümü masa üstünde
 
 1. Bir röle modülünün **sadece düşük gerilim tarafını** bir ESP32-S3 Super Mini'ye bağla:
 
@@ -120,7 +99,7 @@ Dokunmatik **bulunamadı** derse kartın büyük ihtimalle V2'dir: `firmware/con
 
 ✅ Yazdığı MAC `NOW_BED_MAC` ile, kanal `NOW_CHANNEL` ile aynı. Röle açılışta kapalı kalıyor.
 
-## Aşama 4: Masa düğümü (hub)
+## Aşama 3: Masa düğümü (hub)
 
 1. **Hub'ı bağla:** yatak düğümü gibi (`5V`→`VCC`, `GND`→`GND`, `GPIO5`→`IN`) ve ek olarak **dokunma bandı**: **GPIO4**'ten bir kabloyu masana/kasana yapıştırdığın **alüminyum folyo banda** bağla.
 2. **Yükle** (her açılışta ilk **3 saniye folyoya dokunma**, kalibrasyon yapıyor):
@@ -133,38 +112,40 @@ Dokunmatik **bulunamadı** derse kartın büyük ihtimalle V2'dir: `firmware/con
    pio device monitor -b 115200 -p <PORT>
    ```
    ✅ `MASA DUGUMU  MAC = …  sabit kanal = 1` yazar (MAC `NOW_HUB_MAC` ile aynı olmalı). Hub WiFi'ye bağlanmaz, Apple Home yoktur.
-4. **Test (kumanda Aşama 5'te hazır olunca):** kumandadan aç/kapa → röle tıklar. Folyoya dokun → röle değişir, kumanda ekranı takip eder.
+4. **Test (kumanda paneli Aşama 4'te hazır olunca):** panelden aç/kapa → röle tıklar. Folyoya dokun → röle değişir, panelin ekranı takip eder.
 
    Folyo tepki vermiyor ya da çok hassassa: `firmware/hub/src/main.cpp` içinde `TOUCH_DEBUG`'ı `1` yap, yeniden yükle, monitörde `deger=` / `baseline=` değerlerine dokunarak/bırakarak bak ve `TOUCH_DELTA_PCT`'yi ayarla. *ESP32-S3'te dokununca değer **yükselir**.* (Bu S3 hub sürümü yazar tarafından donanımda test edilmedi, README'deki durum tablosuna bak.)
 
-## Aşama 5: Kumanda (Waveshare)
+## Aşama 4: Kumanda paneli (CYD)
 
-1. MX1.25 konnektöre **korumalı** bir LiPo pil bağla. **Önce kutbu kontrol et**: jenerik piller kartın konnektörüyle ters olabilir.
-2. Yükle:
+1. CYD kartını USB ile bağla (CH340'lı kartlarda yükleme 115200 baud'dur, `platformio.ini`'de ayarlı).
+2. `now_config.h` içindeki `NOW_CONTROLLER_MAC` bu kartın MAC adresi olmalı (Aşama 1). Hub ve yatak düğümünü bu dosyayla (MAC değiştiyse) yeniden yüklemeyi unutma.
+3. Yükle:
    ```bash
-   cd firmware/controller
-   pio run -t upload --upload-port <WAVESHARE_PORTU>
+   cd firmware/controller-cyd
+   pio run -e cyd -t upload --upload-port <CYD_PORTU>
    ```
-   Ekran dili varsayılan olarak Türkçe. **İngilizce arayüz** için komuta `-e waveshare-amoled164-en` ekle: `pio run -e waveshare-amoled164-en -t upload --upload-port <WAVESHARE_PORTU>`.
-3. ✅ **Kontrol:** ekranda menü görünür. Seri log'da `[now] kumanda MAC = … sabit kanal = 1` (**`NOW_CHANNEL` ile aynı**). Hub çalışırken sol üstteki uyarı üçgeni birkaç saniye içinde kaybolur.
-4. Sayfalar arasında kaydır, **MASA**'daki büyük düğmeye bas: hub'ın rölesi tıklar, düğme sarı/yeşile döner. **YATAK**'a bas: yatak düğümünün rölesi tıklar.
+   Ekran dili Türkçe. **İngilizce arayüz** için `-e cyd-en` kullan: `pio run -e cyd-en -t upload --upload-port <CYD_PORTU>`.
+4. İlk açılışta ekranda dört köşedeki hedeflere sırayla dokun (dokunmatik kalibrasyonu). Sonradan Ayarlar → DURUM'dan tekrarlanabilir.
+5. ✅ **Kontrol:** ana ekranda lamba karoları görünür. Seri log'da `[now] kumanda MAC = … sabit kanal = 1` (**`NOW_CHANNEL` ile aynı**). Hub ve yatak düğümü çalışırken "ulaşılamıyor" uyarısı birkaç saniye içinde kaybolur.
+6. **MASA** karosuna dokun: hub'ın rölesi tıklar, karo rengi değişir. **YATAK**'a dokun: yatak düğümünün rölesi tıklar.
 
-## Aşama 6: Uçtan uca test (hala 220V yok)
+## Aşama 5: Uçtan uca test (hala 220V yok)
 
-- [ ] Kumanda → **MASA** → hub rölesi tıklıyor, renkler doğru.
-- [ ] Folyoya dokun → röle değişiyor, kumanda ekranı takip ediyor.
-- [ ] Kumanda → **YATAK** → yatak rölesi tıklıyor.
-- [ ] Kumanda → **HEPSİ** → iki röle de tepki veriyor.
-- [ ] Kumandanın son sayfası (**menü sırası**) ile bir sayfayı oklarla taşı, yeniden başlatınca kalıyor.
-- [ ] **Durum** sayfası: hub ve yatak için dBm görünüyor (yeşil, yaklaşık −65 dBm'den iyi).
-- [ ] Hub'ın fişini çek: kumanda uyarı üçgenini gösteriyor ve basılan düğme ~2 sn sonra eski haline dönüyor.
+- [ ] Panel → **MASA** → hub rölesi tıklıyor, renkler doğru.
+- [ ] Folyoya dokun → röle değişiyor, panelin ekranı takip ediyor.
+- [ ] Panel → **YATAK** → yatak rölesi tıklıyor.
+- [ ] Panel → **Tüm ışıklar** → iki röle de tepki veriyor.
+- [ ] Panelde Ayarlar → **DÜZEN**'den düzeni/karo sırasını değiştir, yeniden başlatınca kalıyor.
+- [ ] Ayarlar → **DURUM**: hub ve yatak için dBm görünüyor (yaklaşık −65 dBm'den iyi olmalı).
+- [ ] Hub'ın fişini çek: panel "Masa ulaşılamıyor" uyarısını gösteriyor ve basılan karo ~2 sn sonra eski haline dönüyor.
 
 Bir şey olmazsa [troubleshooting.md](troubleshooting.md).
 
-## Aşama 7: Lambaları bağla (220V)
+## Aşama 6: Lambaları bağla (220V)
 
 Ancak şimdi. **Önce [hardware.md → 220V tarafı](hardware.md#220v-tarafı-güvenlik) bölümünü tamamen oku.** Özet: sigorta kapalı, röleden **sadece faz** geçer (`COM` giriş, `NO` çıkış), nötr röleyi atlar, hepsi kapalı yalıtkan kutuda, ilk denemede lamba prizde değil.
 
-Bağladıktan sonra Aşama 6'daki röle testlerini lambayla tekrarla: **kumanda "kapalı" derken lamba sönük olmalı** ve **ESP'nin fişini çekip taktığında (elektrik kesintisi gibi) lamba kapalı başlamalı.** Lamba ters çalışıyorsa `NC`'ye bağlıdır: `NO`'ya taşı.
+Bağladıktan sonra Aşama 5'teki röle testlerini lambayla tekrarla: **panel "kapalı" derken lamba sönük olmalı** ve **ESP'nin fişini çekip taktığında (elektrik kesintisi gibi) lamba kapalı başlamalı.** Lamba ters çalışıyorsa `NC`'ye bağlıdır: `NO`'ya taşı.
 
 🎉 Bitti.

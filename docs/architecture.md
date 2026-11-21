@@ -4,7 +4,7 @@
 
 | Cihaz | Görev | WiFi'ye bağlı mı? |
 |---|---|---|
-| **Kumanda** (Waveshare AMOLED) | Kullanıcı arayüzü, komut gönderir, durumu gösterir | Hayır |
+| **Kumanda paneli** (CYD, ESP32-2432S028R) | Kullanıcı arayüzü, komut gönderir, durumu gösterir | Hayır |
 | **Masa düğümü / hub** (ESP32-S3 Super Mini) | Dokunma bandı + röle; kumandanın ESP-NOW karşılığı | Hayır |
 | **Yatak düğümü** (ESP32-S3 Super Mini) | Röleyi sürer | Hayır |
 
@@ -40,26 +40,16 @@ ESP-NOW cihazları aynı WiFi kanalında olmalıdır. Üç cihaz `now_config.h` 
 2. Her taramada flash'a yazıldığı için NVS yıpranıyordu.
 3. Düğüm tarama sırasında ~1 sn "sağır" kalıyordu.
 
-Çözüm (bkz. `firmware/controller/src/now_link.cpp`, `firmware/hub/src/main.cpp`, `firmware/bed-node/src/main.cpp`): radyo `SpanPoint::setChannelMask(1 << NOW_CHANNEL)` ile **tek kanala kilitlenir**. Yanıt vermeyen cihaz sadece hızlıca "başarısız" olur, kanal taramaz.
+Çözüm (bkz. `firmware/controller-cyd/src/now_link.cpp`, `firmware/hub/src/main.cpp`, `firmware/bed-node/src/main.cpp`): radyo `SpanPoint::setChannelMask(1 << NOW_CHANNEL)` ile **tek kanala kilitlenir**. Yanıt vermeyen cihaz sadece hızlıca "başarısız" olur, kanal taramaz.
 
 **Neden router'a bağlı kanal değil?** İlk sürümde hub WiFi'ye bağlıydı (HomeKit için) ve diğer cihazlar hub'ın kanalını router'ın SSID'sini tarayarak buluyordu. Router/powerline'ın WiFi'si kapatılınca ya da kanalı değişince cihazlar birbirini kaybetti. Sabit kanal bu sorun sınıfını ortadan kaldırır. Evinde aynı kanalı yoğun kullanan bir 2,4 GHz ağ varsa `NOW_CHANNEL`'ı değiştir (üç cihazı da yeniden yükle).
 
-## Uyku stratejisi (kumanda)
+## Kumanda paneli (CYD)
 
-| Süre | Durum |
-|---|---|
-| 0–15 sn | Tam parlaklık |
-| 15 sn | Ekran kısılır |
-| 60 sn | Ekran kapanır (dokunuş uyandırır, ilk dokunuş bir düğmeye basmaz) |
-| 90 sn | **Derin uyku**, sadece pilde (USB/dock varken uyumaz) |
-
-Waveshare V1 kartında dokunmatiğin kesme (INT) pini yoktur. Bu yüzden derin uykuda **300 ms'de bir** uyanıp dokunmaya bakılır (`main.cpp` içinde `setup()`'ın başında, ekran/radyo açılmadan). Dokunma yoksa hemen tekrar uyunur. Uykuda LCD'nin CS ve RST pinleri yüksek tutulur (yüzen CS paneli bozabilir). Uyandığında son yön (NVS), son lamba durumları ve jiroskop bias'ı (RTC belleği) geri gelir, hub'dan taze durum ayrıca sorulur.
-
-Tahmini tüketim uykuda ortalama 7–10 mA (ölçülmedi), yani ~600 mAh pille birkaç gün.
+Panel USB ile beslenir, pili yoktur: derin uyku stratejisi gerekmez. Ayarlardaki süre dolunca yalnızca **arka ışık kapanır** (ilk dokunuş ekranı uyandırır, bir düğmeye basmaz); radyo açık kaldığı için durum güncellemeleri sürer. Açılışta hub ve yatak düğümünden taze durum sorulur.
 
 ## Arayüz notları
 
-- **Sayfa sırası** kalıcıdır (NVS). Ayar sayfası ("Menü sırası") her zaman en sonda kalır.
-- **Yön**: jiroskopla ekran normali etrafındaki dönüş entegre edilir, ≥45° bir hareket bir adım sayılır, mutlak açı tutulmaz (kayma birikmesin). Sırt üstü düz yatarken (Z ivmesi ≈1 g ve 1 sn boyunca) ya da kullanıcı kilitlediğinde dönme durur.
-- LVGL'in kendi ekran döndürmesi bu panel sürücüsüyle bozuk görüntü verdi, bu yüzden döndürme `lcd_bsp.c` içindeki flush fonksiyonunda **pikseller elle döndürülerek** yapılır.
-- Ekran fontu ASCII'dir (Ş, ı, Ğ yok).
+- Karo düzeni (4'lü/3'lü/2'li/1'li), karo sırası ve gizleme ayarları kalıcıdır (NVS).
+- Ekran yatay 320x240'tır; LVGL 8.3, çizim tamponu kısmi (SRAM'e sığsın diye). Yazı tipleri Montserrat'tan Türkçe karakterleri (Ş, ı, Ğ, İ, ö, ü, ç) kapsayacak şekilde `tools/gen_fonts.sh` ile üretilir.
+- Dokunmatik XPT2046 ayrı SPI hattındadır; köşe hedefleriyle kalibre edilir.

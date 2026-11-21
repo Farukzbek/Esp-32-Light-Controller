@@ -4,15 +4,6 @@
 
 Geliştirme sırasında yaşadığımız sorunlar ve çözümleri.
 
-## Ekran
-
-| Belirti | Sebep | Çözüm |
-|---|---|---|
-| Görüntü yenilenmiyor, butonlar tepkisiz görünüyor (dokunma log'da çalışıyor) | LVGL çizim tamponunun **satır sayısı tek** | Tampon yüksekliğini çift yap (`lcd_config.h`): panel çift başlangıç/tek bitiş ister. Hem dikey hem yatay çözünürlükte çift olmalı |
-| Ekran döndürünce bozuk/kırmızı görüntü | LVGL `sw_rotate`/`transform_angle` bu sürücüyle uyumsuz | Kendi flush döndürmesini kullan (`lcd_bsp.c`) |
-| Dokunma ve kaydırma takılıyor, "parmağı algılamıyor" | Log yazmak (`Serial.printf`) **USB CDC'de terminal bağlı değilken bloklanır**, LVGL görevini durdurur | `Serial.setTxTimeoutMs(0)` çağır ve LVGL görevi içinde gereksiz log yazma |
-| Dokunmada arada tek tük kopma | FT3168 arada boş okuma döndürür | En fazla 2 ardışık boş okumayı yok say (kodda var) |
-
 ## ESP-NOW
 
 | Belirti | Sebep | Çözüm |
@@ -32,15 +23,16 @@ Geliştirme sırasında yaşadığımız sorunlar ve çözümleri.
 | Dokunma bandı hiç/çok hassas çalışıyor | Eşik, kablo/bant boyutuna göre farklı; **S3'te değer yükselir**, klasik ESP32'de düşer | `TOUCH_DEBUG=1` ile değerlere bak, `TOUCH_DELTA_PCT`'yi ayarla |
 | Açılışta dokunulunca yanlış durum | Kalibrasyon dokunuşlu ölçüldü | Yeniden başlat, ilk 3 sn elini çek |
 
-## Kumanda (Waveshare)
+## Kumanda paneli (CYD)
 
 | Belirti | Sebep | Çözüm |
 |---|---|---|
-| Otomatik dönme çalışmıyor, ivme değerleri saçma (bir eksen doygun) | Kartın ivmeölçeri arızalı olabilir | Yalnızca jiroskop kullan (bu projenin yaptığı gibi), ya da Z ekseni ile yatay-lock için bak |
-| Elde tutarken dönmüyor | Sırt üstü kilit çok hassastı (hafif arkaya yatık tutuş) | Eşik `FLAT_ON_G = 0.97` ve 1 sn şartı ile sıkılaştırıldı |
-| Kısa dokunuş uykuyu uyandırmıyor | Derin uykuda 300 ms'de bir bakılıyor | Ekrana ~0,5 sn basılı tut |
-| USB takılıyken uyumuyor | Tasarım gereği (harici güç varken uyku kapalı) | Test için `-DSLEEP_TEST_ON_USB=1` |
-| Pil bitiyor | ESP-NOW için radyo açık, uyku 90 sn sonra | Kullanmıyorken dock'a koy, uyku zamanını `IDLE_SLEEP_MS` ile kısalt |
+| Renkler ters / ekran bozuk | Panel varyantı farklı | `platformio.ini`'de `ILI9341_2_DRIVER` + `TFT_INVERSION_ON` ayarını kontrol et (README'deki CYD notları) |
+| Dokunma yanlış yeri algılıyor | Kalibrasyon yok/bozuk | Ayarlar → DURUM → "Dokunmatiği kalibre et" |
+| Yükleme hata veriyor / yarıda kesiliyor | CH340 yüksek hızda bozuluyor | `upload_speed = 115200` (ayarlı); kabloyu/portu değiştir, gerekirse BOOT'a basılı tutarak yükle |
+| Otomatik parlaklık ters çalışıyor | LDR'nin yönü kartta tersine | Yazılım telafi eder; yine de ters ise `hal_light_percent()` içindeki dönüşümü kontrol et |
+| Panel "ulaşılamıyor" uyarısı veriyor | `NOW_CONTROLLER_MAC` CYD'nin MAC'i değil / kanal farklı | CYD'nin MAC'ini (`esptool read-mac`) hub ve yatak düğümünün `now_config.h`'ine yaz, `NOW_CHANNEL` aynı olsun, düğümleri yeniden yükle |
+| Ekran kapanıyor | Ayarlardaki "Ekranı kapat" süresi | Ayarlar → EKRAN → "Ekranı kapat" → Hiç |
 
 ## Araçlar
 

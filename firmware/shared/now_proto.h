@@ -1,7 +1,7 @@
 #pragma once
 #include <stdint.h>
 
-// Kumanda (Waveshare AMOLED) <-> masa dugumu (hub) ve yatak dugumu ESP-NOW protokolu.
+// Kumanda paneli (CYD) <-> masa dugumu (hub) ve yatak dugumu ESP-NOW protokolu.
 // Iki uc da BU dosyayi kullanir: mesaj boyutu (sizeof(NowMsg)) iki tarafta ayni olmak zorunda.
 
 // Cihaza ozel ayarlar (MAC adresleri, ESP-NOW kanali, sifreleme parolasi) now_config.h icinde.

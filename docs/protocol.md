@@ -34,7 +34,7 @@ Taşıma katmanı: HomeSpan'ın [`SpanPoint`](https://github.com/HomeSpan/HomeSp
 
 1. `now_config.h`'a yeni düğümün MAC'ini ekle (`NOW_LED_MAC`).
 2. Düğüm, yatak düğümünün `main.cpp`'sini örnek alır: `SpanPoint`, radyo kilidi (`setChannelMask(1 << NOW_CHANNEL)`), `SET`'te çıkışı sür, `STATE` ile yanıtla, sahibi olmadığı cihazlar için `NOW_UNKNOWN` gönder.
-3. `firmware/controller/src/now_link.cpp`: `LINKS`'i artır, yeni `SpanPoint`'i ekle, `linkOfDev()` içinde `DEV_LED`'i yeni linke yönlendir, hub tarafındaki sanal LED durumunu kaldır.
+3. `firmware/controller-cyd/src/now_link.cpp`: `LINKS`'i artır, yeni `SpanPoint`'i ekle, `linkOfDev()` içinde `DEV_LED`'i yeni linke yönlendir, hub tarafındaki sanal LED durumunu kaldır.
 4. Renk/parlaklık gerekiyorsa `NowMsg`'a alan ekle (boyutu iki uçta birlikte değiştir) ya da yeni bir mesaj tipi tanımla.
 
 

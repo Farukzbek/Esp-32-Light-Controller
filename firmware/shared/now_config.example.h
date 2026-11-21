@@ -8,7 +8,7 @@
 
 // Wi-Fi STA MAC adresleri (buyuk harf, iki nokta ustuste ile)
 #define NOW_HUB_MAC         "AA:BB:CC:00:00:01"   // masa lambasi dugumu (hub)
-#define NOW_CONTROLLER_MAC  "AA:BB:CC:00:00:02"   // Waveshare AMOLED kumanda
+#define NOW_CONTROLLER_MAC  "AA:BB:CC:00:00:02"   // CYD kumanda paneli (MAC'i esptool read-mac ile oku)
 #define NOW_BED_MAC         "AA:BB:CC:00:00:03"   // yatak ESP32-S3 Super Mini
 
 // (Istege bagli) Telefon koprusunun MAC adresi (firmware/bridge). Tanimliysa masa ve yatak dugumleri koprüyle de konusur.

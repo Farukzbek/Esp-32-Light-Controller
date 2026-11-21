@@ -32,14 +32,12 @@
 | Lamp state on the screen is inverted | Lamp wired to relay `NC` | Move it to `NO` ([hardware](hardware.md#mains-wiring)) |
 | Devices don't see each other at all | Different `NOW_CHANNEL` / `NOW_PASSWORD`, wrong MAC in config | The three devices need the same passphrase; re-check the MAC addresses (`esptool read-mac`) |
 
-## Remote (Waveshare)
+## Panel (CYD)
 
 | Symptom | Cause | Fix |
 |---|---|---|
-| Blank/garbled screen | Not a V1 board (different pins) | Run `firmware/tools/board-check` |
-| Screen updates only partly | Odd draw-buffer height | Keep the buffer height **even** (`lcd_config.h`) |
-| Auto-rotation never works or is inverted | Faulty/unusual IMU axis | The firmware uses the gyro; if inverted change `ORIENT_GYRO_SIGN` in `app_ui.cpp` |
-| Won't rotate while held tilted back | "Lying flat" lock | It locks only when almost flat for 1 s; use the pull-down orientation lock panel if you want it fixed |
-| Doesn't wake from sleep with a quick tap | Wake-up polls every 300 ms | Press the screen for ~0.5 s |
-| Never sleeps while plugged in | By design (external power) | Sleep only happens on battery |
-| Battery drains fast | Radio is on while awake; deep sleep only after 90 s idle | Put it on the dock when unused; lower `IDLE_SLEEP_MS` |
+| Inverted colours / garbled screen | Different panel variant | Check `ILI9341_2_DRIVER` + `TFT_INVERSION_ON` in `platformio.ini` (see the CYD notes in the project README) |
+| Touch lands in the wrong place | Calibration missing/bad | Settings → STATUS → "Calibrate touch" |
+| Upload fails or stops half way | CH340 is unreliable at high speed | `upload_speed = 115200` (already set); change cable/port, or hold BOOT while uploading |
+| Panel shows an "unreachable" warning | `NOW_CONTROLLER_MAC` is not the CYD's MAC / different channel | Put the CYD's MAC (`esptool read-mac`) into the hub's and bed node's `now_config.h`, use the same `NOW_CHANNEL`, re-flash the nodes |
+| Screen turns off | "Screen off after" setting | Settings → SCREEN → "Screen off after" → Never |

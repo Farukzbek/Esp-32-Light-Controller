@@ -1,7 +1,7 @@
 /*******************************************************************************
  * Size: 14 px
  * Bpp: 4
- * Opts: --font Montserrat-Medium.ttf -r 0x20-0x7E,0xB0,0xB7,0xC7,0xD6,0xDC,0xE7,0xF6,0xFC,0x11E,0x11F,0x130,0x131,0x15E,0x15F,0x2026 --size 14 --bpp 4 --format lvgl --lv-include lvgl.h --no-compress -o /Users/omerfarukozbek/claude/masa-kumanda/firmware/controller-cyd/src/fonts/lv_font_tr_14.c --lv-font-name lv_font_tr_14
+ * Opts: --font Montserrat-Medium.ttf -r 0x20-0x7E,0xB0,0xB7,0xC7,0xD6,0xDC,0xE7,0xF6,0xFC,0x11E,0x11F,0x130,0x131,0x15E,0x15F,0x2026 --size 14 --bpp 4 --format lvgl --lv-include lvgl.h --no-compress -o src/fonts/lv_font_tr_14.c --lv-font-name lv_font_tr_14
  ******************************************************************************/
 
 #ifdef LV_LVGL_H_INCLUDE_SIMPLE

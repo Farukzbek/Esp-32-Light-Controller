@@ -6,40 +6,29 @@
 
 | Adet | Parça | Not |
 |---|---|---|
-| 1 | Waveshare **ESP32-S3-Touch-AMOLED-1.64** | Kumanda. Bu depo **V1 pinout**'u için yazıldı (aşağıya bak) |
+| 1 | **ESP32-2432S028R ("CYD")**, 2,8" 320x240 dokunmatik | Kumanda paneli (USB ile beslenir). `firmware/controller-cyd` bu kart için yazıldı |
 | 2 | ESP32-S3 Super Mini | Hub ve yatak düğümü |
 | 2 | 1 kanallı 5V röle modülü | **Ters mantıklı (active-low)** tip: IN=LOW iken çalışır. Optokuplörlü |
-| 1 | Korumalı LiPo pil (PCM'li), MX1.25 konnektörlü | Kumanda için. Kartta koruma devresi **yok**. Konnektör polaritesini kontrol et |
 | 1 | Alüminyum folyo bant + iki tel | Hub'ın dokunma bandı |
-| 2 | 5V USB adaptör (≥1 A) + USB-C kablo | Hub ve yatak düğümü için |
+| 3 | 5V USB adaptör (≥1 A) + kablo | Hub, yatak düğümü ve CYD paneli için |
 | — | Kapalı, yalıtkan kutu, klemens, kablo (≥0,75 mm²) | 220V bağlantıları için |
 
-## Kumanda: Waveshare ESP32-S3-Touch-AMOLED-1.64 (V1)
+## Kumanda paneli: CYD (ESP32-2432S028R)
 
-Kart arkasında V1/V2 yazmayabilir. Waveshare iki revizyon çıkardı, pinleri farklıdır. V1 için pinler `firmware/controller/include/lcd_config.h` içindedir:
+2,8" 320x240 dokunmatik ekranlı hazır kart. Pinleri kartın üzerinde sabittir, kablo çekmen gerekmez. `firmware/controller-cyd` bu pinlere göre yazıldı:
 
-| Sinyal | V1 GPIO | V2'de |
-|---|---|---|
-| LCD CS | **9** | 46 |
-| LCD CLK / D0 / D1 / D2 / D3 | 10 / 11 / 12 / 13 / 14 | aynı (kontrol et) |
-| LCD RST | 21 | aynı (kontrol et) |
-| Dokunmatik SDA / SCL | **47 / 48** (I²C 0x38, FT3168) | farklı |
-| Dokunmatik INT | **yok** | GPIO 18 |
-| IMU (QMI8658) | I²C 0x6B, INT1 = GPIO 46 | INT1 = GPIO 9 |
-| BAT_ADC | GPIO 4 | — |
-
-V2 kartın varsa `lcd_config.h` içindeki pinleri Waveshare'in V2 örneğine göre değiştirmen gerekir. Ayrıntılar: [waveshare-amoled-notes.md](waveshare-amoled-notes.md).
-
-### Kartın harici konnektörü (P2, V1 şemasından)
-
-| P2 pini | Sinyal |
+| Parça | Pin |
 |---|---|
-| 8 | 3V3 |
-| 9 | VBAT |
-| 10 | GND |
-| 11 | **USB_5V** (VBUS, şarj IC'sinin girişi ve sistem besleme yolu) |
+| Ekran (ILI9341, HSPI) | MOSI 13, MISO 12, SCLK 14, CS 15, DC 2 |
+| Arka ışık (PWM) | GPIO 21 |
+| Dokunmatik (XPT2046, ayrı SPI hattı) | CLK 25, MOSI 32, MISO 39, CS 33, IRQ 36 |
+| Işık sensörü (LDR) | GPIO 34 (ters çalışır: ışık artınca voltaj düşer, yazılım telafi eder) |
 
-Buraya 5V verirsen kart tıpkı USB takılmış gibi beslenir ve pil şarj olur. Kaynak **≤5,5 V** olmalı ve hat **korumasızdır**: mıknatıslı dock gibi dışarıdan erişilebilir kontaklar için sigorta (polyfuse), TVS ve ters bağlanma koruması ekle.
+Notlar:
+- Ekran paneli TFT_eSPI'nin `ILI9341_2_DRIVER` varyantı + ters renkle çalışır (ayarlar `platformio.ini` içinde). Renkler ters ya da görüntü bozuksa önce bunu kontrol et.
+- Kartta pil/şarj devresi yoktur: USB ile beslenir (≥1 A adaptör yeterli). Bu yüzden derin uyku yoktur; ekran yalnızca arka ışığı kapatır.
+- İlk açılışta dört köşedeki hedeflere dokunarak kalibrasyon yapılır (Ayarlar → DURUM'dan tekrarlanır).
+- Kartın MAC adresi `NOW_CONTROLLER_MAC` olarak hub ve yatak düğümünün `now_config.h` dosyasında da yazılı olmalıdır.
 
 ## Hub ve yatak düğümü (ESP32-S3 Super Mini)
 
@@ -90,5 +79,4 @@ Kapasitif dokunma, açılıştaki 3 saniyelik kalibrasyonda (**bu sırada bantı
 ## Güç
 
 - Hub ve yatak düğümü: prize takılı **tek bir 5V/≥1 A adaptör + USB-C kablo**. ESP, röle `VCC`'yi de kendi `5V` pininden besler, ayrı kablo gerekmez. ESP'yi hem USB'den hem de başka bir yerden 5V pinine aynı anda besleme.
-- Kumanda: pil ve/veya USB-C ya da dock. Pilde çalışırken sistem hattı ≤4,2 V, harici 5V varken ≈4,5–4,9 V olur. Şarj simgesi ve durum sayfası bunu kullanır (bkz. [waveshare-amoled-notes.md](waveshare-amoled-notes.md)).
-- **Mıknatıslı dock fikri:** iki neodyum mıknatıs hem tutucu hem kontak olabilir. Zıt kutuplarla yerleştirirsen ters takılamaz (mıknatıslar iter). Kontakları P2'nin `USB_5V` (11) ve `GND` (10) pinlerine bağla, arada sigorta + TVS kullan. Mıknatıs ve metal kontakları ESP32 modülünün **anteninden uzak** tut. IMU'nun manyetometresi olmadığı için mıknatıs yön algılamayı bozmaz.
+- Kumanda paneli (CYD): USB'den 5V (≥1 A adaptör). Kartta pil yok.

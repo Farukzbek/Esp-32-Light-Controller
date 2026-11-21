@@ -4,12 +4,11 @@
 
 | Qty | Part | Notes |
 |---|---|---|
-| 1 | Waveshare **ESP32-S3-Touch-AMOLED-1.64** | The remote. This repo targets the **V1 pinout** (test yours with `firmware/tools/board-check`) |
+| 1 | **ESP32-2432S028R ("CYD")**, 2.8" 320x240 touch | The panel (USB powered). `firmware/controller-cyd` targets this board |
 | 2 | ESP32-S3 Super Mini | Hub and bed node |
 | 2 | 1-channel 5 V relay module | **Active-low** type (relay pulls in when `IN` = LOW). Opto-isolated. Check with `firmware/tools/relay-test` |
-| 1 | LiPo cell **with protection circuit (PCM)**, MX1.25 plug | For the remote. The board has **no** over-discharge/short-circuit protection. Check the plug polarity |
 | 1 | Aluminium foil tape + wire | The hub's touch switch |
-| 2 | 5 V USB adapters (≥1 A) + USB-C cables | Hub and bed node. They also power the relay through the ESP's 5 V pin |
+| 3 | 5 V USB adapters (≥1 A) + cables | Hub, bed node and the CYD panel. The nodes also power the relay through the ESP's 5 V pin |
 | — | Closed insulated enclosure, terminal blocks, wire (≥0.75 mm²) | For the mains part |
 | — | (recommended) Multimeter | To identify relay terminals; a non-contact voltage tester to find the phase wire |
 
@@ -34,19 +33,22 @@
 
 Pins are `#define`s at the top of `firmware/hub/src/main.cpp` and `firmware/bed-node/src/main.cpp`. Avoid GPIO 0, 3, 45, 46 (boot/strapping) and 19, 20 (USB). Power the relay `VCC` from **5V, not 3V3** (the coil draws 70–90 mA). Before switching the pin to output the firmware sets it to the "off" level, so the relay does not blip at power-up.
 
-### Remote (Waveshare, V1)
+### Panel (CYD, ESP32-2432S028R)
 
-| Signal | V1 GPIO | V2 |
-|---|---|---|
-| LCD CS | **9** | 46 |
-| LCD CLK / D0 / D1 / D2 / D3 | 10 / 11 / 12 / 13 / 14 | verify |
-| LCD RST | 21 | verify |
-| Touch SDA / SCL (I²C 0x38, FT3168) | **47 / 48** | different |
-| Touch INT | **none** | GPIO 18 |
-| IMU QMI8658 | I²C 0x6B | — |
-| Battery/system voltage ADC | GPIO 4 | — |
+A ready-made board with a 2.8" 320x240 touch screen. Its pins are fixed on the board, no wiring needed. `firmware/controller-cyd` is written for these pins:
 
-The board's external header **P2** (V1 schematic): pin 8 = 3V3, pin 9 = VBAT, pin 10 = GND, pin 11 = **USB_5V**. Feeding 5 V into pin 11 powers the board and charges the battery exactly like USB does; the line is **unprotected**, so add a fuse/TVS/reverse protection for any exposed contacts (e.g. a magnetic dock) and keep the source ≤ 5.5 V.
+| Part | Pin |
+|---|---|
+| Display (ILI9341, HSPI) | MOSI 13, MISO 12, SCLK 14, CS 15, DC 2 |
+| Backlight (PWM) | GPIO 21 |
+| Touch (XPT2046, separate SPI bus) | CLK 25, MOSI 32, MISO 39, CS 33, IRQ 36 |
+| Light sensor (LDR) | GPIO 34 (works inverted: more light = lower voltage, the firmware compensates) |
+
+Notes:
+- The panel works with TFT_eSPI's `ILI9341_2_DRIVER` variant plus inverted colours (set in `platformio.ini`). If colours are inverted or the picture is garbled, check this first.
+- The board has no battery/charger: it runs from USB (a ≥1 A adapter is enough). So there is no deep sleep; the screen only turns the backlight off.
+- On first boot you touch four corner targets to calibrate (repeatable from Settings → STATUS).
+- The board's MAC must be set as `NOW_CONTROLLER_MAC` in the `now_config.h` of the hub and bed node as well.
 
 ## Relay terminals: which is which?
 
@@ -78,8 +80,7 @@ Rules:
 ## Power
 
 - **Hub and bed node:** one 5 V ≥1 A USB adapter + one USB-C cable each. The ESP feeds the relay's `VCC` from its own `5V` pin, no second cable. Never feed 5 V to the `5V` pin and USB at the same time.
-- **Remote:** LiPo and/or USB-C or a dock. While running on battery the system rail is ≤ 4.2 V, with external 5 V it is about 4.5–4.9 V; the charging icon and the Status page use this (see [../waveshare-amoled-notes.md](../waveshare-amoled-notes.md), Turkish).
-- **Magnetic dock idea:** two nickel-plated neodymium magnets can serve as both holder and contacts. Mount them with opposite poles facing out so the device cannot be attached the wrong way (magnets repel). Wire the contacts to P2 pins 11 (`USB_5V`) and 10 (`GND`) through a polyfuse and TVS diode. Keep magnets and metal contacts **away from the ESP32 module's antenna**. The IMU has no magnetometer, so magnets do not disturb orientation.
+- **Panel (CYD):** 5 V over USB (a ≥1 A adapter). The board has no battery.
 
 ## Hub touch switch
 
