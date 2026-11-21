@@ -4,7 +4,7 @@ import SwiftUI
 struct NowlightApp: App {
     @State private var model = AppModel()
 
-    init() { DemoMode.register() }
+    init() { DemoMode.register(); NotificationService.register() }
 
     var body: some Scene {
         WindowGroup {

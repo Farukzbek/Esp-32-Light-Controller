@@ -22,6 +22,10 @@
       <key>INAlternativeAppNamePronunciationHint</key><string>ışık</string>
     </dict>
   </array>
+  <key>UIBackgroundModes</key>
+  <array><string>fetch</string></array>
+  <key>BGTaskSchedulerPermittedIdentifiers</key>
+  <array><string>online.matestudios.nowlight.refresh</string></array>
   <key>NSLocalNetworkUsageDescription</key>
   <string>Odadaki ışıkları kontrol eden köprüye (ev ağındaki ESP32) bağlanmak için gerekli.</string>
   <key>NSAppTransportSecurity</key>

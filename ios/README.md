@@ -68,3 +68,17 @@ Işıklar ekranının sol üstündeki düğme: kartları sürükleyerek sırala,
 Kural düzenlerken **Gir-çık**: kural çalıştıktan sonra 15 sn – 20 dk içinde (ilk 8 sn hariç) ikinci bir hareket gelirse seçili cihazlara kuralın tersi uygulanır (ışık yandıysa söner). Yalnızca kuralın saat ve gün aralığında geçerlidir. Kural metninin 8. alanıdır (`firmware/shared/reenter.h`, test: `firmware/tools/test_reenter.c`); eski kapı yazılımı bu alanı reddeder.
 
 Işıklar tek tek hatırlanır: çıkışta yalnızca **o an açık olan** ışıklar kapanır (örneğin yalnızca yatak açıksa yatak), geri girişte yalnızca onlar yanar; hepsi açıksa hepsi. Hatırlanan durum 20 dakika geçerlidir, daha uzun süren çıkıştan sonra kural normal çalışıp seçili tüm ışıkları yakar. Telefondan manuel açılmış ışıklar da çıkış sayılır.
+
+## Hızlı erişim: Denetim Merkezi, Action Button, kilit ekranı (iOS 18)
+
+- **Denetim Merkezi düğmeleri:** "Nowlight Işık" (istediğin ışığı seçersin), "Nowlight Tüm ışıklar" ve "Nowlight Sahne" (seçtiğin sahneyi çalıştırır). Denetim Merkezi'ni düzenle → Kontrol ekle → Nowlight.
+- **Action Button:** Ayarlar → Action Button → Kontroller → yukarıdaki düğmelerden birini seç.
+- **Kilit ekranı widget'ı (iOS 16+):** Kilit ekranını düzenle → widget ekle → "Işıklar (kilit ekranı)"; daire tek ışık, dikdörtgen 3 ışığa kadar.
+
+## Otomasyon sekmesi
+
+Sahneler, Programlar, **Zamanlayıcılar** ("30 dk sonra kapat", köprüde çalışır), Kapı otomasyonu, **Geçmiş** (programlar, zamanlayıcılar ve kapı otomasyonunun ne zaman çalıştığı; köprü ve kapı düğümü son olayları RAM'de tutar, yeniden başlayınca silinir) ve **Bildirimler**.
+
+- **Sahneler:** birkaç cihazı tek dokunuşla ayarlar (aç/kapat/servo açısı). Ana ekranda düğme olarak, Siri'den ("Nowlight Akşam sahnesi") ve Denetim Merkezi'nden çalışır. Telefon ev ağındayken çalışır.
+- **Bildirimler:** hangi türlerin geleceği seçilir (program çalıştı, zamanlayıcı bitti, kapı otomasyonu, cihaz çevrimdışı, yazılım güncellemesi). Sunucu (push) yoktur: uygulama açıkken ~20 sn'de bir, kapalıyken iOS'un izin verdiği kadar (15 dk - birkaç saat) köprü ve kapı düğümü kontrol edilir; evde (ya da VPN'de) çalışır, gecikebilir.
+- **Yazılım güncelleme rozeti:** Cihazlar sekmesindeki rozet, köprü (kişisel derlemede) ve kapı düğümü sürümü uygulamanın bildiğinden eskiyse görünür (`App/FirmwareCheck.swift`'teki `FirmwareCatalog`). Masa ve yatak düğümleri sürüm bildirmez. Köprü API'si: `GET /api/log`, `GET /api/timers`, `POST /api/timer?minutes=&devs=&action=`, `POST /api/timer/cancel?id=`; kapı düğümü: `GET /api/log`, `/api/status` içinde `fw`.

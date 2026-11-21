@@ -12,10 +12,12 @@ struct RootView: View {
         TabView(selection: $selection) {
             LightsScreen(showSettings: $showSettings)
                 .tabItem { Label("Işıklar", systemImage: "lightbulb.fill") }.tag(0)
+            AutomationHubScreen()
+                .tabItem { Label("Otomasyon", systemImage: "wand.and.stars") }.tag(1)
             WidgetsScreen()
-                .tabItem { Label("Widgetlar", systemImage: "square.grid.2x2.fill") }.tag(1)
+                .tabItem { Label("Widgetlar", systemImage: "square.grid.2x2.fill") }.tag(2)
             AddDeviceScreen(showSettings: $showSettings)
-                .tabItem { Label("Cihaz Ekle", systemImage: "plus.circle.fill") }.tag(2)
+                .tabItem { Label("Cihazlar", systemImage: "plus.circle.fill") }.badge(model.firmwareIssues.count).tag(3)
         }
         .tint(Color.lampOn)
         .sheet(isPresented: $showSettings) { SettingsView() }
@@ -29,6 +31,7 @@ struct RootView: View {
         }
         .onAppear {
             model.startPolling()
+            Task { await model.checkFirmware(force: true) }
             if !UserDefaults.standard.bool(forKey: "welcomeSeen") { showWelcome = true }
             else if !BridgeConfig.isConfigured { showSettings = true }
         }
@@ -213,6 +216,16 @@ struct LightTile: View {
     var body: some View {
         // Servo hareket ederken karo saniyede ~4 kez yenilenir (canli aci); aksi halde durur.
         TimelineView(.animation(minimumInterval: 0.25, paused: busyLabel == nil)) { _ in tile }
+            .overlay(alignment: .topTrailing) {
+                if isServo {                                    // keşfedilebilir açı ayarı (uzun basmaya gerek yok)
+                    Button { showServo = true } label: {
+                        Image(systemName: "slider.horizontal.3").font(.system(size: 14, weight: .semibold))
+                            .foregroundStyle(on ? Color(hex: 0x14120C) : .white).frame(width: 30, height: 30)
+                            .background(.white.opacity(on ? 0.25 : 0.12), in: Circle())
+                    }
+                    .buttonStyle(.plain).padding(.top, 14).padding(.trailing, 78).accessibilityLabel("\(light.title) açı ayarı")
+                }
+            }
     }
 
     @ViewBuilder private var tile: some View {

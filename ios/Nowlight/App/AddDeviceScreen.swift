@@ -56,17 +56,16 @@ struct AddDeviceScreen: View {
                     if !active.isEmpty { Text("Adını ve simgesini değiştirmek için cihaza dokun, kaldırmak için sola kaydır.") }
                 }
 
-                Section {
-                    NavigationLink { ScenesScreen() } label: {
-                        Label("Sahneler", systemImage: "sparkles")
-                    }
-                    NavigationLink { ScheduleScreen() } label: {
-                        Label("Programlar (saat ve gün)", systemImage: "calendar.badge.clock")
-                    }
-                    NavigationLink { AutomationScreen() } label: {
-                        Label("Kapı otomasyonu", systemImage: "figure.walk.motion")
-                    }
-                } header: { Text("Otomasyon") } footer: { Text("Programlar: saate ve güne bağlı (örneğin her sabah perdeyi aç). Kapı otomasyonu: kapının üstündeki sensör odaya girişi algılayınca seçtiğin ışıkları yakar.") }
+                if !model.firmwareIssues.isEmpty {
+                    Section {
+                        ForEach(model.firmwareIssues) { i in
+                            VStack(alignment: .leading, spacing: 3) {
+                                Label(i.title, systemImage: "arrow.down.circle.fill").foregroundStyle(Color.lampOn).font(.subheadline.weight(.semibold))
+                                Text(i.detail).font(.caption).foregroundStyle(.secondary)
+                            }.padding(.vertical, 2)
+                        }
+                    } header: { Text("Yazılım güncellemesi") } footer: { Text("Masa ve yatak düğümleri sürüm bildirmez, bu yüzden denetlenemez.") }
+                }
 
                 Section("Köprü") {
                     Button { showSettings = true } label: {
@@ -103,7 +102,7 @@ struct AddDeviceScreen: View {
             }
             .scrollContentBackground(.hidden)
             .background(Color.black.ignoresSafeArea())
-            .navigationTitle("Cihaz Ekle")
+            .navigationTitle("Cihazlar")
             .sheet(item: $renaming) { light in DeviceEditor(light: light) }
             .sheet(isPresented: $showPairing) { PairingFlow() }
             .confirmationDialog(

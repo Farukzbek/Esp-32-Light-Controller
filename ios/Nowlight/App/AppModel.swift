@@ -28,6 +28,15 @@ final class AppModel {
     /// Cihaz rolleri (servo, PIR). Kopru bildirir; gorunumler bunu izler.
     var roles: [String: String] = BridgeConfig.roles
 
+    /// Yazilim guncelleme rozeti: eski kopru/kapi yazilimi varsa dolu.
+    var firmwareIssues: [FirmwareIssue] = []
+    private var lastFirmwareCheck = Date.distantPast
+    func checkFirmware(force: Bool = false) async {
+        guard force || Date().timeIntervalSince(lastFirmwareCheck) > 30 * 60 else { return }
+        lastFirmwareCheck = Date()
+        firmwareIssues = await FirmwareCheck.run()
+    }
+
     /// Sahneler (telefonda saklanir); gorunumler bunu izler.
     var scenes: [SceneDef] = SceneStore.load()
     var sceneMessage: String?
@@ -241,8 +250,12 @@ final class AppModel {
     func startPolling() {
         guard polling == nil else { return }     // acilista iki kez cagrilabilir; calisan yoklamayi iptal etme
         polling = Task { [weak self] in
+            var n = 0
             while !Task.isCancelled {
                 await self?.refresh()
+                n += 1
+                if n % 10 == 1 { await self?.checkFirmware() }                       // yaklasik yarim saatte bir (en fazla)
+                if n % 10 == 5 { await NotificationService.checkOnce() }              // bildirimler: ~20 sn'de bir (acikken)
                 try? await Task.sleep(nanoseconds: 2_000_000_000)
             }
         }

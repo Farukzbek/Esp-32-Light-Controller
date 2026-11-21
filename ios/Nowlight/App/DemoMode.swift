@@ -6,6 +6,7 @@ import WidgetKit
 /// Acilinca gercek ayarlarin (adres, adlar, roller, programlar...) yedegi alinir, kapatilinca geri yuklenir.
 enum DemoMode {
     static let host = "demo.nowlight"
+    static let doorHost = "door.demo.nowlight"      // sahte kapi dugumu: kopruden ayri bir adres (gunlukleri ayri olsun)
     private static let flag = "demoMode"
     private static let backupKey = "demoBackup"
     private static let absentKey = "demoAbsent"
@@ -51,7 +52,7 @@ enum DemoMode {
         shared.set(["d3": ServoSettings(pin: 5, off: 0, on: 90, speed: 3, release: 10).stored, "d4": PirSettings(pin: 4).stored], forKey: "roleSettings")
         shared.removeObject(forKey: "removedDevices"); shared.removeObject(forKey: "relayConfig")
         shared.set(true, forKey: "bridgeLegacy")
-        shared.set(host, forKey: "doorHost"); shared.set("demo", forKey: "doorToken")
+        shared.set(doorHost, forKey: "doorHost"); shared.set("demo", forKey: "doorToken")
         shared.removeObject(forKey: "doorRules"); shared.removeObject(forKey: "scheduleRules"); shared.removeObject(forKey: "homeOrder"); shared.removeObject(forKey: "homeHidden"); shared.removeObject(forKey: "scenes")
         UserDefaults.standard.set(true, forKey: flag)
         DemoState.shared.reset(); DemoState.shared.start()
@@ -98,6 +99,11 @@ final class DemoState: @unchecked Sendable {
     private var motionTimer: Timer?
     private var initialized = false               // reset() en az bir kez calisti mi (bos demoda values bos kalir, bu yuzden ayri bayrak)
     private var legacy = true                      // bos demoda genel kopru: yerlesik isik yok
+    private var events: [(t: Int, s: String)] = []          // sahte kopru olay gunlugu (yeniden eskiye gosterilir)
+    private var doorEvents: [(t: Int, s: String)] = []
+    private var timers: [(id: Int, deadline: Date, devs: Int, action: Int)] = []
+    private var nextTimerID = 0
+    private func logEv(_ s: String) { events.append((Int(Date().timeIntervalSince1970), s)); if events.count > 30 { events.removeFirst() } }
     private var pairRound = 0                      // her eslesme turunda farkli islemci (rehberi gormek icin)
     private var schedTimer: Timer?
     private var schedFired: [Int: Int64] = [:]       // kural sirasi -> en son tetiklendigi dakika (ayni dakikada iki kez calismasin)
@@ -108,7 +114,11 @@ final class DemoState: @unchecked Sendable {
         values = empty ? [:] : ["masa": 1, "yatak": 0, "led": 0, "d3": 0, "d4": 0]
         roles = empty ? [:] : ["d3": "servo", "d4": "pir"]
         servo = empty ? [:] : ["d3": ServoSim(angle: 0, free: true, off: 0, on: 90, release: 10)]
-        pairRound = 0
+ pairRound = 0
+        let now = Int(Date().timeIntervalSince1970)
+        events = [(now - 3600, "program: kapat (cihazlar 0x7)"), (now - 1800, "komut: masa acildi")]
+        doorEvents = [(now - 1200, "kural 1 ok: masa=1 yatak=1")]
+        timers = []; nextTimerID = 0
         schedules = ""; tz = 180; doorRules = ""; doorEnabled = true; pairStarted = nil; pairedID = nil
         version = "0.6.0"; latest = "0.6.0"; updState = "idle"; updProgress = 0
     }
@@ -131,7 +141,7 @@ final class DemoState: @unchecked Sendable {
 
     // MARK: yonlendirme
     /// (durum kodu, govde)
-    func handle(path: String, method: String, query: [String: String], form: [String: String]) -> (Int, Any) {
+    func handle(path: String, method: String, query: [String: String], form: [String: String], door: Bool = false) -> (Int, Any) {
         lock.lock(); defer { lock.unlock() }
         let q = query.merging(form) { a, _ in a }
         let post = method == "POST"
@@ -141,6 +151,7 @@ final class DemoState: @unchecked Sendable {
         case "/api/state": return (200, stateBody())
         case "/api/set" where post:
             let dev = q["dev"] ?? "", on = q["val"] == "1"
+            logEv("komut: \(dev) \(on ? "acildi" : "kapatildi")")
             for d in dev == "all" ? Array(values.keys) : [dev] where values[d] != nil {
                 if dev == "all", let r = roles[d], r != "light" { continue }
                 if roles[d] == "pir" { return (400, ["error": "rol"]) }
@@ -179,6 +190,17 @@ final class DemoState: @unchecked Sendable {
             schedules = w; tz = Int(q["tz"] ?? "") ?? tz; schedFired = [:]
             return (200, schedBody())
         case "/api/schedules": return (200, schedBody())
+        case "/api/log" where door: return (200, ["events": doorEvents.reversed().map { ["t": $0.t, "s": $0.s] }])
+        case "/api/log": return (200, ["events": events.reversed().map { ["t": $0.t, "s": $0.s] }])
+        case "/api/timers": return (200, timersBody())
+        case "/api/timer" where post:
+            let m = Int(q["minutes"] ?? "") ?? 0, d = Int(q["devs"] ?? "") ?? 0, a = Int(q["action"] ?? "") ?? 0
+            if m < 1 || d < 1 || ![1, 2].contains(a) { return (400, ["error": "parametre"]) }
+            if timers.count >= 4 { return (400, ["error": "en fazla 4 zamanlayici"]) }
+            timers.append((id: nextTimerID, deadline: Date().addingTimeInterval(Double(m) * 60), devs: d, action: a)); nextTimerID += 1
+            logEv("zamanlayici kuruldu: \(m) dk sonra \(a == 1 ? "ac" : "kapat")")
+            return (200, timersBody())
+        case "/api/timer/cancel" where post: timers.removeAll { $0.id == (Int(q["id"] ?? "") ?? -1) }; return (200, timersBody())
         case "/api/version": return (200, ["version": version, "chip": "ESP32-S3", "ota": true, "generic": true])
         case "/api/update": return (200, updBody())
         case "/api/update/check" where post: if updState == "idle" { latest = "0.6.1" }; return (200, updBody())
@@ -191,6 +213,7 @@ final class DemoState: @unchecked Sendable {
             if w.split(separator: ";").count > 8 { return (400, ["error": "kurallar gecersiz"]) }
             doorRules = w; return (200, doorStatus())
         case "/api/rules": return (200, ["rules": doorRules])
+        case "/api/log": return (200, ["events": doorEvents.reversed().map { ["t": $0.t, "s": $0.s] }])
         case "/api/test" where post: return (200, doorStatus())
         default: return (404, ["error": "yok"])
         }
@@ -199,6 +222,18 @@ final class DemoState: @unchecked Sendable {
     // MARK: programlar (gercek koprudeki motorun taklidi: saat, gun, dakika)
     private func tickSchedules() {
         lock.lock(); defer { lock.unlock() }
+        // zamanlayicilar
+        let ids = ["masa", "yatak", "led", "d3", "d4", "d5", "d6", "d7"]
+        for t in timers where t.deadline <= Date() {
+            for slot in 0..<8 where (t.devs >> slot) & 1 == 1 {
+                let id = ids[slot]
+                guard values[id] != nil, roles[id] != "pir" else { continue }
+                values[id] = t.action == 1 ? 1 : 0
+                if var s = servo[id] { s.go(to: t.action == 1 ? s.on : s.off); servo[id] = s; scheduleRelease(id) }
+            }
+            logEv("zamanlayici: \(t.action == 1 ? "acildi" : "kapatildi") (cihazlar 0x\(String(t.devs, radix: 16)))")
+        }
+        timers.removeAll { $0.deadline <= Date() }
         guard !schedules.isEmpty else { return }
         let now = Date(), c = Calendar.current.dateComponents([.hour, .minute, .weekday], from: now)
         let minute = (c.hour ?? 0) * 60 + (c.minute ?? 0)
@@ -208,7 +243,7 @@ final class DemoState: @unchecked Sendable {
             let v = item.split(separator: ":").compactMap { Int($0) }
             guard v.count == 6, v[0] != 0, v[3] == minute, (v[4] >> wday) & 1 == 1, schedFired[i] != key else { continue }
             schedFired[i] = key
-            let ids = ["masa", "yatak", "led", "d3", "d4", "d5", "d6", "d7"]
+            logEv("program: \(v[1] == 1 ? "ac" : v[1] == 2 ? "kapat" : v[1] == 3 ? "aci \(v[5])" : "cevir") (cihazlar 0x\(String(v[2], radix: 16)))")
             for slot in 0..<8 where (v[2] >> slot) & 1 == 1 {
                 let id = ids[slot]
                 guard values[id] != nil, roles[id] != "pir" else { continue }
@@ -237,6 +272,9 @@ final class DemoState: @unchecked Sendable {
         let found: [[String: Any]] = el > 4 && pairedID == nil ? [["mac": "AA:BB:CC:11:22:\(String(format: "%02X", 0x30 + chip))", "name": "Nowlight-11\(chip)\(chip)", "rssi": -52, "chip": chip, "pin": chip == 1 ? 23 : 5, "inv": 1]] : []
         return ["open": el < 120, "secondsLeft": max(0, 120 - Int(el)), "found": found]
     }
+    private func timersBody() -> [String: Any] {
+        ["timers": timers.map { ["id": $0.id, "left": max(0, Int($0.deadline.timeIntervalSinceNow)), "devs": $0.devs, "action": $0.action] }]
+    }
     private func schedBody() -> [String: Any] {
         let f = DateFormatter(); f.dateFormat = "HH:mm"
         return ["rules": schedules, "tz": tz, "synced": true, "time": f.string(from: Date()), "count": schedules.split(separator: ";").count]
@@ -247,7 +285,7 @@ final class DemoState: @unchecked Sendable {
     private func doorStatus() -> [String: Any] {
         let f = DateFormatter(); f.dateFormat = "HH:mm"
         return ["enabled": doorEnabled ? 1 : 0, "pir": 0, "motions": 7, "motionAge": 95, "trigAge": 600, "timeSynced": 1, "time": f.string(from: Date()),
-                "bridgeSet": 1, "lastResult": "henuz tetiklenmedi", "rules": doorRules.split(separator: ";").count, "activeRule": -1]
+                "bridgeSet": 1, "fw": "1.2", "lastResult": "henuz tetiklenmedi", "rules": doorRules.split(separator: ";").count, "activeRule": -1]
     }
     private func validSchedules(_ w: String) -> Bool {
         if w.isEmpty { return true }
@@ -276,7 +314,7 @@ final class DemoState: @unchecked Sendable {
 
 /// Demo adresine (demo.nowlight) giden istekleri agda degil, DemoState'ten cevaplar.
 final class DemoProtocol: URLProtocol {
-    override class func canInit(with request: URLRequest) -> Bool { request.url?.host == DemoMode.host }
+    override class func canInit(with request: URLRequest) -> Bool { request.url?.host == DemoMode.host || request.url?.host == DemoMode.doorHost }
     override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
 
     override func startLoading() {
@@ -298,7 +336,7 @@ final class DemoProtocol: URLProtocol {
         let needsAuth = !["/api/ping", "/api/setup"].contains(url.path)
         var code = 200; var obj: Any = [:]
         if needsAuth && request.value(forHTTPHeaderField: "X-Token") != "demo" { code = 401; obj = ["error": "token"] }
-        else { (code, obj) = DemoState.shared.handle(path: url.path, method: request.httpMethod ?? "GET", query: query, form: form) }
+        else { (code, obj) = DemoState.shared.handle(path: url.path, method: request.httpMethod ?? "GET", query: query, form: form, door: url.host == DemoMode.doorHost) }
         let data = (try? JSONSerialization.data(withJSONObject: obj)) ?? Data()
         let resp = HTTPURLResponse(url: url, statusCode: code, httpVersion: "HTTP/1.1", headerFields: ["Content-Type": "application/json"])!
         DispatchQueue.global().asyncAfter(deadline: .now() + 0.12) { [self] in      // ag gecikmesi gibi

@@ -163,6 +163,28 @@ struct BridgeClient {
         ]))
     }
 
+    // MARK: Olay gunlugu ve zamanlayicilar
+    struct LogResp: Decodable { let events: [LogEvent] }
+    /// Son olaylar (yeniden eskiye). Eski kopru yazilimi bu adresi bilmez (badResponse).
+    func log() async throws -> [LogEvent] {
+        guard let r = try? JSONDecoder().decode(LogResp.self, from: try await send(request("/api/log"))) else { throw BridgeError.badResponse }
+        return r.events
+    }
+    struct TimerInfo: Decodable, Identifiable, Equatable { let id: Int; let left: Int; let devs: Int; let action: Int }
+    private struct TimersResp: Decodable { let timers: [TimerInfo] }
+    func timers() async throws -> [TimerInfo] {
+        guard let r = try? JSONDecoder().decode(TimersResp.self, from: try await send(request("/api/timers"))) else { throw BridgeError.badResponse }
+        return r.timers
+    }
+    /// action: 1 ac, 2 kapat. devs: cihaz bit maskesi.
+    func addTimer(minutes: Int, devs: Int, action: Int) async throws -> [TimerInfo] {
+        let d = try await send(request("/api/timer", method: "POST", query: [URLQueryItem(name: "minutes", value: String(minutes)), URLQueryItem(name: "devs", value: String(devs)), URLQueryItem(name: "action", value: String(action))]))
+        return (try? JSONDecoder().decode(TimersResp.self, from: d))?.timers ?? []
+    }
+    func cancelTimer(id: Int) async throws {
+        _ = try await send(request("/api/timer/cancel", method: "POST", query: [URLQueryItem(name: "id", value: String(id))]))
+    }
+
     // MARK: Zamanli programlar
     private func scheduleDecode(_ d: Data) throws -> ScheduleInfo {
         guard let i = try? JSONDecoder().decode(ScheduleInfo.self, from: d) else { throw BridgeError.badResponse }

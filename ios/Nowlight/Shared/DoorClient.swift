@@ -24,10 +24,11 @@ struct DoorStatus: Decodable, Equatable {
     var time: String
     var bridgeSet: Bool
     var lastResult: String
+    var fw: String?          // kapi yazilimi surumu (eski yazilimda yok)
     var rules: Int?          // eski yazilimda yok: kural destegi yok demek
     var activeRule: Int?
 
-    enum CodingKeys: String, CodingKey { case enabled, pir, motions, motionAge, trigAge, timeSynced, time, bridgeSet, lastResult, rules, activeRule }
+    enum CodingKeys: String, CodingKey { case enabled, pir, motions, motionAge, trigAge, timeSynced, time, bridgeSet, lastResult, rules, activeRule, fw }
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         enabled = try c.decode(Int.self, forKey: .enabled) != 0
@@ -36,6 +37,7 @@ struct DoorStatus: Decodable, Equatable {
         pir = try c.decode(Int.self, forKey: .pir); motions = try c.decode(Int.self, forKey: .motions)
         motionAge = try c.decode(Int.self, forKey: .motionAge); trigAge = try c.decode(Int.self, forKey: .trigAge)
         time = try c.decode(String.self, forKey: .time); lastResult = try c.decode(String.self, forKey: .lastResult)
+        fw = try c.decodeIfPresent(String.self, forKey: .fw)
         rules = try c.decodeIfPresent(Int.self, forKey: .rules)
         activeRule = try c.decodeIfPresent(Int.self, forKey: .activeRule)
     }
@@ -171,6 +173,12 @@ struct DoorClient {
         return String(data: d, encoding: .utf8)?.contains("nowlight-door") == true
     }
     func status() async throws -> DoorStatus { try decode(await send(request("/api/status"))) }
+    /// Kapi otomasyonu olay gunlugu (eski yazilimda yok -> badResponse).
+    func log() async throws -> [LogEvent] {
+        struct R: Decodable { let events: [LogEvent] }
+        guard let r = try? JSONDecoder().decode(R.self, from: try await send(request("/api/log"))) else { throw BridgeError.badResponse }
+        return r.events
+    }
     func configure(_ f: [String: String]) async throws -> DoorStatus { try decode(await send(request("/api/config", method: "POST", form: f))) }
     func test(rule: Int) async throws -> DoorStatus { try decode(await send(request("/api/test", method: "POST", form: ["rule": String(rule)]))) }
     func pushRules(_ rules: [AutomationRule]) async throws -> DoorStatus {
