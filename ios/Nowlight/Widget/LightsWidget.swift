@@ -51,5 +51,12 @@ struct LightsWidget: Widget {
 
 @main
 struct NowlightWidgets: WidgetBundle {
-    var body: some Widget { LightsWidget() }
+    var body: some Widget {
+        LightsWidget()
+        LockScreenLightsWidget()
+        if #available(iOS 18.0, *) {
+            LightControl()
+            AllLightsControl()
+        }
+    }
 }
